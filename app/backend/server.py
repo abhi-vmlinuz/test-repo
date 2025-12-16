@@ -400,13 +400,44 @@ async def login(credentials: UserLogin):
         if user['is_banned']:
             raise HTTPException(status_code=403, detail="Account is banned")
         
-        # Map LMS roles to CTF roles
-        # STUDENT and CTF_USER are regular users who can access student portal
+        # CTF Access Control
+        # Allowed roles for CTF login:
+        # - CTF_USER: Direct CTF platform users
+        # - SUPERADMIN, ADMIN, INSTRUCTOR: Admins can access CTF for management
+        # - STUDENT: Only if they have an active LMS enrollment with a linked CTF course
+        
+        allowed_ctf_roles = ['CTF_USER', 'SUPERADMIN', 'ADMIN', 'INSTRUCTOR']
+        
+        if user['role_type'] not in allowed_ctf_roles:
+            if user['role_type'] == 'STUDENT':
+                # Check if student has any LMS enrollment with linked CTF course
+                has_ctf_access = await conn.fetchval('''
+                    SELECT EXISTS (
+                        SELECT 1 
+                        FROM enrollments e
+                        JOIN courses c ON e."courseId" = c.id
+                        JOIN ctf_courses cc ON cc."lmsCourseId" = c.id
+                        WHERE e."userId" = $1 AND e.status = 'ACTIVE'
+                    )
+                ''', user['id'])
+                
+                if not has_ctf_access:
+                    raise HTTPException(
+                        status_code=403, 
+                        detail="LMS students need to be enrolled in a course with CTF challenges to access this platform. Please enroll through the LMS first."
+                    )
+            else:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="This account does not have CTF platform access."
+                )
+        
+        # Map roles to CTF display roles
         role_map = {
             'SUPERADMIN': 'superadmin', 
             'ADMIN': 'admin', 
             'INSTRUCTOR': 'admin',
-            'STUDENT': 'student',
+            'STUDENT': 'student',  # Students with LMS CTF enrollment
             'CTF_USER': 'user'
         }
         token = create_token(user['id'])
