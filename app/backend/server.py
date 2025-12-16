@@ -95,6 +95,11 @@ class UserResponse(BaseModel):
     score: int = 0
     role: str = "user"
 
+class UserUpdate(BaseModel):
+    """Admin update user (ban/unban, change role)"""
+    is_banned: Optional[bool] = None
+    role: Optional[str] = None
+
 # Public CTF Models
 class Hint(BaseModel):
     text: str
@@ -1192,22 +1197,24 @@ async def admin_get_user_detail(user_id: str, admin: dict = Depends(require_admi
 
 
 @api_router.put("/admin/users/{user_id}")
-async def admin_update_user(user_id: str, is_banned: Optional[bool] = None, role: Optional[str] = None, admin: dict = Depends(require_admin)):
+async def admin_update_user(user_id: str, data: UserUpdate, admin: dict = Depends(require_admin)):
     """Update user (ban/unban, change role)"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        if is_banned is not None:
+        if data.is_banned is not None:
+            # Update BOTH isLocked (CTF uses this) AND isActive (LMS uses this)
+            # is_banned=True means: isLocked=True, isActive=False
             await conn.execute('''
-                UPDATE users SET "isLocked" = $1, "updatedAt" = NOW() WHERE id = $2
-            ''', is_banned, user_id)
+                UPDATE users SET "isLocked" = $1, "isActive" = $2, "updatedAt" = NOW() WHERE id = $3
+            ''', data.is_banned, not data.is_banned, user_id)
         
-        if role is not None:
+        if data.role is not None:
             # Only superadmin can change roles
             if admin.get('role') != 'superadmin':
                 raise HTTPException(status_code=403, detail="Only superadmin can change roles")
             
             role_type_map = {'superadmin': 'SUPERADMIN', 'admin': 'ADMIN', 'user': 'STUDENT'}
-            role_type = role_type_map.get(role, 'STUDENT')
+            role_type = role_type_map.get(data.role, 'STUDENT')
             
             # Get role id
             role_row = await conn.fetchrow('SELECT id FROM "Role" WHERE type = $1', role_type)
