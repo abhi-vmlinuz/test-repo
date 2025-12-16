@@ -1,0 +1,15 @@
+# Dependency directories
+/node_modules
+/zecurx-lms-client/node_modules
+/zecurx-lms-server/node_modules
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+
+# Build/output folders
+/build
+/dist
+
+# Environment variables (critical for security)
+#.env
