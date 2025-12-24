@@ -58,7 +58,7 @@ async def reset_superadmin_password():
         new_hash = ph.hash(new_password)
         
         await conn.execute('''
-            UPDATE users SET password = $1, "updatedAt" = NOW()
+            UPDATE users SET password = $1, "isLocked" = false, "updatedAt" = NOW()
             WHERE id = $2
         ''', new_hash, superadmin['id'])
         

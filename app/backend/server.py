@@ -323,7 +323,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             
             if not user:
                 raise HTTPException(status_code=401, detail="User not found")
-            if user['is_banned']:
+            if user['is_banned'] and user['role_type'] != 'SUPERADMIN':
                 raise HTTPException(status_code=403, detail="Account is banned")
             
             role_map = {
@@ -397,7 +397,7 @@ async def login(credentials: UserLogin):
         if not verify_password(credentials.password, user['password']):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        if user['is_banned']:
+        if user['is_banned'] and user['role_type'] != 'SUPERADMIN':
             raise HTTPException(status_code=403, detail="Account is banned")
         
         # CTF Access Control
