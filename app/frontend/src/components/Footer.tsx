@@ -117,7 +117,7 @@ const Footer = () => {
                                 <span className="text-zinc-500">secure futures.</span>
                             </h2>
                             <div className="flex gap-4">
-                                <Link to="/register">
+                                <Link to="/login">
                                     <button className="px-8 py-4 bg-white text-zinc-950 rounded-full font-bold text-lg hover:bg-zinc-200 transition-colors">
                                         Start Hacking
                                     </button>
