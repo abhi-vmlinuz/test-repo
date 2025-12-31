@@ -34,6 +34,7 @@ import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminSubmissions from '@/pages/admin/AdminSubmissions';
 import AdminStudentPortal from '@/pages/admin/AdminStudentPortal';
 import AdminNotifications from '@/pages/admin/AdminNotifications';
+import AdminNexus from '@/pages/admin/AdminNexus';
 
 // Student Pages
 import StudentLayout from '@/pages/student/StudentLayout';
@@ -138,6 +139,7 @@ function App() {
             <Route path="submissions" element={<AdminSubmissions />} />
             <Route path="notifications" element={<AdminNotifications user={user} />} />
             <Route path="student-portal" element={<AdminStudentPortal user={user} />} />
+            <Route path="nexus" element={<AdminNexus user={user} logout={logout} />} />
           </Route>
 
           {/* Student Portal routes - accessible to all logged-in users */}

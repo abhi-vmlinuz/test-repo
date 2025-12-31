@@ -2503,8 +2503,254 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
 
 
 # ===========================================
+# NEXUS ENGINE INTEGRATION
+# (Container orchestration for CTF challenges)
+# ===========================================
+
+import httpx
+
+NEXUS_ENGINE_URL = os.environ.get('NEXUS_ENGINE_URL', 'http://172.235.15.209:8081')
+
+# Nexus session storage (user_id -> session_id mapping)
+nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}
+
+
+class NexusSessionRequest(BaseModel):
+    challenge_id: str
+
+
+@api_router.post("/docker/start/{challenge_id}")
+async def start_docker_instance(challenge_id: str, current_user: dict = Depends(get_current_user)):
+    """Start a K8s container for the challenge via Nexus Engine"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        challenge = await conn.fetchrow('''
+            SELECT id, title, docker_image, docker_command 
+            FROM ctf_public_challenges WHERE id = $1
+        ''', challenge_id)
+        
+        if not challenge:
+            raise HTTPException(status_code=404, detail="Challenge not found")
+        
+        if not challenge['docker_image']:
+            raise HTTPException(status_code=400, detail="This challenge does not have a container")
+        
+        user_id = current_user['id']
+        
+        # Check for existing session
+        if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
+            existing_session_id = nexus_sessions[user_id][challenge_id]
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(
+                        f"{NEXUS_ENGINE_URL}/api/v1/sessions/{existing_session_id}",
+                        timeout=10.0
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        if data.get('status') == 'running':
+                            return {
+                                "session_id": data['session_id'],
+                                "target_ip": data['target_ip'],
+                                "expires_at": data['expires_at'],
+                                "status": "running",
+                                "message": "Existing instance found"
+                            }
+            except:
+                pass
+        
+        # Spawn new session via Nexus
+        try:
+            async with httpx.AsyncClient() as client:
+                # Create challenge in Nexus if needed
+                nexus_challenge = {
+                    "name": challenge['title'],
+                    "category": "CTF",
+                    "difficulty": "Medium",
+                    "description": f"Challenge: {challenge['title']}",
+                    "max_score": 100,
+                    "flag": "PLACEHOLDER",
+                    "ttl_minutes": 60,
+                    "ports": [22, 80, 443, 3000, 8000, 8080],
+                    "image_url": challenge['docker_image']
+                }
+                
+                check_resp = await client.get(
+                    f"{NEXUS_ENGINE_URL}/api/v1/challenges/{challenge_id}",
+                    timeout=10.0
+                )
+                
+                if check_resp.status_code != 200:
+                    create_resp = await client.post(
+                        f"{NEXUS_ENGINE_URL}/api/v1/challenges",
+                        json=nexus_challenge,
+                        timeout=10.0
+                    )
+                    nexus_chal_id = create_resp.json().get('id', challenge_id)
+                else:
+                    nexus_chal_id = challenge_id
+                
+                spawn_resp = await client.post(
+                    f"{NEXUS_ENGINE_URL}/api/v1/sessions",
+                    json={"challenge_id": nexus_chal_id},
+                    headers={"X-User-ID": user_id},
+                    timeout=180.0
+                )
+                
+                if spawn_resp.status_code != 201:
+                    error_detail = spawn_resp.json().get('error', 'Unknown error')
+                    raise HTTPException(status_code=503, detail=f"Nexus error: {error_detail}")
+                
+                session_data = spawn_resp.json()
+                
+                if user_id not in nexus_sessions:
+                    nexus_sessions[user_id] = {}
+                nexus_sessions[user_id][challenge_id] = session_data['session_id']
+                
+                return {
+                    "session_id": session_data['session_id'],
+                    "target_ip": session_data['target_ip'],
+                    "expires_at": session_data['expires_at'],
+                    "status": "running",
+                    "message": "Container started successfully"
+                }
+                
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="Nexus timeout - container may still be starting")
+        except httpx.RequestError as e:
+            logger.error(f"Nexus connection error: {e}")
+            raise HTTPException(status_code=503, detail="Nexus Engine unavailable")
+
+
+@api_router.delete("/docker/stop/{session_id}")
+async def stop_docker_instance(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Stop a running container via Nexus Engine"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                timeout=30.0
+            )
+            if resp.status_code == 200:
+                user_id = current_user['id']
+                if user_id in nexus_sessions:
+                    for chal_id, sess_id in list(nexus_sessions[user_id].items()):
+                        if sess_id == session_id:
+                            del nexus_sessions[user_id][chal_id]
+                            break
+                return {"message": "Container stopped", "session_id": session_id}
+            else:
+                raise HTTPException(status_code=resp.status_code, detail="Failed to stop container")
+    except httpx.RequestError as e:
+        logger.error(f"Nexus connection error: {e}")
+        raise HTTPException(status_code=503, detail="Nexus Engine unavailable")
+
+
+@api_router.post("/docker/extend/{session_id}")
+async def extend_docker_instance(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Extend container TTL by 15 minutes"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/extend",
+                json={"extra_minutes": 15},
+                timeout=10.0
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                raise HTTPException(status_code=resp.status_code, detail="Failed to extend session")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=503, detail="Nexus Engine unavailable")
+
+
+@api_router.get("/docker/status/{session_id}")
+async def get_docker_status(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Get container status and connection info"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                timeout=10.0
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            elif resp.status_code == 404:
+                raise HTTPException(status_code=404, detail="Session not found or expired")
+            else:
+                raise HTTPException(status_code=resp.status_code, detail="Failed to get status")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=503, detail="Nexus Engine unavailable")
+
+
+# Nexus Admin Endpoints
+@api_router.get("/admin/nexus/sessions")
+async def admin_nexus_sessions(current_user: dict = Depends(require_admin)):
+    """Get all active Nexus sessions (admin only)"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/sessions", timeout=10.0)
+            return resp.json()
+    except:
+        return {"sessions": []}
+
+
+@api_router.get("/admin/nexus/stats")
+async def admin_nexus_stats(current_user: dict = Depends(require_admin)):
+    """Get Nexus Engine stats (admin only)"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/stats", timeout=10.0)
+            return resp.json()
+    except:
+        return {"active_sessions": 0, "total_pods": 0}
+
+
+@api_router.get("/admin/nexus/pricing")
+async def admin_nexus_pricing(
+    hours: float = 1.0,
+    concurrent_users: int = 10,
+    current_user: dict = Depends(require_admin)
+):
+    """
+    Calculate estimated costs for Nexus/GKE usage.
+    
+    Per challenge instance (GKE Autopilot asia-south1):
+    - 0.25 vCPU = $0.0079/hour
+    - 0.5GB RAM = $0.00168/hour  
+    - 1 LoadBalancer = $0.025/hour
+    - Total: ~$0.035/hour per instance
+    """
+    vcpu_cost = 0.25 * 0.0316
+    memory_cost = 0.5 * 0.00336
+    lb_cost = 0.025
+    instance_cost_per_hour = vcpu_cost + memory_cost + lb_cost
+    
+    total_instance_hours = hours * concurrent_users
+    total_cost = total_instance_hours * instance_cost_per_hour
+    monthly_hours = hours * concurrent_users * 30
+    monthly_cost = monthly_hours * instance_cost_per_hour
+    
+    return {
+        "pricing": {
+            "per_instance_per_hour": round(instance_cost_per_hour, 4),
+            "breakdown": {"vcpu_0.25": round(vcpu_cost, 4), "memory_0.5gb": round(memory_cost, 5), "loadbalancer": lb_cost}
+        },
+        "estimate": {
+            "hours": hours, "concurrent_users": concurrent_users,
+            "total_instance_hours": total_instance_hours, "total_cost_usd": round(total_cost, 2)
+        },
+        "monthly_projection": {
+            "assuming_daily_usage": True, "monthly_instance_hours": monthly_hours, "monthly_cost_usd": round(monthly_cost, 2)
+        },
+        "note": "Actual costs may vary. GKE Autopilot charges only for running pods."
+    }
+
+
+# ===========================================
 # APPLICATION LIFECYCLE
 # ===========================================
+
 
 @app.on_event("startup")
 async def startup():

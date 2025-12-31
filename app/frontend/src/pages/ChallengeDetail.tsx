@@ -261,21 +261,49 @@ const ChallengeDetail = ({ user, logout }) => {
                         <span>STATUS</span>
                         <span className="text-emerald-400 font-bold flex items-center gap-2">
                           <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                          {dockerInstance.status}
+                          {dockerInstance.status || 'running'}
                         </span>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div className="grid grid-cols-1 gap-4 mt-4">
                         <div>
-                          <p className="text-gray-500 text-xs uppercase mb-1">Host</p>
-                          <p className="text-white select-all cursor-text">{user.username}-lab.zecurx.io</p>
+                          <p className="text-gray-500 text-xs uppercase mb-1">Target IP</p>
+                          <div className="flex items-center gap-2">
+                            <p 
+                              className="text-green-400 select-all cursor-pointer hover:text-green-300 transition-colors text-lg font-bold"
+                              onClick={() => {
+                                navigator.clipboard.writeText(dockerInstance.target_ip);
+                                toast.success('IP copied to clipboard!');
+                              }}
+                            >
+                              {dockerInstance.target_ip}
+                            </p>
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(dockerInstance.target_ip);
+                                toast.success('IP copied to clipboard!');
+                              }}
+                              className="text-gray-500 hover:text-white transition-colors"
+                            >
+                              📋
+                            </button>
+                          </div>
                         </div>
                         <div>
-                          <p className="text-gray-500 text-xs uppercase mb-1">Port</p>
-                          <p className="text-white select-all cursor-text">{dockerInstance.port || 'TCP/8080'}</p>
+                          <p className="text-gray-500 text-xs uppercase mb-1">Session ID</p>
+                          <p className="text-gray-400 text-xs">{dockerInstance.session_id}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs uppercase mb-1">Expires</p>
+                          <p className="text-amber-400 text-sm">{new Date(dockerInstance.expires_at).toLocaleTimeString()}</p>
                         </div>
                       </div>
                     </div>
-                    <p className="text-xs text-center text-gray-500 mt-4">This instance will automatically terminate after 30 minutes of inactivity.</p>
+                    <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-4">
+                      <p className="text-emerald-400 text-sm font-mono">
+                        💡 Use <span className="bg-black/50 px-1 rounded">nmap {dockerInstance.target_ip}</span> to discover services
+                      </p>
+                    </div>
+                    <p className="text-xs text-center text-gray-500 mt-4">This instance will automatically terminate after 60 minutes.</p>
                   </div>
                 )}
               </div>
