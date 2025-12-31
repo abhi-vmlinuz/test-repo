@@ -2747,6 +2747,41 @@ async def admin_nexus_pricing(
     }
 
 
+@api_router.get("/admin/nexus/billing")
+async def admin_nexus_billing(current_user: dict = Depends(require_admin)):
+    """
+    Get billing history from database.
+    Returns usage data grouped by day for the last 7 days.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Try to fetch from nexus_usage table if it exists
+        try:
+            rows = await conn.fetch('''
+                SELECT 
+                    DATE(started_at) as date,
+                    COALESCE(SUM(estimated_cost), 0) as cost,
+                    COUNT(*) as sessions
+                FROM nexus_usage
+                WHERE started_at >= NOW() - INTERVAL '7 days'
+                GROUP BY DATE(started_at)
+                ORDER BY date DESC
+            ''')
+            history = [
+                {
+                    "date": row['date'].strftime('%b %d') if row['date'] else '',
+                    "cost": float(row['cost']) if row['cost'] else 0,
+                    "sessions": int(row['sessions']) if row['sessions'] else 0
+                }
+                for row in rows
+            ]
+            return {"history": history}
+        except Exception as e:
+            # Table doesn't exist yet or other error - return empty
+            logger.info(f"Billing data not available: {e}")
+            return {"history": []}
+
+
 # ===========================================
 # APPLICATION LIFECYCLE
 # ===========================================

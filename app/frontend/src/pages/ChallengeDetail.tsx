@@ -159,7 +159,7 @@ const ChallengeDetail = ({ user, logout }) => {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 bg-zinc-900 rounded-xl animate-spin" />
-          <p className="text-gray-500 font-mono text-sm">Decryping Mission Data...</p>
+          <p className="text-gray-500 font-mono text-sm">Loading Challenge...</p>
         </div>
       </div>
     );
@@ -196,7 +196,7 @@ const ChallengeDetail = ({ user, logout }) => {
                 <div className="w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
                   <CheckCircle2 className="w-3 h-3 text-white" />
                 </div>
-                <span className="text-emerald-800 font-bold text-sm tracking-wide uppercase">Mission Complete</span>
+                <span className="text-emerald-800 font-bold text-sm tracking-wide uppercase">Challenge Complete</span>
                 <span className="text-emerald-600 font-mono font-bold ml-auto">+{pointsEarned} PTS</span>
               </div>
             )}
@@ -204,7 +204,7 @@ const ChallengeDetail = ({ user, logout }) => {
             <div className="p-8">
               <div className="flex justify-between items-start mb-4">
                 <h1 className="text-3xl font-extrabold text-zinc-900 tracking-tight leading-tight">{challenge.title}</h1>
-                <Badge className={`${getDifficultyStyle(challenge.difficulty)} px-3 py-1 font-bold uppercase tracking-wider border`}>
+                <Badge variant="outline" className={`${getDifficultyStyle(challenge.difficulty)} px-3 py-1 font-bold uppercase tracking-wider border`}>
                   {challenge.difficulty}
                 </Badge>
               </div>
@@ -221,8 +221,10 @@ const ChallengeDetail = ({ user, logout }) => {
                 </div>
               </div>
 
-              <div className="prose prose-sm max-w-none text-gray-600">
-                <pre className="whitespace-pre-wrap font-sans text-base leading-relaxed bg-transparent p-0 text-gray-600">{challenge.description}</pre>
+              <div className="prose prose-sm max-w-none">
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
+                  <pre className="whitespace-pre-wrap font-sans text-base leading-relaxed bg-transparent p-0 m-0 text-gray-600">{challenge.description}</pre>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -268,7 +270,7 @@ const ChallengeDetail = ({ user, logout }) => {
                         <div>
                           <p className="text-gray-500 text-xs uppercase mb-1">Target IP</p>
                           <div className="flex items-center gap-2">
-                            <p 
+                            <p
                               className="text-green-400 select-all cursor-pointer hover:text-green-300 transition-colors text-lg font-bold"
                               onClick={() => {
                                 navigator.clipboard.writeText(dockerInstance.target_ip);
@@ -277,7 +279,7 @@ const ChallengeDetail = ({ user, logout }) => {
                             >
                               {dockerInstance.target_ip}
                             </p>
-                            <button 
+                            <button
                               onClick={() => {
                                 navigator.clipboard.writeText(dockerInstance.target_ip);
                                 toast.success('IP copied to clipboard!');
@@ -422,7 +424,7 @@ const ChallengeDetail = ({ user, logout }) => {
             <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Lightbulb className="w-5 h-5 text-amber-500" />
-                <h2 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">Intelligence</h2>
+                <h2 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">Hints</h2>
               </div>
             </div>
 
@@ -435,13 +437,7 @@ const ChallengeDetail = ({ user, logout }) => {
                       <div key={index} className="p-6">
                         <div className="flex items-center justify-between mb-3">
                           <span className="font-bold text-sm text-gray-700">Hint #{index + 1}</span>
-                          {isUnlocked ? (
-                            <Badge className="bg-yellow-50 text-yellow-600 border-yellow-200 hover:bg-yellow-100">Unlocked</Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-zinc-200 text-zinc-500">
-                              Cost: {hint.cost} PTS
-                            </Badge>
-                          )}
+                          <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100">Free</Badge>
                         </div>
 
                         {isUnlocked ? (
@@ -454,7 +450,7 @@ const ChallengeDetail = ({ user, logout }) => {
                             className="w-full border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50"
                             onClick={() => handleUnlockHint(index)}
                           >
-                            Decrypt Hint
+                            Show Hint
                           </Button>
                         )}
                       </div>
@@ -463,21 +459,40 @@ const ChallengeDetail = ({ user, logout }) => {
                 </div>
               ) : (
                 <div className="p-8 text-center">
-                  <p className="text-gray-400 text-sm italic">No intelligence available for this mission.</p>
+                  <p className="text-gray-400 text-sm italic">No hints available for this challenge.</p>
                 </div>
               )}
             </div>
           </div>
 
+          {/* Challenge IP for Docker challenges */}
+          {challenge.docker_image && dockerInstance && (
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 shadow-sm p-6">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Challenge IP</h3>
+              <div
+                className="bg-black rounded-lg p-4 cursor-pointer hover:bg-zinc-800 transition-colors"
+                onClick={() => {
+                  navigator.clipboard.writeText(dockerInstance.target_ip);
+                  toast.success('IP copied to clipboard!');
+                }}
+              >
+                <p className="text-green-400 font-mono text-xl font-bold text-center">{dockerInstance.target_ip}</p>
+                <p className="text-gray-500 text-xs text-center mt-2">Click to copy</p>
+              </div>
+            </div>
+          )}
+
           {/* Tags Card */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Mission Metadata</h3>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Challenge Tags</h3>
             <div className="flex flex-wrap gap-2">
+              {challenge.category_name && (
+                <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
+                  {challenge.category_name}
+                </Badge>
+              )}
               <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
-                Binary Exploitation
-              </Badge>
-              <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
-                Linux
+                {challenge.difficulty}
               </Badge>
               {challenge.docker_image && (
                 <Badge variant="secondary" className="bg-blue-50 text-blue-600 hover:bg-blue-100">

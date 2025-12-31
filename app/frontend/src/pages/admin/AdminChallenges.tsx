@@ -131,17 +131,41 @@ const AdminChallenges = () => {
             flag: formData.has_main_flag ? formData.flag : '',
             docker_image: formData.has_docker ? formData.docker_image : null,
             docker_command: formData.has_docker ? formData.docker_command : null,
+            docker_port: formData.has_docker ? formData.docker_port : null,
+            github_repo: formData.has_docker && formData.docker_source === 'github' ? formData.github_repo : null,
+            github_path: formData.has_docker && formData.docker_source === 'github' ? formData.github_path : null,
         };
         delete submitData.has_docker;
         delete submitData.has_main_flag;
+        delete submitData.docker_source;
+        delete submitData.uploadedFile;
 
         try {
-            if (editingChallenge) {
-                await axios.put(`${API}/admin/challenges/${editingChallenge.id}`, submitData);
-                toast.success('Challenge updated');
+            // If there's an uploaded file, we need to upload it separately
+            if (formData.has_docker && formData.docker_source === 'upload' && formData.uploadedFile) {
+                const fileData = new FormData();
+                fileData.append('file', formData.uploadedFile);
+                fileData.append('challenge_data', JSON.stringify(submitData));
+
+                if (editingChallenge) {
+                    await axios.put(`${API}/admin/challenges/${editingChallenge.id}/upload`, fileData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                } else {
+                    await axios.post(`${API}/admin/challenges/upload`, fileData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                }
+                toast.success('Challenge saved with Docker files');
             } else {
-                await axios.post(`${API}/admin/challenges`, submitData);
-                toast.success('Challenge created');
+                // Regular JSON save
+                if (editingChallenge) {
+                    await axios.put(`${API}/admin/challenges/${editingChallenge.id}`, submitData);
+                    toast.success('Challenge updated');
+                } else {
+                    await axios.post(`${API}/admin/challenges`, submitData);
+                    toast.success('Challenge created');
+                }
             }
             setShowModal(false);
             fetchData();

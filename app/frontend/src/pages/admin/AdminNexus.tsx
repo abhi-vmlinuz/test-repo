@@ -19,21 +19,11 @@ const AdminNexus = () => {
     const [pricing, setPricing] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
+    const [billingData, setBillingData] = useState<{ date: string; cost: number; sessions: number }[]>([]);
 
     // Pricing calculator inputs
     const [hours, setHours] = useState(8);
     const [concurrent, setConcurrent] = useState(50);
-
-    // Mock billing data for chart
-    const [billingData] = useState([
-        { date: 'Dec 25', cost: 12.50, sessions: 45 },
-        { date: 'Dec 26', cost: 18.20, sessions: 62 },
-        { date: 'Dec 27', cost: 15.80, sessions: 55 },
-        { date: 'Dec 28', cost: 22.40, sessions: 78 },
-        { date: 'Dec 29', cost: 8.90, sessions: 32 },
-        { date: 'Dec 30', cost: 14.60, sessions: 50 },
-        { date: 'Dec 31', cost: 4.20, sessions: 15 },
-    ]);
 
     useEffect(() => {
         fetchData();
@@ -42,12 +32,14 @@ const AdminNexus = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, sessionsRes] = await Promise.all([
+            const [statsRes, sessionsRes, billingRes] = await Promise.all([
                 axios.get(`${API}/admin/nexus/stats`).catch(() => ({ data: { active_sessions: 0, total_pods: 0 } })),
-                axios.get(`${API}/admin/nexus/sessions`).catch(() => ({ data: { sessions: [] } }))
+                axios.get(`${API}/admin/nexus/sessions`).catch(() => ({ data: { sessions: [] } })),
+                axios.get(`${API}/admin/nexus/billing`).catch(() => ({ data: { history: [] } }))
             ]);
             setStats(statsRes.data);
             setSessions(sessionsRes.data.sessions || []);
+            setBillingData(billingRes.data.history || []);
         } catch (error) {
             console.error('Failed to fetch Nexus data:', error);
         } finally {
@@ -131,8 +123,8 @@ const AdminNexus = () => {
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.id
-                                ? 'bg-white text-zinc-900 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'bg-white text-zinc-900 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         <tab.icon className="w-4 h-4" />
@@ -220,19 +212,29 @@ const AdminNexus = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex items-end gap-3 h-48">
-                                {billingData.map((day, idx) => (
-                                    <div key={idx} className="flex-1 flex flex-col items-center">
-                                        <div className="text-xs text-gray-500 mb-2">${day.cost}</div>
-                                        <div
-                                            className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all hover:from-blue-600 hover:to-blue-500"
-                                            style={{ height: `${(day.cost / maxCost) * 140}px` }}
-                                        />
-                                        <div className="text-xs text-gray-400 mt-2">{day.date.split(' ')[1]}</div>
-                                        <div className="text-[10px] text-gray-400">{day.sessions} sessions</div>
+                            {billingData.length > 0 ? (
+                                <div className="flex items-end gap-3 h-48">
+                                    {billingData.map((day, idx) => (
+                                        <div key={idx} className="flex-1 flex flex-col items-center">
+                                            <div className="text-xs text-gray-500 mb-2">${day.cost}</div>
+                                            <div
+                                                className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all hover:from-blue-600 hover:to-blue-500"
+                                                style={{ height: `${maxCost > 0 ? (day.cost / maxCost) * 140 : 0}px` }}
+                                            />
+                                            <div className="text-xs text-gray-400 mt-2">{day.date?.split(' ')[1] || day.date}</div>
+                                            <div className="text-[10px] text-gray-400">{day.sessions} sessions</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="h-48 flex items-center justify-center">
+                                    <div className="text-center">
+                                        <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                                        <p className="text-gray-400">No usage data yet</p>
+                                        <p className="text-sm text-gray-300">Data will appear when containers are used</p>
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -442,30 +444,40 @@ const AdminNexus = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-3">
-                                {billingData.map((day, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                        <div>
-                                            <p className="font-medium text-zinc-900">{day.date}</p>
-                                            <p className="text-sm text-gray-500">{day.sessions} sessions</p>
-                                        </div>
-                                        <p className="text-lg font-semibold text-zinc-900">${day.cost.toFixed(2)}</p>
+                            {billingData.length > 0 ? (
+                                <>
+                                    <div className="space-y-3">
+                                        {billingData.map((day, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                <div>
+                                                    <p className="font-medium text-zinc-900">{day.date}</p>
+                                                    <p className="text-sm text-gray-500">{day.sessions} sessions</p>
+                                                </div>
+                                                <p className="text-lg font-semibold text-zinc-900">${day.cost.toFixed(2)}</p>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
 
-                            <div className="mt-6 p-4 bg-zinc-900 rounded-lg text-white">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-gray-300">Total This Period</p>
-                                        <p className="text-3xl font-bold">${totalBillingCost.toFixed(2)}</p>
+                                    <div className="mt-6 p-4 bg-zinc-900 rounded-lg text-white">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-gray-300">Total This Period</p>
+                                                <p className="text-3xl font-bold">${totalBillingCost.toFixed(2)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-300">Total Sessions</p>
+                                                <p className="text-2xl font-bold">{totalSessions}</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-sm text-gray-300">Total Sessions</p>
-                                        <p className="text-2xl font-bold">{totalSessions}</p>
-                                    </div>
+                                </>
+                            ) : (
+                                <div className="py-8 text-center">
+                                    <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                                    <p className="text-gray-400">No billing data yet</p>
+                                    <p className="text-sm text-gray-300">Usage history will appear here</p>
                                 </div>
-                            </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
