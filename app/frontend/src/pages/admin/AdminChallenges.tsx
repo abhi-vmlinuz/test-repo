@@ -23,8 +23,13 @@ const AdminChallenges = () => {
         has_docker: false,
         docker_image: '',
         docker_command: '',
-        hints: [],
-        questions: [], // Multiple questions support
+        docker_source: 'image' as 'image' | 'upload' | 'github',
+        docker_port: null as number | null,
+        uploadedFile: null as File | null,
+        github_repo: '',
+        github_path: '',
+        hints: [] as { text: string; cost: number }[],
+        questions: [] as { question: string; flag: string; points: number }[], // Multiple questions support
         is_published: true
     });
 
@@ -79,6 +84,11 @@ const AdminChallenges = () => {
             has_docker: false,
             docker_image: '',
             docker_command: '',
+            docker_source: 'image',
+            docker_port: null,
+            uploadedFile: null,
+            github_repo: '',
+            github_path: '',
             hints: [],
             questions: [],
             is_published: true
@@ -99,6 +109,11 @@ const AdminChallenges = () => {
             has_docker: !!(challenge.docker_image),
             docker_image: challenge.docker_image || '',
             docker_command: challenge.docker_command || '',
+            docker_source: 'image',
+            docker_port: challenge.docker_port || null,
+            uploadedFile: null,
+            github_repo: challenge.github_repo || '',
+            github_path: challenge.github_path || '',
             hints: challenge.hints || [],
             questions: challenge.questions || [],
             is_published: challenge.is_published !== false
@@ -451,24 +466,185 @@ const AdminChallenges = () => {
 
                                 {/* Docker fields - only show if toggle is on */}
                                 {formData.has_docker && (
-                                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-                                        <div>
-                                            <label className="block text-sm text-gray-500 mb-1">Docker Image</label>
-                                            <Input
-                                                type="text"
-                                                value={formData.docker_image}
-                                                onChange={(e) => setFormData(prev => ({ ...prev, docker_image: e.target.value }))}
-                                                placeholder="vulnerables/web-dvwa"
-                                            />
+                                    <div className="pt-4 border-t border-gray-200 space-y-4">
+                                        {/* Source Type Tabs */}
+                                        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, docker_source: 'image' }))}
+                                                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${(!formData.docker_source || formData.docker_source === 'image')
+                                                    ? 'bg-white text-gray-900 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
+                                                    }`}
+                                            >
+                                                🐳 Docker Image
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, docker_source: 'upload' }))}
+                                                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${formData.docker_source === 'upload'
+                                                    ? 'bg-white text-gray-900 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
+                                                    }`}
+                                            >
+                                                📁 Upload Files
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData(prev => ({ ...prev, docker_source: 'github' }))}
+                                                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${formData.docker_source === 'github'
+                                                    ? 'bg-white text-gray-900 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
+                                                    }`}
+                                            >
+                                                🐙 GitHub
+                                            </button>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm text-gray-500 mb-1">Docker Command</label>
+
+                                        {/* Docker Image Source */}
+                                        {(!formData.docker_source || formData.docker_source === 'image') && (
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm text-gray-500 mb-1">Docker Image</label>
+                                                    <Input
+                                                        type="text"
+                                                        value={formData.docker_image}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, docker_image: e.target.value }))}
+                                                        placeholder="vulnerables/web-dvwa"
+                                                    />
+                                                    <p className="text-xs text-gray-400 mt-1">Public Docker Hub or GHCR image</p>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm text-gray-500 mb-1">Docker Command</label>
+                                                    <Input
+                                                        type="text"
+                                                        value={formData.docker_command}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, docker_command: e.target.value }))}
+                                                        placeholder="bash -c 'sleep 3600'"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* File Upload Source */}
+                                        {formData.docker_source === 'upload' && (
+                                            <div className="space-y-4">
+                                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors cursor-pointer">
+                                                    <input
+                                                        type="file"
+                                                        accept=".zip"
+                                                        className="hidden"
+                                                        id="docker-upload"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                setFormData(prev => ({ ...prev, uploadedFile: file }));
+                                                                toast.success(`Selected: ${file.name}`);
+                                                            }
+                                                        }}
+                                                    />
+                                                    <label htmlFor="docker-upload" className="cursor-pointer">
+                                                        {formData.uploadedFile ? (
+                                                            <>
+                                                                <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                                                    <span className="text-3xl">✅</span>
+                                                                </div>
+                                                                <p className="font-medium text-gray-900">{formData.uploadedFile.name}</p>
+                                                                <p className="text-sm text-gray-500 mt-1">Click to replace</p>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                                                    <span className="text-3xl">📁</span>
+                                                                </div>
+                                                                <p className="font-medium text-gray-900">Upload Challenge Files</p>
+                                                                <p className="text-sm text-gray-500 mt-1">ZIP file containing Dockerfile and resources</p>
+                                                                <p className="text-xs text-gray-400 mt-3">Max 50MB • Requires Dockerfile in root</p>
+                                                            </>
+                                                        )}
+                                                    </label>
+                                                </div>
+                                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                                                    <p className="text-xs text-blue-700">
+                                                        <strong>ZIP Structure:</strong> Your ZIP should contain a Dockerfile at the root level,
+                                                        along with any source files, config, or data the challenge needs.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* GitHub Source */}
+                                        {formData.docker_source === 'github' && (
+                                            <div className="space-y-4">
+                                                {/* GitHub Connect Status */}
+                                                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center">
+                                                                <span className="text-xl">🐙</span>
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-medium text-gray-900">GitHub Integration</p>
+                                                                <p className="text-sm text-gray-500">Connect to import challenges from repos</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toast.info('GitHub OAuth coming soon!')}
+                                                            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition-colors"
+                                                        >
+                                                            Connect GitHub
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Repo Browser Placeholder */}
+                                                <div className="border border-gray-200 rounded-xl p-6 text-center">
+                                                    <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                                        <span className="text-3xl text-gray-400">🔒</span>
+                                                    </div>
+                                                    <p className="text-gray-500">Connect your GitHub account to browse repos</p>
+                                                    <p className="text-xs text-gray-400 mt-2">
+                                                        Once connected, you can select any repo and folder containing a Dockerfile
+                                                    </p>
+                                                </div>
+
+                                                {/* Manual GitHub URL fallback */}
+                                                <div className="pt-4 border-t border-gray-200">
+                                                    <p className="text-sm text-gray-600 mb-2 font-medium">Or enter GitHub repo URL directly:</p>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <Input
+                                                                type="text"
+                                                                value={formData.github_repo || ''}
+                                                                onChange={(e) => setFormData(prev => ({ ...prev, github_repo: e.target.value }))}
+                                                                placeholder="https://github.com/user/repo"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Input
+                                                                type="text"
+                                                                value={formData.github_path || ''}
+                                                                onChange={(e) => setFormData(prev => ({ ...prev, github_path: e.target.value }))}
+                                                                placeholder="challenges/sqli (optional)"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs text-gray-400 mt-2">Public repos only. For private repos, connect GitHub above.</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Port Configuration (always show for Docker) */}
+                                        <div className="pt-4 border-t border-gray-200">
+                                            <label className="block text-sm text-gray-500 mb-1">Exposed Port (optional)</label>
                                             <Input
-                                                type="text"
-                                                value={formData.docker_command}
-                                                onChange={(e) => setFormData(prev => ({ ...prev, docker_command: e.target.value }))}
-                                                placeholder="bash -c 'sleep 3600'"
+                                                type="number"
+                                                value={formData.docker_port || ''}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, docker_port: parseInt(e.target.value) || null }))}
+                                                placeholder="80"
                                             />
+                                            <p className="text-xs text-gray-400 mt-1">Main port players connect to. Leave empty for auto-detect.</p>
                                         </div>
                                     </div>
                                 )}
