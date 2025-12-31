@@ -297,7 +297,7 @@ const AdminChallenges = () => {
                                     {getCategoryName(challenge.category_id)}
                                 </td>
                                 <td className="px-6 py-4">
-                                    <Badge className={getDifficultyStyle(challenge.difficulty)}>
+                                    <Badge className={getDifficultyStyle(challenge.difficulty)} variant={undefined}>
                                         {challenge.difficulty}
                                     </Badge>
                                 </td>
