@@ -1484,18 +1484,8 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
         except Exception as e:
             logger.warning(f"Failed to fetch from GHCR API: {e}")
     
-    # 3. Add some popular public images as suggestions
-    popular_images = [
-        {'image': 'vulnerables/web-dvwa', 'source': 'dockerhub', 'label': 'DVWA (Damn Vulnerable Web App)'},
-        {'image': 'bkimminich/juice-shop', 'source': 'dockerhub', 'label': 'OWASP Juice Shop'},
-        {'image': 'citizenstig/nowasp', 'source': 'dockerhub', 'label': 'OWASP Mutillidae II'},
-        {'image': 'webgoat/webgoat', 'source': 'dockerhub', 'label': 'OWASP WebGoat'},
-    ]
-    
-    for img in popular_images:
-        if not any(i['image'] == img['image'] for i in images):
-            images.append(img)
-    
+    # Return only our own images (GHCR + database)
+    # No third-party Docker Hub images - admins should upload their own
     return {
         'images': images,
         'ghcr_connected': bool(ghcr_token),

@@ -60,6 +60,27 @@ const AdminChallenges = () => {
         }
     };
 
+    // Fetch docker images when modal opens with Docker enabled
+    const fetchDockerImages = async () => {
+        if (dockerImages.length > 0) return; // Already loaded
+        setLoadingImages(true);
+        try {
+            const res = await axios.get(`${API}/admin/docker-images`);
+            setDockerImages(res.data.images || []);
+        } catch (e) {
+            console.error('Failed to fetch docker images');
+        } finally {
+            setLoadingImages(false);
+        }
+    };
+
+    // Load images when Docker tab is active
+    useEffect(() => {
+        if (showModal && formData.has_docker) {
+            fetchDockerImages();
+        }
+    }, [showModal, formData.has_docker]);
+
     const filteredChallenges = challenges.filter(c =>
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -545,52 +566,75 @@ const AdminChallenges = () => {
                                         {/* Docker Image Source */}
                                         {(!formData.docker_source || formData.docker_source === 'image') && (
                                             <div className="space-y-4">
-                                                {/* Image Library */}
+                                                {/* Image Library from GHCR */}
                                                 <div>
-                                                    <label className="block text-sm text-gray-500 mb-2">Select from library or enter custom image</label>
-
-                                                    {/* Quick select common images */}
-                                                    <div className="grid grid-cols-2 gap-2 mb-3">
-                                                        {[
-                                                            { image: 'vulnerables/web-dvwa', label: 'DVWA' },
-                                                            { image: 'bkimminich/juice-shop', label: 'Juice Shop' },
-                                                            { image: 'webgoat/webgoat', label: 'WebGoat' },
-                                                            { image: 'citizenstig/nowasp', label: 'Mutillidae' },
-                                                        ].map(img => (
-                                                            <button
-                                                                key={img.image}
-                                                                type="button"
-                                                                onClick={() => setFormData(prev => ({ ...prev, docker_image: img.image }))}
-                                                                className={`p-2 text-xs rounded-lg border transition-all ${formData.docker_image === img.image
-                                                                        ? 'border-gray-900 bg-gray-900 text-white'
-                                                                        : 'border-gray-200 hover:border-gray-400'
-                                                                    }`}
-                                                            >
-                                                                📦 {img.label}
-                                                            </button>
-                                                        ))}
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <label className="block text-sm text-gray-500">Select from your image library</label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={async () => {
+                                                                setLoadingImages(true);
+                                                                try {
+                                                                    const res = await axios.get(`${API}/admin/docker-images`);
+                                                                    setDockerImages(res.data.images || []);
+                                                                    if (res.data.images?.length === 0) {
+                                                                        toast.info('No images found. Upload a challenge to create one.');
+                                                                    }
+                                                                } catch (e) {
+                                                                    toast.error('Failed to fetch images');
+                                                                } finally {
+                                                                    setLoadingImages(false);
+                                                                }
+                                                            }}
+                                                            className="text-xs text-gray-500 hover:text-gray-700"
+                                                        >
+                                                            🔄 Refresh
+                                                        </button>
                                                     </div>
+
+                                                    {/* Image library grid */}
+                                                    {loadingImages ? (
+                                                        <div className="text-center py-4 text-gray-400">Loading images...</div>
+                                                    ) : dockerImages.length > 0 ? (
+                                                        <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto mb-3">
+                                                            {dockerImages.map((img, idx) => (
+                                                                <button
+                                                                    key={idx}
+                                                                    type="button"
+                                                                    onClick={() => setFormData(prev => ({ ...prev, docker_image: img.image }))}
+                                                                    className={`p-3 text-left text-sm rounded-lg border transition-all ${formData.docker_image === img.image
+                                                                        ? 'border-gray-900 bg-gray-900 text-white'
+                                                                        : 'border-gray-200 hover:border-gray-400 bg-white'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="font-medium truncate">📦 {img.label || img.image.split('/').pop()}</span>
+                                                                        <span className={`text-xs px-2 py-0.5 rounded ${img.source === 'ghcr' ? 'bg-purple-100 text-purple-700' :
+                                                                            img.source === 'database' ? 'bg-blue-100 text-blue-700' :
+                                                                                'bg-gray-100 text-gray-600'
+                                                                            }`}>
+                                                                            {img.source === 'ghcr' ? 'GHCR' : img.source === 'database' ? 'In Use' : 'Public'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="text-xs opacity-70 truncate mt-1">{img.image}</p>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center py-6 bg-gray-50 rounded-lg mb-3">
+                                                            <p className="text-sm text-gray-500">No images in library yet</p>
+                                                            <p className="text-xs text-gray-400 mt-1">Upload a ZIP file to create your first image</p>
+                                                        </div>
+                                                    )}
 
                                                     {/* Custom image input */}
                                                     <Input
                                                         type="text"
                                                         value={formData.docker_image}
                                                         onChange={(e) => setFormData(prev => ({ ...prev, docker_image: e.target.value }))}
-                                                        placeholder="ghcr.io/username/image:tag or dockerhub/image"
+                                                        placeholder="Or enter any Docker image URL..."
                                                     />
-                                                    <p className="text-xs text-gray-400 mt-1">Enter Docker Hub, GHCR, or any public registry image</p>
-                                                </div>
-
-                                                {/* Exposed Port */}
-                                                <div>
-                                                    <label className="block text-sm text-gray-500 mb-1">Exposed Port (optional)</label>
-                                                    <Input
-                                                        type="number"
-                                                        value={formData.docker_port || ''}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, docker_port: e.target.value ? parseInt(e.target.value) : null }))}
-                                                        placeholder="80"
-                                                    />
-                                                    <p className="text-xs text-gray-400 mt-1">Main port players connect to. Leave empty for auto-detect.</p>
+                                                    <p className="text-xs text-gray-400 mt-1">ghcr.io/..., dockerhub/..., or any registry</p>
                                                 </div>
                                             </div>
                                         )}
@@ -703,18 +747,6 @@ const AdminChallenges = () => {
                                                 </div>
                                             </div>
                                         )}
-
-                                        {/* Port Configuration (always show for Docker) */}
-                                        <div className="pt-4 border-t border-gray-200">
-                                            <label className="block text-sm text-gray-500 mb-1">Exposed Port (optional)</label>
-                                            <Input
-                                                type="number"
-                                                value={formData.docker_port || ''}
-                                                onChange={(e) => setFormData(prev => ({ ...prev, docker_port: parseInt(e.target.value) || null }))}
-                                                placeholder="80"
-                                            />
-                                            <p className="text-xs text-gray-400 mt-1">Main port players connect to. Leave empty for auto-detect.</p>
-                                        </div>
                                     </div>
                                 )}
                             </div>
