@@ -113,7 +113,7 @@ const ChallengeDetail = ({ user, logout }) => {
       });
 
       if (!response.data.already_unlocked) {
-        toast.info(`Hint unlocked (-${response.data.cost} points)`);
+        toast.success('Hint unlocked!');
       }
 
       setUnlockedHints([...new Set([...unlockedHints, hintIndex])]);

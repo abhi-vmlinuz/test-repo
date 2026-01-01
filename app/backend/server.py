@@ -1933,15 +1933,8 @@ async def unlock_student_hint(challenge_id: str, hint_index: int, current_user: 
             ''', generate_uuid(), current_user['id'], challenge_id,
                  enrollment['id'], [], hints_used)
         
-        # Deduct hint cost
-        hint_cost = hint.get('cost', 0)
-        if hint_cost > 0:
-            await conn.execute('''
-                UPDATE users SET "ctfScore" = "ctfScore" - $1
-                WHERE id = $2 AND "ctfScore" >= $1
-            ''', hint_cost, current_user['id'])
-        
-        return {'hint': hint, 'already_unlocked': False, 'cost': hint_cost}
+        # Hints are now free - no point deduction
+        return {'hint': hint, 'already_unlocked': False, 'cost': 0}
 
 
 # ===========================================
