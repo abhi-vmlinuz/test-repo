@@ -127,8 +127,7 @@ class PublicChallengeCreate(BaseModel):
     points: int = 100
     flag: str
     docker_image: Optional[str] = None
-    docker_command: Optional[str] = None
-    docker_port: Optional[int] = None
+    docker_port: Optional[int] = None  # Port to expose for players
     github_repo: Optional[str] = None
     github_path: Optional[str] = None
     hints: List[Hint] = []
@@ -1021,7 +1020,7 @@ async def admin_create_public_challenge(data: PublicChallengeCreate, admin: dict
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, NOW(), NOW())
         ''', challenge_id, data.category_id, data.title, data.description,
              data.difficulty, data.points, data.flag,
-             data.docker_image, data.docker_command,
+             data.docker_image, None,  # dockerCommand is deprecated
              json.dumps(hints), json.dumps(questions), data.is_published)
         
         return {'id': challenge_id}
@@ -1350,7 +1349,6 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
                 'points': c['points'],
                 'flag': c['flag'],
                 'docker_image': c['dockerImage'],
-                'docker_command': c['dockerCommand'],
                 'hints': hints or [],
                 'questions': questions or [],
                 'is_published': c['isPublished'],
@@ -1378,7 +1376,7 @@ async def admin_create_challenge(data: PublicChallengeCreate, admin: dict = Depe
             ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, 0, NOW(), NOW())
         ''', challenge_id, data.category_id, data.title, data.description,
              data.difficulty.upper(), data.points, data.flag,
-             data.docker_image, data.docker_command,
+             data.docker_image, None,  # dockerCommand deprecated
              json.dumps(hints), json.dumps(questions), data.is_published)
         
         return {'id': challenge_id}
@@ -1399,7 +1397,7 @@ async def admin_update_challenge(challenge_id: str, data: PublicChallengeCreate,
                 hints = $9, questions = $10, "isPublished" = $11, "updatedAt" = NOW()
             WHERE id = $12
         ''', data.category_id, data.title, data.description, data.difficulty.upper(),
-             data.points, data.flag, data.docker_image, data.docker_command,
+             data.points, data.flag, data.docker_image, None,  # dockerCommand deprecated
              json.dumps(hints), json.dumps(questions), data.is_published, challenge_id)
         
         return {'success': True}
@@ -1420,6 +1418,89 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
 
 DOCKER_BUILDS_DIR = Path("/tmp/nexus-docker-builds")
 DOCKER_BUILDS_DIR.mkdir(exist_ok=True)
+
+
+@api_router.get("/admin/docker-images")
+async def list_docker_images(admin: dict = Depends(require_admin)):
+    """
+    List available Docker images from GHCR and challenge database.
+    Returns images that can be used for challenges.
+    """
+    images = []
+    
+    # 1. Get images from existing challenges (already built/uploaded)
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('''
+                SELECT DISTINCT "dockerImage" as image, title, "createdAt"
+                FROM ctf_public_challenges 
+                WHERE "dockerImage" IS NOT NULL 
+                AND "dockerImage" != ''
+                AND "dockerImage" NOT LIKE 'pending-%'
+                AND "dockerImage" NOT LIKE 'local-only:%'
+                ORDER BY "createdAt" DESC
+                LIMIT 50
+            ''')
+            for row in rows:
+                images.append({
+                    'image': row['image'],
+                    'source': 'database',
+                    'label': f"Used in: {row['title'][:30]}...",
+                    'created_at': row['createdAt'].isoformat() if row['createdAt'] else None
+                })
+    except Exception as e:
+        logger.error(f"Failed to fetch images from DB: {e}")
+    
+    # 2. Try to fetch from GHCR API (if token available)
+    ghcr_username = os.environ.get('GHCR_USERNAME', 'abhizzz123')
+    ghcr_token = os.environ.get('GHCR_TOKEN')
+    
+    if ghcr_token:
+        try:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                # GitHub Packages API - list packages
+                resp = await client.get(
+                    f"https://api.github.com/users/{ghcr_username}/packages?package_type=container",
+                    headers={
+                        "Authorization": f"Bearer {ghcr_token}",
+                        "Accept": "application/vnd.github+json"
+                    },
+                    timeout=10.0
+                )
+                if resp.status_code == 200:
+                    packages = resp.json()
+                    for pkg in packages:
+                        image_url = f"ghcr.io/{ghcr_username}/{pkg['name']}:latest"
+                        # Check if already in list
+                        if not any(img['image'] == image_url for img in images):
+                            images.append({
+                                'image': image_url,
+                                'source': 'ghcr',
+                                'label': pkg['name'],
+                                'created_at': pkg.get('created_at')
+                            })
+        except Exception as e:
+            logger.warning(f"Failed to fetch from GHCR API: {e}")
+    
+    # 3. Add some popular public images as suggestions
+    popular_images = [
+        {'image': 'vulnerables/web-dvwa', 'source': 'dockerhub', 'label': 'DVWA (Damn Vulnerable Web App)'},
+        {'image': 'bkimminich/juice-shop', 'source': 'dockerhub', 'label': 'OWASP Juice Shop'},
+        {'image': 'citizenstig/nowasp', 'source': 'dockerhub', 'label': 'OWASP Mutillidae II'},
+        {'image': 'webgoat/webgoat', 'source': 'dockerhub', 'label': 'OWASP WebGoat'},
+    ]
+    
+    for img in popular_images:
+        if not any(i['image'] == img['image'] for i in images):
+            images.append(img)
+    
+    return {
+        'images': images,
+        'ghcr_connected': bool(ghcr_token),
+        'ghcr_username': ghcr_username
+    }
 
 
 @api_router.post("/admin/challenges/upload")
@@ -1537,7 +1618,7 @@ async def admin_create_challenge_with_docker(
                 ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, 0, NOW(), NOW())
             ''', challenge_id, data.get('category_id'), data.get('title'), data.get('description'),
                  data.get('difficulty', 'medium').upper(), data.get('points', 100), data.get('flag', ''),
-                 docker_image, data.get('docker_command'),
+                 docker_image, None,  # dockerCommand deprecated
                  json.dumps(hints), json.dumps(questions), data.get('is_published', True))
         
         return {
@@ -1656,7 +1737,7 @@ async def admin_update_challenge_with_docker(
                 WHERE id = $12
             ''', data.get('category_id'), data.get('title'), data.get('description'),
                  data.get('difficulty', 'medium').upper(), data.get('points', 100), data.get('flag', ''),
-                 docker_image, data.get('docker_command'),
+                 docker_image, None,  # dockerCommand deprecated
                  json.dumps(hints), json.dumps(questions), data.get('is_published', True), challenge_id)
         
         return {

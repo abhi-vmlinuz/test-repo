@@ -5,6 +5,13 @@ import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag } fr
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
+interface DockerImage {
+    image: string;
+    source: 'database' | 'ghcr' | 'dockerhub';
+    label: string;
+    created_at?: string;
+}
+
 const AdminChallenges = () => {
     const [challenges, setChallenges] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -12,6 +19,8 @@ const AdminChallenges = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editingChallenge, setEditingChallenge] = useState(null);
+    const [dockerImages, setDockerImages] = useState<DockerImage[]>([]);
+    const [loadingImages, setLoadingImages] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
         description: '',
@@ -22,7 +31,6 @@ const AdminChallenges = () => {
         flag: '',
         has_docker: false,
         docker_image: '',
-        docker_command: '',
         docker_source: 'image' as 'image' | 'upload' | 'github',
         docker_port: null as number | null,
         uploadedFile: null as File | null,
@@ -83,7 +91,7 @@ const AdminChallenges = () => {
             flag: '',
             has_docker: false,
             docker_image: '',
-            docker_command: '',
+
             docker_source: 'image',
             docker_port: null,
             uploadedFile: null,
@@ -108,7 +116,7 @@ const AdminChallenges = () => {
             flag: challenge.flag || '',
             has_docker: !!(challenge.docker_image),
             docker_image: challenge.docker_image || '',
-            docker_command: challenge.docker_command || '',
+
             docker_source: 'image',
             docker_port: challenge.docker_port || null,
             uploadedFile: null,
@@ -130,7 +138,7 @@ const AdminChallenges = () => {
             ...formData,
             flag: formData.has_main_flag ? formData.flag : '',
             docker_image: formData.has_docker ? formData.docker_image : null,
-            docker_command: formData.has_docker ? formData.docker_command : null,
+
             docker_port: formData.has_docker ? formData.docker_port : null,
             github_repo: formData.has_docker && formData.docker_source === 'github' ? formData.github_repo : null,
             github_path: formData.has_docker && formData.docker_source === 'github' ? formData.github_path : null,
@@ -536,25 +544,53 @@ const AdminChallenges = () => {
 
                                         {/* Docker Image Source */}
                                         {(!formData.docker_source || formData.docker_source === 'image') && (
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-4">
+                                                {/* Image Library */}
                                                 <div>
-                                                    <label className="block text-sm text-gray-500 mb-1">Docker Image</label>
+                                                    <label className="block text-sm text-gray-500 mb-2">Select from library or enter custom image</label>
+
+                                                    {/* Quick select common images */}
+                                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                                        {[
+                                                            { image: 'vulnerables/web-dvwa', label: 'DVWA' },
+                                                            { image: 'bkimminich/juice-shop', label: 'Juice Shop' },
+                                                            { image: 'webgoat/webgoat', label: 'WebGoat' },
+                                                            { image: 'citizenstig/nowasp', label: 'Mutillidae' },
+                                                        ].map(img => (
+                                                            <button
+                                                                key={img.image}
+                                                                type="button"
+                                                                onClick={() => setFormData(prev => ({ ...prev, docker_image: img.image }))}
+                                                                className={`p-2 text-xs rounded-lg border transition-all ${formData.docker_image === img.image
+                                                                        ? 'border-gray-900 bg-gray-900 text-white'
+                                                                        : 'border-gray-200 hover:border-gray-400'
+                                                                    }`}
+                                                            >
+                                                                📦 {img.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+
+                                                    {/* Custom image input */}
                                                     <Input
                                                         type="text"
                                                         value={formData.docker_image}
                                                         onChange={(e) => setFormData(prev => ({ ...prev, docker_image: e.target.value }))}
-                                                        placeholder="vulnerables/web-dvwa"
+                                                        placeholder="ghcr.io/username/image:tag or dockerhub/image"
                                                     />
-                                                    <p className="text-xs text-gray-400 mt-1">Public Docker Hub or GHCR image</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Enter Docker Hub, GHCR, or any public registry image</p>
                                                 </div>
+
+                                                {/* Exposed Port */}
                                                 <div>
-                                                    <label className="block text-sm text-gray-500 mb-1">Docker Command</label>
+                                                    <label className="block text-sm text-gray-500 mb-1">Exposed Port (optional)</label>
                                                     <Input
-                                                        type="text"
-                                                        value={formData.docker_command}
-                                                        onChange={(e) => setFormData(prev => ({ ...prev, docker_command: e.target.value }))}
-                                                        placeholder="bash -c 'sleep 3600'"
+                                                        type="number"
+                                                        value={formData.docker_port || ''}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, docker_port: e.target.value ? parseInt(e.target.value) : null }))}
+                                                        placeholder="80"
                                                     />
+                                                    <p className="text-xs text-gray-400 mt-1">Main port players connect to. Leave empty for auto-detect.</p>
                                                 </div>
                                             </div>
                                         )}
