@@ -10,7 +10,7 @@ Features:
 - Docker container support
 """
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, File, UploadFile, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -26,6 +26,9 @@ import bcrypt
 import argon2  # LMS uses Argon2 for password hashing
 import jwt
 import asyncpg
+import zipfile
+import shutil
+import tempfile
 
 # Optional Docker support
 try:
@@ -1409,6 +1412,219 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
     async with pool.acquire() as conn:
         await conn.execute('DELETE FROM ctf_public_challenges WHERE id = $1', challenge_id)
         return {'success': True}
+
+
+# ===========================================
+# ADMIN: DOCKER CHALLENGE UPLOAD
+# ===========================================
+
+DOCKER_BUILDS_DIR = Path("/tmp/nexus-docker-builds")
+DOCKER_BUILDS_DIR.mkdir(exist_ok=True)
+
+
+@api_router.post("/admin/challenges/upload")
+async def admin_create_challenge_with_docker(
+    file: UploadFile = File(...),
+    challenge_data: str = Form(...),
+    admin: dict = Depends(require_admin)
+):
+    """
+    Create a new challenge with Docker files (ZIP upload).
+    The ZIP must contain a Dockerfile at the root.
+    """
+    # Parse challenge data from JSON string
+    try:
+        data = json.loads(challenge_data)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid challenge data JSON")
+    
+    # Validate file type
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+    
+    challenge_id = generate_uuid()
+    build_dir = DOCKER_BUILDS_DIR / challenge_id
+    
+    try:
+        # Save and extract ZIP
+        build_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = build_dir / "challenge.zip"
+        
+        with open(zip_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Extract ZIP
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(build_dir / "src")
+        
+        # Check for Dockerfile at root
+        dockerfile_path = build_dir / "src" / "Dockerfile"
+        if not dockerfile_path.exists():
+            # Check if it's in a subdirectory (single folder in zip)
+            src_contents = list((build_dir / "src").iterdir())
+            if len(src_contents) == 1 and src_contents[0].is_dir():
+                dockerfile_path = src_contents[0] / "Dockerfile"
+        
+        if not dockerfile_path.exists():
+            shutil.rmtree(build_dir)
+            raise HTTPException(status_code=400, detail="Dockerfile not found at root of ZIP")
+        
+        # Build Docker image if docker client is available
+        docker_image = None
+        if docker_client:
+            try:
+                image_name = f"zecurx/ctf-{challenge_id[:8]}:latest"
+                logger.info(f"Building Docker image: {image_name}")
+                
+                # Build from dockerfile directory
+                dockerfile_dir = dockerfile_path.parent
+                image, build_logs = docker_client.images.build(
+                    path=str(dockerfile_dir),
+                    tag=image_name,
+                    rm=True
+                )
+                docker_image = image_name
+                logger.info(f"Docker image built successfully: {image_name}")
+            except Exception as e:
+                logger.error(f"Docker build failed: {e}")
+                # Store path for manual build later
+                docker_image = f"pending-build:{challenge_id}"
+        else:
+            # Docker not available, store for later build
+            docker_image = f"pending-build:{challenge_id}"
+            logger.warning("Docker not available, challenge stored for manual build")
+        
+        # Save challenge to database
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            hints = data.get('hints', [])
+            questions = data.get('questions', [])
+            
+            await conn.execute('''
+                INSERT INTO ctf_public_challenges (
+                    id, "categoryId", title, description, difficulty, points,
+                    flag, "dockerImage", "dockerCommand", hints, questions,
+                    "isPublished", solves, "createdAt", "updatedAt"
+                ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, 0, NOW(), NOW())
+            ''', challenge_id, data.get('category_id'), data.get('title'), data.get('description'),
+                 data.get('difficulty', 'medium').upper(), data.get('points', 100), data.get('flag', ''),
+                 docker_image, data.get('docker_command'),
+                 json.dumps(hints), json.dumps(questions), data.get('is_published', True))
+        
+        return {
+            'id': challenge_id,
+            'docker_image': docker_image,
+            'build_status': 'success' if docker_image and not docker_image.startswith('pending') else 'pending'
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Challenge upload failed: {e}")
+        if build_dir.exists():
+            shutil.rmtree(build_dir)
+        raise HTTPException(status_code=500, detail=f"Failed to process upload: {str(e)}")
+
+
+@api_router.put("/admin/challenges/{challenge_id}/upload")
+async def admin_update_challenge_with_docker(
+    challenge_id: str,
+    file: UploadFile = File(...),
+    challenge_data: str = Form(...),
+    admin: dict = Depends(require_admin)
+):
+    """
+    Update an existing challenge with new Docker files (ZIP upload).
+    """
+    # Parse challenge data from JSON string
+    try:
+        data = json.loads(challenge_data)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid challenge data JSON")
+    
+    # Validate file type
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+    
+    build_dir = DOCKER_BUILDS_DIR / challenge_id
+    
+    try:
+        # Clean up old build dir
+        if build_dir.exists():
+            shutil.rmtree(build_dir)
+        
+        # Save and extract ZIP
+        build_dir.mkdir(parents=True, exist_ok=True)
+        zip_path = build_dir / "challenge.zip"
+        
+        with open(zip_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Extract ZIP
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(build_dir / "src")
+        
+        # Check for Dockerfile
+        dockerfile_path = build_dir / "src" / "Dockerfile"
+        if not dockerfile_path.exists():
+            src_contents = list((build_dir / "src").iterdir())
+            if len(src_contents) == 1 and src_contents[0].is_dir():
+                dockerfile_path = src_contents[0] / "Dockerfile"
+        
+        if not dockerfile_path.exists():
+            shutil.rmtree(build_dir)
+            raise HTTPException(status_code=400, detail="Dockerfile not found at root of ZIP")
+        
+        # Build Docker image
+        docker_image = None
+        if docker_client:
+            try:
+                image_name = f"zecurx/ctf-{challenge_id[:8]}:latest"
+                dockerfile_dir = dockerfile_path.parent
+                image, _ = docker_client.images.build(
+                    path=str(dockerfile_dir),
+                    tag=image_name,
+                    rm=True
+                )
+                docker_image = image_name
+            except Exception as e:
+                logger.error(f"Docker build failed: {e}")
+                docker_image = f"pending-build:{challenge_id}"
+        else:
+            docker_image = f"pending-build:{challenge_id}"
+        
+        # Update challenge in database
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            hints = data.get('hints', [])
+            questions = data.get('questions', [])
+            
+            await conn.execute('''
+                UPDATE ctf_public_challenges SET
+                    "categoryId" = $1, title = $2, description = $3, difficulty = $4::"CtfDifficulty",
+                    points = $5, flag = $6, "dockerImage" = $7, "dockerCommand" = $8,
+                    hints = $9, questions = $10, "isPublished" = $11, "updatedAt" = NOW()
+                WHERE id = $12
+            ''', data.get('category_id'), data.get('title'), data.get('description'),
+                 data.get('difficulty', 'medium').upper(), data.get('points', 100), data.get('flag', ''),
+                 docker_image, data.get('docker_command'),
+                 json.dumps(hints), json.dumps(questions), data.get('is_published', True), challenge_id)
+        
+        return {
+            'id': challenge_id,
+            'docker_image': docker_image,
+            'build_status': 'success' if docker_image and not docker_image.startswith('pending') else 'pending'
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Challenge update failed: {e}")
+        if build_dir.exists():
+            shutil.rmtree(build_dir)
+        raise HTTPException(status_code=500, detail=f"Failed to process upload: {str(e)}")
 
 
 # ===========================================
