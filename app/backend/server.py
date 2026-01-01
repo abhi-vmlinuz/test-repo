@@ -125,6 +125,9 @@ class PublicChallengeCreate(BaseModel):
     flag: str
     docker_image: Optional[str] = None
     docker_command: Optional[str] = None
+    docker_port: Optional[int] = None
+    github_repo: Optional[str] = None
+    github_path: Optional[str] = None
     hints: List[Hint] = []
     questions: List[Question] = []
     is_published: bool = True
