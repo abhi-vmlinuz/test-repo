@@ -143,20 +143,29 @@ const AdminChallenges = () => {
         try {
             // If there's an uploaded file, we need to upload it separately
             if (formData.has_docker && formData.docker_source === 'upload' && formData.uploadedFile) {
+                toast.info('Uploading and building Docker image...');
+
                 const fileData = new FormData();
                 fileData.append('file', formData.uploadedFile);
                 fileData.append('challenge_data', JSON.stringify(submitData));
 
+                let response;
                 if (editingChallenge) {
-                    await axios.put(`${API}/admin/challenges/${editingChallenge.id}/upload`, fileData, {
+                    response = await axios.put(`${API}/admin/challenges/${editingChallenge.id}/upload`, fileData, {
                         headers: { 'Content-Type': 'multipart/form-data' }
                     });
                 } else {
-                    await axios.post(`${API}/admin/challenges/upload`, fileData, {
+                    response = await axios.post(`${API}/admin/challenges/upload`, fileData, {
                         headers: { 'Content-Type': 'multipart/form-data' }
                     });
                 }
-                toast.success('Challenge saved with Docker files');
+
+                // Show build status
+                if (response.data.build_status === 'success') {
+                    toast.success(`Challenge saved! Docker image: ${response.data.docker_image}`);
+                } else {
+                    toast.warning('Challenge saved. Docker image pending build.');
+                }
             } else {
                 // Regular JSON save
                 if (editingChallenge) {
