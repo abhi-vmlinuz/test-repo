@@ -1453,7 +1453,7 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
         logger.error(f"Failed to fetch images from DB: {e}")
     
     # 2. Try to fetch from GHCR API (if token available)
-    ghcr_username = os.environ.get('GHCR_USERNAME', 'abhizzz123')
+    ghcr_username = os.environ.get('GHCR_USERNAME', 'Abhizzz123')
     ghcr_token = os.environ.get('GHCR_TOKEN')
     
     if ghcr_token:
@@ -1546,8 +1546,8 @@ async def admin_create_challenge_with_docker(
         if docker_client:
             try:
                 # Use GitHub Container Registry (GHCR) for image storage
-                # Images are stored at: ghcr.io/abhizzz123/ctf-challenges/{short-id}
-                ghcr_username = os.environ.get('GHCR_USERNAME', 'abhizzz123')
+                # Images are stored at: ghcr.io/Abhizzz123/ctf-challenges/{short-id}
+                ghcr_username = os.environ.get('GHCR_USERNAME', 'Abhizzz123')
                 ghcr_token = os.environ.get('GHCR_TOKEN')  # GitHub PAT with packages:write
                 
                 short_id = challenge_id[:8].lower()
@@ -1681,7 +1681,7 @@ async def admin_update_challenge_with_docker(
         if docker_client:
             try:
                 # Use GitHub Container Registry (GHCR)
-                ghcr_username = os.environ.get('GHCR_USERNAME', 'abhizzz123')
+                ghcr_username = os.environ.get('GHCR_USERNAME', 'Abhizzz123')
                 ghcr_token = os.environ.get('GHCR_TOKEN')
                 
                 short_id = challenge_id[:8].lower()
