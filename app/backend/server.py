@@ -2819,6 +2819,18 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                     nexus_sessions[user_id] = {}
                 nexus_sessions[user_id][challenge_id] = session_data['session_id']
                 
+                # Track usage for billing (insert into nexus_usage table)
+                try:
+                    pool = await Database.get_pool()
+                    async with pool.acquire() as conn:
+                        await conn.execute('''
+                            INSERT INTO nexus_usage (
+                                id, user_id, challenge_id, session_id, started_at, status
+                            ) VALUES ($1, $2, $3, $4, NOW(), 'running')
+                        ''', generate_uuid(), user_id, challenge_id, session_data['session_id'])
+                except Exception as e:
+                    logger.warning(f"Failed to record usage: {e}")  # Don't fail the request
+                
                 return {
                     "session_id": session_data['session_id'],
                     "target_ip": session_data['target_ip'],
@@ -2850,6 +2862,23 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
                         if sess_id == session_id:
                             del nexus_sessions[user_id][chal_id]
                             break
+                
+                # Update usage record with end time and calculate cost
+                try:
+                    pool = await Database.get_pool()
+                    async with pool.acquire() as conn:
+                        # Calculate cost: ~$0.035/hour per instance
+                        await conn.execute('''
+                            UPDATE nexus_usage SET 
+                                ended_at = NOW(),
+                                status = 'completed',
+                                pod_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER,
+                                estimated_cost = (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035
+                            WHERE session_id = $1 AND status = 'running'
+                        ''', session_id)
+                except Exception as e:
+                    logger.warning(f"Failed to update usage: {e}")
+                
                 return {"message": "Container stopped", "session_id": session_id}
             else:
                 raise HTTPException(status_code=resp.status_code, detail="Failed to stop container")
