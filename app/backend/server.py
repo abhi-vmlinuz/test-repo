@@ -1474,7 +1474,14 @@ async def admin_create_challenge_with_docker(
         docker_image = None
         if docker_client:
             try:
-                image_name = f"zecurx/ctf-{challenge_id[:8]}:latest"
+                # Use GitHub Container Registry (GHCR) for image storage
+                # Images are stored at: ghcr.io/abhizzz123/ctf-challenges/{short-id}
+                ghcr_username = os.environ.get('GHCR_USERNAME', 'abhizzz123')
+                ghcr_token = os.environ.get('GHCR_TOKEN')  # GitHub PAT with packages:write
+                
+                short_id = challenge_id[:8].lower()
+                image_name = f"ghcr.io/{ghcr_username}/ctf-challenges/{short_id}:latest"
+                
                 logger.info(f"Building Docker image: {image_name}")
                 
                 # Build from dockerfile directory
@@ -1484,8 +1491,29 @@ async def admin_create_challenge_with_docker(
                     tag=image_name,
                     rm=True
                 )
-                docker_image = image_name
                 logger.info(f"Docker image built successfully: {image_name}")
+                
+                # Push to GHCR if token is available
+                if ghcr_token:
+                    try:
+                        # Login to GHCR
+                        docker_client.login(
+                            username=ghcr_username,
+                            password=ghcr_token,
+                            registry="ghcr.io"
+                        )
+                        # Push the image
+                        logger.info(f"Pushing image to GHCR: {image_name}")
+                        push_logs = docker_client.images.push(image_name)
+                        logger.info(f"Image pushed successfully to GHCR")
+                        docker_image = image_name
+                    except Exception as push_error:
+                        logger.error(f"Failed to push to GHCR: {push_error}")
+                        docker_image = f"local-only:{image_name}"  # Built but not pushed
+                else:
+                    logger.warning("GHCR_TOKEN not set - image built but not pushed")
+                    docker_image = f"local-only:{image_name}"
+                    
             except Exception as e:
                 logger.error(f"Docker build failed: {e}")
                 # Store path for manual build later
@@ -1581,14 +1609,33 @@ async def admin_update_challenge_with_docker(
         docker_image = None
         if docker_client:
             try:
-                image_name = f"zecurx/ctf-{challenge_id[:8]}:latest"
+                # Use GitHub Container Registry (GHCR)
+                ghcr_username = os.environ.get('GHCR_USERNAME', 'abhizzz123')
+                ghcr_token = os.environ.get('GHCR_TOKEN')
+                
+                short_id = challenge_id[:8].lower()
+                image_name = f"ghcr.io/{ghcr_username}/ctf-challenges/{short_id}:latest"
+                
                 dockerfile_dir = dockerfile_path.parent
                 image, _ = docker_client.images.build(
                     path=str(dockerfile_dir),
                     tag=image_name,
                     rm=True
                 )
-                docker_image = image_name
+                logger.info(f"Docker image built: {image_name}")
+                
+                # Push to GHCR
+                if ghcr_token:
+                    try:
+                        docker_client.login(username=ghcr_username, password=ghcr_token, registry="ghcr.io")
+                        docker_client.images.push(image_name)
+                        docker_image = image_name
+                        logger.info(f"Image pushed to GHCR: {image_name}")
+                    except Exception as push_error:
+                        logger.error(f"GHCR push failed: {push_error}")
+                        docker_image = f"local-only:{image_name}"
+                else:
+                    docker_image = f"local-only:{image_name}"
             except Exception as e:
                 logger.error(f"Docker build failed: {e}")
                 docker_image = f"pending-build:{challenge_id}"
