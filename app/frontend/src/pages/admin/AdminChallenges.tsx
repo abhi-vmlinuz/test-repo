@@ -511,8 +511,8 @@ const AdminChallenges = () => {
                                     <div className="flex items-center gap-3">
                                         <Container className="w-5 h-5 text-gray-600" />
                                         <div>
-                                            <h3 className="font-medium text-gray-700">Docker Lab</h3>
-                                            <p className="text-xs text-gray-400">Enable for challenges that need a container</p>
+                                            <h3 className="font-medium text-gray-700">Lab Environment</h3>
+                                            <p className="text-xs text-gray-400">Enable for challenges that need a live machine</p>
                                         </div>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
@@ -539,7 +539,7 @@ const AdminChallenges = () => {
                                                     : 'text-gray-500 hover:text-gray-700'
                                                     }`}
                                             >
-                                                🐳 Docker Image
+                                                📦 From Registry
                                             </button>
                                             <button
                                                 type="button"

@@ -229,41 +229,45 @@ const ChallengeDetail = ({ user, logout }) => {
             </div>
           </motion.div>
 
-          {/* Docker Environment */}
+          {/* Lab Environment - White Theme */}
           {challenge.docker_image && (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-zinc-900 text-white rounded-2xl shadow-xl overflow-hidden border border-zinc-800">
-              <div className="bg-black/50 border-b border-white/10 px-6 py-4 flex items-center justify-between">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Terminal className="w-5 h-5 text-green-400" />
-                  <h3 className="font-mono font-bold text-sm tracking-wider uppercase">Terminal Environment</h3>
+                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                    <Terminal className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">Challenge Lab</h3>
+                    <p className="text-xs text-gray-500">Interactive environment</p>
+                  </div>
                 </div>
-                <div className="flex gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-red-500/20 border border-red-500/50"></div>
-                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/20 border border-yellow-500/50"></div>
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-500/20 border border-green-500/50"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">Ready</span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                 </div>
               </div>
 
-              <div className="p-8">
-                <p className="text-gray-400 mb-6 text-sm">Deploy a private container instance to access the challenge environment.</p>
+              <div className="p-6">
+                <p className="text-gray-600 mb-6 text-sm">Start a private lab instance to access the challenge environment.</p>
 
                 {!dockerInstance ? (
                   <Button
                     onClick={handleStartDocker}
                     disabled={startingDocker}
-                    className="bg-white text-black hover:bg-gray-200 font-bold px-8 py-6 rounded-xl w-full sm:w-auto"
+                    className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 font-semibold px-8 py-6 rounded-xl w-full sm:w-auto shadow-lg"
                   >
                     <Play className="w-4 h-4 mr-2" fill="currentColor" />
-                    {startingDocker ? 'Initializing Sequence...' : 'Initialize Instance'}
+                    {startingDocker ? 'Starting Lab...' : 'Start Lab'}
                   </Button>
                 ) : (
                   <div className="space-y-4">
-                    <div className="bg-black rounded-lg border border-white/10 p-4 font-mono text-sm">
-                      <div className="flex justify-between items-center text-gray-400 mb-2">
-                        <span>STATUS</span>
-                        <span className="text-emerald-400 font-bold flex items-center gap-2">
+                    <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                      <div className="flex justify-between items-center text-gray-500 mb-2">
+                        <span className="text-sm font-medium">STATUS</span>
+                        <span className="text-emerald-600 font-bold flex items-center gap-2 text-sm">
                           <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                          {dockerInstance.status || 'running'}
+                          {dockerInstance.status || 'Active'}
                         </span>
                       </div>
                       <div className="grid grid-cols-1 gap-4 mt-4">
@@ -495,8 +499,8 @@ const ChallengeDetail = ({ user, logout }) => {
                 {challenge.difficulty}
               </Badge>
               {challenge.docker_image && (
-                <Badge variant="secondary" className="bg-blue-50 text-blue-600 hover:bg-blue-100">
-                  Docker Environment
+                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                  🖥️ Lab
                 </Badge>
               )}
             </div>
