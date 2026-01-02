@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
+
+ARG CACHEBUST=1
 # Copy requirements first for caching
 COPY requirements.txt .
 
