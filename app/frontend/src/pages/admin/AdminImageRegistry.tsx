@@ -63,6 +63,10 @@ const AdminImageRegistry = () => {
     };
 
     const saveGHCRConfig = async () => {
+        if (ghcrConfig.token === '***') {
+            toast.error('Please enter your token again');
+            return;
+        }
         setSaving(true);
         try {
             await axios.post(`${API}/admin/settings/ghcr`, {
@@ -70,7 +74,9 @@ const AdminImageRegistry = () => {
                 token: ghcrConfig.token
             });
             toast.success('GHCR configuration saved!');
-            await fetchGHCRConfig();
+            // Don't refetch config - it will mask the token
+            // Just update connected status
+            setGhcrConfig(prev => ({ ...prev, connected: true }));
             await fetchImages();
         } catch (err) {
             toast.error('Failed to save configuration');
@@ -79,6 +85,10 @@ const AdminImageRegistry = () => {
     };
 
     const testConnection = async () => {
+        if (!ghcrConfig.token || ghcrConfig.token === '***') {
+            toast.error('Please enter your token first');
+            return;
+        }
         setTestingConnection(true);
         try {
             const res = await axios.post(`${API}/admin/settings/ghcr/test`, {
@@ -86,13 +96,15 @@ const AdminImageRegistry = () => {
                 token: ghcrConfig.token
             });
             if (res.data.success) {
-                toast.success('Connection successful! ✓');
+                toast.success(res.data.message || 'Connection successful! ✓');
                 setGhcrConfig(prev => ({ ...prev, connected: true }));
             } else {
                 toast.error(res.data.error || 'Connection failed');
+                setGhcrConfig(prev => ({ ...prev, connected: false }));
             }
         } catch (err: any) {
             toast.error(err.response?.data?.detail || 'Connection test failed');
+            setGhcrConfig(prev => ({ ...prev, connected: false }));
         }
         setTestingConnection(false);
     };
