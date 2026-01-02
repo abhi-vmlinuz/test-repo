@@ -1493,6 +1493,122 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
     }
 
 
+# =============================================================================
+# GHCR Settings API
+# =============================================================================
+
+@api_router.get("/admin/settings/ghcr")
+async def get_ghcr_settings(admin: dict = Depends(require_admin)):
+    """Get GHCR configuration"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Try to get settings from database
+            username_row = await conn.fetchrow(
+                "SELECT value FROM admin_settings WHERE key = 'ghcr_username'"
+            )
+            token_row = await conn.fetchrow(
+                "SELECT value FROM admin_settings WHERE key = 'ghcr_token'"  
+            )
+            
+            username = username_row['value'] if username_row else os.environ.get('GHCR_USERNAME', '')
+            has_token = bool(token_row) or bool(os.environ.get('GHCR_TOKEN'))
+            
+            return {
+                'username': username,
+                'token': '***' if has_token else '',  # Don't expose token
+                'connected': has_token
+            }
+    except Exception as e:
+        # Table might not exist yet, fall back to env vars
+        return {
+            'username': os.environ.get('GHCR_USERNAME', ''),
+            'token': '***' if os.environ.get('GHCR_TOKEN') else '',
+            'connected': bool(os.environ.get('GHCR_TOKEN'))
+        }
+
+
+class GHCRConfig(BaseModel):
+    username: str
+    token: str
+
+
+@api_router.post("/admin/settings/ghcr")
+async def save_ghcr_settings(config: GHCRConfig, admin: dict = Depends(require_admin)):
+    """Save GHCR configuration to database"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Ensure admin_settings table exists
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS admin_settings (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    key TEXT UNIQUE NOT NULL,
+                    value TEXT NOT NULL,
+                    encrypted BOOLEAN DEFAULT false,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            
+            # Upsert username
+            await conn.execute('''
+                INSERT INTO admin_settings (key, value, updated_at)
+                VALUES ('ghcr_username', $1, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+            ''', config.username)
+            
+            # Upsert token (only if not masked)
+            if config.token and config.token != '***':
+                await conn.execute('''
+                    INSERT INTO admin_settings (key, value, encrypted, updated_at)
+                    VALUES ('ghcr_token', $1, true, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+                ''', config.token)
+            
+            # Also update environment for current process
+            os.environ['GHCR_USERNAME'] = config.username
+            if config.token and config.token != '***':
+                os.environ['GHCR_TOKEN'] = config.token
+            
+            return {'success': True, 'message': 'GHCR settings saved'}
+    except Exception as e:
+        logger.error(f"Failed to save GHCR settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/admin/settings/ghcr/test")
+async def test_ghcr_connection(config: GHCRConfig, admin: dict = Depends(require_admin)):
+    """Test GHCR connection with provided credentials"""
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            # Test by listing packages
+            resp = await client.get(
+                f"https://api.github.com/users/{config.username}/packages?package_type=container",
+                headers={
+                    "Authorization": f"Bearer {config.token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=10.0
+            )
+            
+            if resp.status_code == 200:
+                packages = resp.json()
+                return {
+                    'success': True,
+                    'message': f'Connection successful! Found {len(packages)} packages.'
+                }
+            elif resp.status_code == 401:
+                return {'success': False, 'error': 'Invalid token - authentication failed'}
+            elif resp.status_code == 404:
+                return {'success': False, 'error': 'User not found'}
+            else:
+                return {'success': False, 'error': f'API error: {resp.status_code}'}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
 @api_router.post("/admin/challenges/upload")
 async def admin_create_challenge_with_docker(
     file: UploadFile = File(...),
