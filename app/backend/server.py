@@ -1453,8 +1453,26 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
         logger.error(f"Failed to fetch images from DB: {e}")
     
     # 2. Try to fetch from GHCR API (if token available)
-    ghcr_username = os.environ.get('GHCR_USERNAME', 'Abhizzz123')
-    ghcr_token = os.environ.get('GHCR_TOKEN')
+    ghcr_username = os.environ.get('GHCR_USERNAME', '')
+    ghcr_token = os.environ.get('GHCR_TOKEN', '')
+    
+    # Also try to get from database if not in env
+    if not ghcr_username or not ghcr_token:
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                username_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_username'"
+                )
+                token_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_token'"
+                )
+                if username_row:
+                    ghcr_username = username_row['value']
+                if token_row:
+                    ghcr_token = token_row['value']
+        except Exception as e:
+            logger.warning(f"Could not fetch GHCR settings from DB: {e}")
     
     if ghcr_token:
         try:
