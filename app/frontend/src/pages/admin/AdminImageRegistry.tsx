@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Package, Settings, RefreshCw, Upload, Trash2, Check, AlertCircle, Link2, Eye, EyeOff, Server, Box } from 'lucide-react';
+import { Package, Settings, RefreshCw, Upload, Trash2, Check, AlertCircle, Link2, Eye, EyeOff, Server, Box, Edit2, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +28,7 @@ const AdminImageRegistry = () => {
     const [showToken, setShowToken] = useState(false);
     const [saving, setSaving] = useState(false);
     const [testingConnection, setTestingConnection] = useState(false);
+    const [isEditing, setIsEditing] = useState(true); // Start in edit mode if not configured
 
     // Build section
     const [buildFile, setBuildFile] = useState<File | null>(null);
@@ -44,8 +45,13 @@ const AdminImageRegistry = () => {
         try {
             const res = await axios.get(`${API}/admin/settings/ghcr`);
             setGhcrConfig(res.data);
+            // If already connected, show saved state
+            if (res.data.connected) {
+                setIsEditing(false);
+            }
         } catch (err) {
             // Config not set yet
+            setIsEditing(true);
         }
     };
 
@@ -74,9 +80,8 @@ const AdminImageRegistry = () => {
                 token: ghcrConfig.token
             });
             toast.success('GHCR configuration saved!');
-            // Don't refetch config - it will mask the token
-            // Just update connected status
             setGhcrConfig(prev => ({ ...prev, connected: true }));
+            setIsEditing(false);
             await fetchImages();
         } catch (err) {
             toast.error('Failed to save configuration');
@@ -124,7 +129,7 @@ const AdminImageRegistry = () => {
         formData.append('image_name', buildName.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
 
         setBuildProgress('uploading');
-        setBuildLogs(['Uploading ZIP file...']);
+        setBuildLogs(['📤 Uploading ZIP file...']);
 
         try {
             const res = await axios.post(`${API}/admin/images/build`, formData, {
@@ -132,65 +137,45 @@ const AdminImageRegistry = () => {
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
                         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        setBuildLogs(prev => [...prev.slice(0, -1), `Uploading... ${percent}%`]);
+                        setBuildLogs([`📤 Uploading... ${percent}%`]);
                     }
                 }
             });
 
-            if (res.data.status === 'building') {
-                setBuildProgress('building');
-                setBuildLogs(prev => [...prev, 'Building Docker image...']);
-                // Poll for build status
-                pollBuildStatus(res.data.build_id);
-            } else if (res.data.status === 'success') {
+            if (res.data.status === 'success') {
                 setBuildProgress('done');
-                setBuildLogs(prev => [...prev, `✓ Image built: ${res.data.image}`]);
+                setBuildLogs(prev => [...prev, `✅ Image built and pushed!`, `📦 ${res.data.image}`]);
                 toast.success('Image built and pushed to GHCR!');
+                // Reset form
+                setBuildFile(null);
+                setBuildName('');
                 fetchImages();
             } else {
                 throw new Error(res.data.error || 'Build failed');
             }
         } catch (err: any) {
             setBuildProgress('error');
-            setBuildLogs(prev => [...prev, `✗ Error: ${err.response?.data?.detail || err.message}`]);
+            const errorMsg = err.response?.data?.detail || err.message;
+            setBuildLogs(prev => [...prev, `❌ Error: ${errorMsg}`]);
             toast.error('Build failed');
         }
     };
 
-    const pollBuildStatus = async (buildId: string) => {
-        const checkStatus = async () => {
-            try {
-                const res = await axios.get(`${API}/admin/images/build/${buildId}/status`);
-                if (res.data.status === 'building') {
-                    setBuildLogs(prev => [...prev, res.data.log || 'Building...']);
-                    setTimeout(checkStatus, 2000);
-                } else if (res.data.status === 'pushing') {
-                    setBuildProgress('pushing');
-                    setBuildLogs(prev => [...prev, 'Pushing to GHCR...']);
-                    setTimeout(checkStatus, 2000);
-                } else if (res.data.status === 'success') {
-                    setBuildProgress('done');
-                    setBuildLogs(prev => [...prev, `✓ Image ready: ${res.data.image}`]);
-                    toast.success('Image built and pushed!');
-                    fetchImages();
-                } else {
-                    setBuildProgress('error');
-                    setBuildLogs(prev => [...prev, `✗ ${res.data.error}`]);
-                }
-            } catch (err) {
-                setBuildProgress('error');
-                setBuildLogs(prev => [...prev, '✗ Failed to check build status']);
-            }
-        };
-        checkStatus();
+    const resetBuild = () => {
+        setBuildProgress('idle');
+        setBuildLogs([]);
+        setBuildFile(null);
+        setBuildName('');
     };
 
     const deleteImage = async (imageName: string) => {
         if (!confirm(`Delete image ${imageName}? This cannot be undone.`)) return;
 
         try {
-            await axios.delete(`${API}/admin/images/${encodeURIComponent(imageName)}`);
-            toast.success('Image deleted');
+            const res = await axios.delete(`${API}/admin/images/${encodeURIComponent(imageName)}`);
+            if (res.data.message) {
+                toast.info(res.data.message);
+            }
             fetchImages();
         } catch (err) {
             toast.error('Failed to delete image');
@@ -220,70 +205,122 @@ const AdminImageRegistry = () => {
                             <p className="text-sm text-gray-500">Connect your GitHub account to store images</p>
                         </div>
                     </div>
-                    {ghcrConfig.connected && (
+                    {ghcrConfig.connected && !isEditing && (
                         <Badge className="bg-emerald-100 text-emerald-700" variant={undefined}>
                             <Check className="w-3 h-3 mr-1" /> Connected
                         </Badge>
                     )}
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-4 mt-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">GitHub Username</label>
-                        <Input
-                            value={ghcrConfig.username}
-                            onChange={(e) => setGhcrConfig(prev => ({ ...prev, username: e.target.value }))}
-                            placeholder="e.g., Abhizzz123"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Personal Access Token
-                            <span className="text-gray-400 font-normal ml-1">(write:packages scope)</span>
-                        </label>
-                        <div className="relative">
-                            <Input
-                                type={showToken ? 'text' : 'password'}
-                                value={ghcrConfig.token}
-                                onChange={(e) => setGhcrConfig(prev => ({ ...prev, token: e.target.value }))}
-                                placeholder="ghp_xxxxxxxxxxxx"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowToken(!showToken)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                            >
-                                {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
+                {/* Saved Configuration View (GitHub-style) */}
+                {!isEditing && ghcrConfig.connected ? (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between p-4 bg-gray-50/50">
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-500">Username:</span>
+                                    <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">{ghcrConfig.username}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-500">Token:</span>
+                                    <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">ghp_••••••••••••</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsEditing(true)}
+                                >
+                                    <Edit2 className="w-3.5 h-3.5 mr-1.5" />
+                                    Edit
+                                </Button>
+                                <a
+                                    href={`https://github.com/${ghcrConfig.username}?tab=packages`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    View on GitHub
+                                </a>
+                            </div>
+                        </div>
+                        <div className="p-3 bg-emerald-50 border-t border-emerald-100 flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-600" />
+                            <span className="text-sm text-emerald-700">Configuration active and working</span>
                         </div>
                     </div>
-                </div>
+                ) : (
+                    /* Edit Configuration Form */
+                    <>
+                        <div className="grid md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">GitHub Username</label>
+                                <Input
+                                    value={ghcrConfig.username}
+                                    onChange={(e) => setGhcrConfig(prev => ({ ...prev, username: e.target.value }))}
+                                    placeholder="e.g., Abhizzz123"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Personal Access Token
+                                    <span className="text-gray-400 font-normal ml-1">(write:packages scope)</span>
+                                </label>
+                                <div className="relative">
+                                    <Input
+                                        type={showToken ? 'text' : 'password'}
+                                        value={ghcrConfig.token}
+                                        onChange={(e) => setGhcrConfig(prev => ({ ...prev, token: e.target.value }))}
+                                        placeholder="ghp_xxxxxxxxxxxx"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowToken(!showToken)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                <div className="flex gap-3 mt-4">
-                    <Button
-                        onClick={testConnection}
-                        disabled={testingConnection || !ghcrConfig.username || !ghcrConfig.token}
-                        variant="outline"
-                    >
-                        {testingConnection ? (
-                            <>
-                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                Testing...
-                            </>
-                        ) : (
-                            <>
-                                <Link2 className="w-4 h-4 mr-2" />
-                                Test Connection
-                            </>
-                        )}
-                    </Button>
-                    <Button
-                        onClick={saveGHCRConfig}
-                        disabled={saving || !ghcrConfig.username || !ghcrConfig.token}
-                    >
-                        {saving ? 'Saving...' : 'Save Configuration'}
-                    </Button>
-                </div>
+                        <div className="flex gap-3 mt-4">
+                            <Button
+                                onClick={testConnection}
+                                disabled={testingConnection || !ghcrConfig.username || !ghcrConfig.token || ghcrConfig.token === '***'}
+                                variant="outline"
+                            >
+                                {testingConnection ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                        Testing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Link2 className="w-4 h-4 mr-2" />
+                                        Test Connection
+                                    </>
+                                )}
+                            </Button>
+                            <Button
+                                onClick={saveGHCRConfig}
+                                disabled={saving || !ghcrConfig.username || !ghcrConfig.token || ghcrConfig.token === '***'}
+                            >
+                                {saving ? 'Saving...' : 'Save Configuration'}
+                            </Button>
+                            {ghcrConfig.connected && (
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => setIsEditing(false)}
+                                >
+                                    Cancel
+                                </Button>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Build New Image */}
@@ -305,9 +342,10 @@ const AdminImageRegistry = () => {
                             value={buildName}
                             onChange={(e) => setBuildName(e.target.value)}
                             placeholder="e.g., linux-basics, web-exploit"
+                            disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
                         />
                         <p className="text-xs text-gray-400 mt-1">
-                            Will be: ghcr.io/{ghcrConfig.username || 'username'}/{buildName || 'image-name'}:latest
+                            Will be: ghcr.io/{ghcrConfig.username?.toLowerCase() || 'username'}/{buildName.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'image-name'}:latest
                         </p>
                     </div>
                     <div>
@@ -316,25 +354,35 @@ const AdminImageRegistry = () => {
                             type="file"
                             accept=".zip"
                             onChange={(e) => setBuildFile(e.target.files?.[0] || null)}
-                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                            disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
+                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
                         />
                     </div>
                 </div>
 
+                {/* Build Log - White Background */}
                 {buildProgress !== 'idle' && (
-                    <div className="mt-4 bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-300 max-h-40 overflow-y-auto">
+                    <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4 font-mono text-sm max-h-40 overflow-y-auto">
                         {buildLogs.map((log, i) => (
-                            <div key={i} className={log.startsWith('✓') ? 'text-emerald-400' : log.startsWith('✗') ? 'text-red-400' : ''}>
+                            <div
+                                key={i}
+                                className={
+                                    log.includes('✅') ? 'text-emerald-600' :
+                                        log.includes('❌') ? 'text-red-600' :
+                                            log.includes('📦') ? 'text-blue-600 font-medium' :
+                                                'text-gray-600'
+                                }
+                            >
                                 {log}
                             </div>
                         ))}
                     </div>
                 )}
 
-                <div className="mt-4">
+                <div className="mt-4 flex gap-3">
                     <Button
                         onClick={handleBuildUpload}
-                        disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing' || !ghcrConfig.connected}
+                        disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing' || !ghcrConfig.connected || !buildFile || !buildName}
                         className="bg-blue-600 hover:bg-blue-700"
                     >
                         {buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing' ? (
@@ -349,13 +397,19 @@ const AdminImageRegistry = () => {
                             </>
                         )}
                     </Button>
-                    {!ghcrConfig.connected && (
-                        <p className="text-sm text-amber-600 mt-2">
-                            <AlertCircle className="w-4 h-4 inline mr-1" />
-                            Connect GHCR above before building
-                        </p>
+                    {(buildProgress === 'done' || buildProgress === 'error') && (
+                        <Button variant="outline" onClick={resetBuild}>
+                            Build Another
+                        </Button>
                     )}
                 </div>
+
+                {!ghcrConfig.connected && (
+                    <p className="text-sm text-amber-600 mt-3">
+                        <AlertCircle className="w-4 h-4 inline mr-1" />
+                        Connect GHCR above before building
+                    </p>
+                )}
             </div>
 
             {/* Image Library */}

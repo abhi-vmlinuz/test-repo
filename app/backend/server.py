@@ -1613,6 +1613,26 @@ async def test_ghcr_connection(config: GHCRConfig, admin: dict = Depends(require
 # Image Build API - Build and push Docker images
 # =============================================================================
 
+def cleanup_old_builds():
+    """Remove build directories older than 1 hour"""
+    builds_dir = Path("/tmp/image-builds")
+    if not builds_dir.exists():
+        return
+    
+    import time
+    one_hour_ago = time.time() - 3600
+    
+    for build_dir in builds_dir.iterdir():
+        if build_dir.is_dir():
+            try:
+                # Check modification time
+                if build_dir.stat().st_mtime < one_hour_ago:
+                    shutil.rmtree(build_dir, ignore_errors=True)
+                    logger.info(f"Cleaned up old build: {build_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up {build_dir}: {e}")
+
+
 @api_router.post("/admin/images/build")
 async def build_docker_image(
     file: UploadFile = File(...),
@@ -1620,6 +1640,9 @@ async def build_docker_image(
     admin: dict = Depends(require_admin)
 ):
     """Build a Docker image from uploaded ZIP and push to GHCR"""
+    
+    # Clean up old builds first
+    cleanup_old_builds()
     
     # Get GHCR credentials
     ghcr_username = os.environ.get('GHCR_USERNAME')
@@ -1687,8 +1710,8 @@ async def build_docker_image(
         if not dockerfile_path:
             raise HTTPException(status_code=400, detail="Dockerfile not found in ZIP. Place it at the root.")
         
-        # Build the image
-        full_image_name = f"ghcr.io/{ghcr_username}/{clean_name}:latest"
+        # Build the image - Docker requires lowercase for image names!
+        full_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}:latest"
         
         if not docker_client:
             raise HTTPException(status_code=500, detail="Docker not available on server")
