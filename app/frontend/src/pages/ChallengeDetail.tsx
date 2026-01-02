@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X } from 'lucide-react';
+import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ChallengeDetail = ({ user, logout }) => {
@@ -229,12 +229,12 @@ const ChallengeDetail = ({ user, logout }) => {
             </div>
           </motion.div>
 
-          {/* Lab Environment - White Theme */}
+          {/* Lab Environment - Gray/Black Theme */}
           {challenge.docker_image && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <div className="bg-gradient-to-r from-gray-100 to-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                  <div className="w-10 h-10 bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl flex items-center justify-center shadow-md">
                     <Terminal className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -242,32 +242,48 @@ const ChallengeDetail = ({ user, logout }) => {
                     <p className="text-xs text-gray-500">Interactive environment</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">Ready</span>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                </div>
+                {dockerInstance && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Running</span>
+                    <div className="w-2 h-2 rounded-full bg-gray-600 animate-pulse"></div>
+                  </div>
+                )}
               </div>
 
               <div className="p-6">
-                <p className="text-gray-600 mb-6 text-sm">Start a private lab instance to access the challenge environment.</p>
-
                 {!dockerInstance ? (
-                  <Button
-                    onClick={handleStartDocker}
-                    disabled={startingDocker}
-                    className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 font-semibold px-8 py-6 rounded-xl w-full sm:w-auto shadow-lg"
-                  >
-                    <Play className="w-4 h-4 mr-2" fill="currentColor" />
-                    {startingDocker ? 'Starting Lab...' : 'Start Lab'}
-                  </Button>
+                  <div className="space-y-4">
+                    <p className="text-gray-600 text-sm">
+                      {startingDocker
+                        ? 'Preparing your lab environment. The machine IP will be displayed shortly...'
+                        : 'Start a private lab instance to access the challenge environment.'}
+                    </p>
+                    <Button
+                      onClick={handleStartDocker}
+                      disabled={startingDocker}
+                      className="bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-6 rounded-xl w-full sm:w-auto shadow-lg disabled:bg-gray-400"
+                    >
+                      {startingDocker ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Initializing...
+                        </>
+                      ) : (
+                        <>
+                          <Terminal className="w-4 h-4 mr-2" />
+                          Start Instance
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
                       <div className="flex justify-between items-center text-gray-500 mb-2">
                         <span className="text-sm font-medium">STATUS</span>
-                        <span className="text-emerald-600 font-bold flex items-center gap-2 text-sm">
-                          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                          {dockerInstance.status || 'Active'}
+                        <span className="text-gray-700 font-bold flex items-center gap-2 text-sm">
+                          <span className="w-2 h-2 bg-gray-600 rounded-full animate-pulse"></span>
+                          {dockerInstance.status || 'Running'}
                         </span>
                       </div>
                       <div className="grid grid-cols-1 gap-4 mt-4">
@@ -275,7 +291,7 @@ const ChallengeDetail = ({ user, logout }) => {
                           <p className="text-gray-500 text-xs uppercase mb-1">Target IP</p>
                           <div className="flex items-center gap-2">
                             <p
-                              className="text-green-400 select-all cursor-pointer hover:text-green-300 transition-colors text-lg font-bold"
+                              className="text-gray-900 select-all cursor-pointer hover:text-gray-600 transition-colors text-lg font-bold font-mono"
                               onClick={() => {
                                 navigator.clipboard.writeText(dockerInstance.target_ip);
                                 toast.success('IP copied to clipboard!');
@@ -288,19 +304,19 @@ const ChallengeDetail = ({ user, logout }) => {
                                 navigator.clipboard.writeText(dockerInstance.target_ip);
                                 toast.success('IP copied to clipboard!');
                               }}
-                              className="text-gray-500 hover:text-white transition-colors"
+                              className="text-gray-400 hover:text-gray-600 transition-colors text-sm"
                             >
-                              📋
+                              Copy
                             </button>
                           </div>
                         </div>
                         <div>
                           <p className="text-gray-500 text-xs uppercase mb-1">Session ID</p>
-                          <p className="text-gray-400 text-xs">{dockerInstance.session_id}</p>
+                          <p className="text-gray-400 text-xs font-mono">{dockerInstance.session_id}</p>
                         </div>
                         <div>
                           <p className="text-gray-500 text-xs uppercase mb-1">Expires</p>
-                          <p className="text-amber-400 text-sm">{new Date(dockerInstance.expires_at).toLocaleTimeString()}</p>
+                          <p className="text-gray-600 text-sm">{new Date(dockerInstance.expires_at).toLocaleTimeString()}</p>
                         </div>
                       </div>
                     </div>

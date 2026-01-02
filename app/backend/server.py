@@ -3240,6 +3240,18 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                 try:
                     pool = await Database.get_pool()
                     async with pool.acquire() as conn:
+                        # Ensure table exists
+                        await conn.execute('''
+                            CREATE TABLE IF NOT EXISTS nexus_usage (
+                                id UUID PRIMARY KEY,
+                                user_id TEXT NOT NULL,
+                                challenge_id TEXT NOT NULL,
+                                session_id TEXT NOT NULL,
+                                started_at TIMESTAMP DEFAULT NOW(),
+                                ended_at TIMESTAMP,
+                                status TEXT DEFAULT 'running'
+                            )
+                        ''')
                         await conn.execute('''
                             INSERT INTO nexus_usage (
                                 id, user_id, challenge_id, session_id, started_at, status
