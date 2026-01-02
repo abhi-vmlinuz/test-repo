@@ -19,13 +19,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 
-ARG CACHEBUST=1
+
 # Copy requirements first for caching
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
+ARG CACHEBUST=1
 # Copy application code
 COPY . .
 

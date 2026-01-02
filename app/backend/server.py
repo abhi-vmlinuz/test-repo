@@ -2855,7 +2855,7 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow('''
-            SELECT id, title, docker_image, docker_command 
+            SELECT id, title, "dockerImage" as docker_image
             FROM ctf_public_challenges WHERE id = $1
         ''', challenge_id)
         
