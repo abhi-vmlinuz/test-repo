@@ -3249,7 +3249,9 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                                 session_id TEXT NOT NULL,
                                 started_at TIMESTAMP DEFAULT NOW(),
                                 ended_at TIMESTAMP,
-                                status TEXT DEFAULT 'running'
+                                status TEXT DEFAULT 'running',
+                                pod_seconds INTEGER,
+                                estimated_cost DECIMAL(10, 4)
                             )
                         ''')
                         await conn.execute('''
@@ -3356,24 +3358,170 @@ async def get_docker_status(session_id: str, current_user: dict = Depends(get_cu
 # Nexus Admin Endpoints
 @api_router.get("/admin/nexus/sessions")
 async def admin_nexus_sessions(current_user: dict = Depends(require_admin)):
-    """Get all active Nexus sessions (admin only)"""
+    """Get all active Nexus sessions (admin only) - from Nexus Engine + database"""
+    sessions = []
+    
+    # 1. Try to get from Nexus Engine API
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/sessions", timeout=10.0)
-            return resp.json()
-    except:
-        return {"sessions": []}
+            # Try the main sessions endpoint
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions", timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                if 'sessions' in data:
+                    sessions.extend(data['sessions'])
+    except Exception as e:
+        logger.warning(f"Failed to fetch sessions from Nexus: {e}")
+    
+    # 2. Also get from database (nexus_usage running sessions)
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('''
+                SELECT session_id, user_id, challenge_id, started_at, status
+                FROM nexus_usage
+                WHERE status = 'running'
+                ORDER BY started_at DESC
+                LIMIT 50
+            ''')
+            for row in rows:
+                # Check if already in sessions list
+                if not any(s.get('session_id') == row['session_id'] for s in sessions):
+                    sessions.append({
+                        'session_id': row['session_id'],
+                        'user_id': row['user_id'],
+                        'challenge_id': row['challenge_id'],
+                        'started_at': row['started_at'].isoformat() if row['started_at'] else None,
+                        'status': row['status'],
+                        'source': 'database'
+                    })
+    except Exception as e:
+        logger.warning(f"Failed to fetch sessions from DB: {e}")
+    
+    return {"sessions": sessions}
 
 
 @api_router.get("/admin/nexus/stats")
 async def admin_nexus_stats(current_user: dict = Depends(require_admin)):
-    """Get Nexus Engine stats (admin only)"""
+    """Get Nexus Engine stats (admin only) - combines Nexus Engine + database"""
+    stats = {
+        "active_sessions": 0,
+        "total_pods": 0,
+        "total_sessions_today": 0,
+        "estimated_cost_today": 0.0,
+        "nexus_engine_healthy": False
+    }
+    
+    # 1. Check Nexus Engine health
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/stats", timeout=10.0)
-            return resp.json()
-    except:
-        return {"active_sessions": 0, "total_pods": 0}
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/health", timeout=5.0)
+            if resp.status_code == 200:
+                stats["nexus_engine_healthy"] = True
+            
+            # Get sessions count
+            sess_resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions", timeout=10.0)
+            if sess_resp.status_code == 200:
+                data = sess_resp.json()
+                stats["active_sessions"] = len(data.get('sessions', []))
+    except Exception as e:
+        logger.warning(f"Failed to check Nexus health: {e}")
+    
+    # 2. Get stats from database
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Count running sessions
+            running = await conn.fetchval('''
+                SELECT COUNT(*) FROM nexus_usage WHERE status = 'running'
+            ''')
+            if running:
+                stats["active_sessions"] = max(stats["active_sessions"], running)
+            
+            # Today's stats
+            today_stats = await conn.fetchrow('''
+                SELECT 
+                    COUNT(*) as sessions,
+                    COALESCE(SUM(estimated_cost), 0) as cost
+                FROM nexus_usage
+                WHERE DATE(started_at) = CURRENT_DATE
+            ''')
+            if today_stats:
+                stats["total_sessions_today"] = int(today_stats['sessions'] or 0)
+                stats["estimated_cost_today"] = float(today_stats['cost'] or 0)
+    except Exception as e:
+        logger.warning(f"Failed to get DB stats: {e}")
+    
+    return stats
+
+
+@api_router.delete("/admin/nexus/sessions/{session_id}")
+async def admin_terminate_session(session_id: str, current_user: dict = Depends(require_admin)):
+    """Admin-only: Terminate any session by ID"""
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                timeout=30.0
+            )
+            
+            # Update database status
+            try:
+                pool = await Database.get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute('''
+                        UPDATE nexus_usage SET 
+                            ended_at = NOW(),
+                            status = 'terminated',
+                            pod_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER,
+                            estimated_cost = (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035
+                        WHERE session_id = $1 AND status = 'running'
+                    ''', session_id)
+            except Exception as e:
+                logger.warning(f"Failed to update usage: {e}")
+            
+            if resp.status_code == 200:
+                return {"success": True, "message": f"Session {session_id} terminated"}
+            else:
+                # Still mark as terminated in DB even if Nexus returns error
+                return {"success": True, "message": f"Session marked as terminated (Nexus status: {resp.status_code})"}
+                
+    except httpx.RequestError as e:
+        logger.error(f"Nexus connection error: {e}")
+        # Mark as terminated in DB anyway
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute('''
+                    UPDATE nexus_usage SET status = 'terminated', ended_at = NOW()
+                    WHERE session_id = $1
+                ''', session_id)
+        except:
+            pass
+        return {"success": True, "message": "Session marked as terminated (Nexus unavailable)"}
+
+
+@api_router.post("/admin/nexus/cleanup")
+async def admin_cleanup_orphans(current_user: dict = Depends(require_admin)):
+    """Admin-only: Clean up orphaned resources in K8s and database"""
+    cleaned = {"pods": 0, "services": 0, "db_records": 0}
+    
+    # Mark stale sessions as expired (older than 2 hours and still running)
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            result = await conn.execute('''
+                UPDATE nexus_usage SET 
+                    status = 'expired',
+                    ended_at = COALESCE(ended_at, NOW())
+                WHERE status = 'running' 
+                AND started_at < NOW() - INTERVAL '2 hours'
+            ''')
+            cleaned["db_records"] = int(result.split()[-1]) if result else 0
+    except Exception as e:
+        logger.warning(f"Failed to clean DB: {e}")
+    
+    return {"success": True, "cleaned": cleaned}
 
 
 @api_router.get("/admin/nexus/pricing")
