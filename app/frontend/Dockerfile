@@ -10,6 +10,9 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
+# Cache bust point - change this to force rebuild of code only
+ARG CACHEBUST=1
+
 # Copy source code
 COPY . .
 
