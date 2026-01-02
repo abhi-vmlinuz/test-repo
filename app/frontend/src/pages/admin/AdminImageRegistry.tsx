@@ -129,7 +129,7 @@ const AdminImageRegistry = () => {
         formData.append('image_name', buildName.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
 
         setBuildProgress('uploading');
-        setBuildLogs(['📤 Uploading ZIP file...']);
+        setBuildLogs(['Uploading ZIP file...']);
 
         try {
             const res = await axios.post(`${API}/admin/images/build`, formData, {
@@ -137,14 +137,14 @@ const AdminImageRegistry = () => {
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
                         const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        setBuildLogs([`📤 Uploading... ${percent}%`]);
+                        setBuildLogs([`Uploading... ${percent}%`]);
                     }
                 }
             });
 
             if (res.data.status === 'success') {
                 setBuildProgress('done');
-                setBuildLogs(prev => [...prev, `✅ Image built and pushed!`, `📦 ${res.data.image}`]);
+                setBuildLogs(prev => [...prev, `Image built and pushed!`, ` ${res.data.image}`]);
                 toast.success('Image built and pushed to GHCR!');
                 // Reset form
                 setBuildFile(null);
@@ -156,7 +156,7 @@ const AdminImageRegistry = () => {
         } catch (err: any) {
             setBuildProgress('error');
             const errorMsg = err.response?.data?.detail || err.message;
-            setBuildLogs(prev => [...prev, `❌ Error: ${errorMsg}`]);
+            setBuildLogs(prev => [...prev, ` Error: ${errorMsg}`]);
             toast.error('Build failed');
         }
     };
