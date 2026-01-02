@@ -1609,6 +1609,148 @@ async def test_ghcr_connection(config: GHCRConfig, admin: dict = Depends(require
         return {'success': False, 'error': str(e)}
 
 
+# =============================================================================
+# Image Build API - Build and push Docker images
+# =============================================================================
+
+@api_router.post("/admin/images/build")
+async def build_docker_image(
+    file: UploadFile = File(...),
+    image_name: str = Form(...),
+    admin: dict = Depends(require_admin)
+):
+    """Build a Docker image from uploaded ZIP and push to GHCR"""
+    
+    # Get GHCR credentials
+    ghcr_username = os.environ.get('GHCR_USERNAME')
+    ghcr_token = os.environ.get('GHCR_TOKEN')
+    
+    # Try to get from database if not in env
+    if not ghcr_username or not ghcr_token:
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                username_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_username'"
+                )
+                token_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_token'"
+                )
+                if username_row:
+                    ghcr_username = username_row['value']
+                if token_row:
+                    ghcr_token = token_row['value']
+        except Exception as e:
+            logger.warning(f"Could not fetch GHCR settings from DB: {e}")
+    
+    if not ghcr_username or not ghcr_token:
+        raise HTTPException(status_code=400, detail="GHCR not configured. Go to Image Registry settings.")
+    
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+    
+    # Clean image name
+    clean_name = image_name.lower().replace(' ', '-').replace('_', '-')
+    clean_name = ''.join(c for c in clean_name if c.isalnum() or c == '-')
+    
+    # Create temp directory
+    build_dir = Path(f"/tmp/image-builds/{clean_name}-{uuid.uuid4().hex[:8]}")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        # Save uploaded file
+        zip_path = build_dir / "upload.zip"
+        with open(zip_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Extract ZIP
+        import zipfile
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(build_dir / "extracted")
+        
+        # Find Dockerfile
+        extracted_dir = build_dir / "extracted"
+        dockerfile_path = None
+        
+        # Check root level first
+        if (extracted_dir / "Dockerfile").exists():
+            dockerfile_path = extracted_dir / "Dockerfile"
+        else:
+            # Check one level deep (common when zipping a folder)
+            for subdir in extracted_dir.iterdir():
+                if subdir.is_dir() and (subdir / "Dockerfile").exists():
+                    dockerfile_path = subdir / "Dockerfile"
+                    extracted_dir = subdir  # Use this as build context
+                    break
+        
+        if not dockerfile_path:
+            raise HTTPException(status_code=400, detail="Dockerfile not found in ZIP. Place it at the root.")
+        
+        # Build the image
+        full_image_name = f"ghcr.io/{ghcr_username}/{clean_name}:latest"
+        
+        if not docker_client:
+            raise HTTPException(status_code=500, detail="Docker not available on server")
+        
+        logger.info(f"Building image: {full_image_name}")
+        
+        try:
+            # Build image
+            image, build_logs = docker_client.images.build(
+                path=str(extracted_dir),
+                tag=full_image_name,
+                rm=True
+            )
+            logger.info(f"Image built successfully: {full_image_name}")
+            
+            # Login to GHCR
+            docker_client.login(
+                username=ghcr_username,
+                password=ghcr_token,
+                registry="ghcr.io"
+            )
+            logger.info("Logged in to GHCR")
+            
+            # Push to GHCR
+            logger.info(f"Pushing image to GHCR: {full_image_name}")
+            push_result = docker_client.images.push(full_image_name)
+            logger.info(f"Push result: {push_result}")
+            
+            # Clean up
+            shutil.rmtree(build_dir, ignore_errors=True)
+            
+            return {
+                'status': 'success',
+                'image': full_image_name,
+                'message': f'Image {clean_name} built and pushed to GHCR!'
+            }
+            
+        except Exception as build_error:
+            logger.error(f"Docker build/push failed: {build_error}")
+            shutil.rmtree(build_dir, ignore_errors=True)
+            raise HTTPException(status_code=500, detail=f"Build failed: {str(build_error)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Image build error: {e}")
+        shutil.rmtree(build_dir, ignore_errors=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.delete("/admin/images/{image_name:path}")
+async def delete_docker_image(image_name: str, admin: dict = Depends(require_admin)):
+    """Delete a Docker image from GHCR (requires manual deletion via GitHub)"""
+    # Note: GHCR doesn't have a simple delete API
+    # Images need to be deleted manually from GitHub Packages page
+    return {
+        'success': False,
+        'message': 'Images must be deleted from GitHub Packages page: https://github.com/settings/packages'
+    }
+
+
+
 @api_router.post("/admin/challenges/upload")
 async def admin_create_challenge_with_docker(
     file: UploadFile = File(...),
