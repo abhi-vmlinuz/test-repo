@@ -127,12 +127,20 @@ const Profile = ({ user, logout, setUser }) => {
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
             <div className="flex flex-col items-center text-center relative z-10">
-              <div className="w-24 h-24 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-6 border border-white/10 shadow-2xl">
-                {user.username.substring(0, 2).toUpperCase()}
-              </div>
+              {user.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={user.username || user.name}
+                  className="w-24 h-24 rounded-2xl object-cover border-2 border-white/20 shadow-2xl mb-6"
+                />
+              ) : (
+                <div className="w-24 h-24 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-6 border border-white/10 shadow-2xl">
+                  {(user.username || user.name)?.substring(0, 2).toUpperCase()}
+                </div>
+              )}
 
               <h2 className="text-2xl font-bold text-white mb-1 tracking-tight" data-testid="profile-username">
-                {user.username}
+                {user.username || user.name}
               </h2>
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/10 mb-6">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

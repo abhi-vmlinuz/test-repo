@@ -970,6 +970,7 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                 user_data = {
                     'id': user['id'],
                     'name': user['name'],
+                    'username': user['name'],  # Alias for frontend compatibility
                     'email': user['email'],
                     'score': user['score'] or 0,
                     'role': role_map.get(user['role_type'], 'user'),
@@ -1246,6 +1247,7 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                 user_data = {
                     'id': user['id'],
                     'name': user['name'],
+                    'username': user['name'],  # Alias for frontend compatibility
                     'email': user['email'],
                     'score': user['score'] or 0,
                     'role': role_map.get(user['role_type'], 'user'),

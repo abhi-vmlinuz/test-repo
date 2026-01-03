@@ -33,7 +33,13 @@ const LoginPage = ({ setUser }) => {
             if (event.data?.type === 'github-login-success' || event.data?.type === 'google-login-success') {
                 const { token, user } = event.data.data;
                 localStorage.setItem('token', token);
-                setUser(user);
+                // Ensure username is set (OAuth might only return name)
+                const userData = {
+                    ...user,
+                    username: user.username || user.name
+                };
+                localStorage.setItem('user', JSON.stringify(userData));
+                setUser(userData);
                 const provider = event.data.type === 'github-login-success' ? 'GitHub' : 'Google';
                 toast.success(`Logged in with ${provider}!`);
                 navigate('/dashboard');

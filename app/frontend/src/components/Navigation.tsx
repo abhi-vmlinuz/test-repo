@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,12 +74,15 @@ const Navigation = ({ user, logout }) => {
                   data-testid="user-menu"
                 >
                   <div className="hidden md:block text-right">
-                    <div className="text-sm font-medium text-gray-900">{user?.username}</div>
+                    <div className="text-sm font-medium text-gray-900">{user?.username || user?.name}</div>
                     <div className="text-xs text-gray-400 font-mono">{user?.score} pts</div>
                   </div>
                   <Avatar className="w-9 h-9 border border-gray-200">
+                    {user?.avatar_url && (
+                      <AvatarImage src={user.avatar_url} alt={user?.username || user?.name} />
+                    )}
                     <AvatarFallback className="bg-gray-900 text-white text-sm font-semibold">
-                      {user?.username?.substring(0, 2).toUpperCase()}
+                      {(user?.username || user?.name)?.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -89,7 +92,7 @@ const Navigation = ({ user, logout }) => {
                 className="w-56 bg-white border border-gray-100 shadow-lg rounded-2xl p-1"
               >
                 <div className="px-3 py-3 border-b border-gray-100 mb-1">
-                  <p className="font-medium text-gray-900">{user?.username}</p>
+                  <p className="font-medium text-gray-900">{user?.username || user?.name}</p>
                   <p className="text-sm text-gray-400">{user?.email}</p>
                 </div>
                 <Link to="/profile">
