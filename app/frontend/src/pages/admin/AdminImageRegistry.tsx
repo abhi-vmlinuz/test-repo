@@ -28,7 +28,8 @@ const AdminImageRegistry = () => {
     const [showToken, setShowToken] = useState(false);
     const [saving, setSaving] = useState(false);
     const [testingConnection, setTestingConnection] = useState(false);
-    const [isEditing, setIsEditing] = useState(true); // Start in edit mode if not configured
+    const [loadingConfig, setLoadingConfig] = useState(true);
+    const [isEditing, setIsEditing] = useState(false); // Start as false to prevent flash
 
     // Build section
     const [buildFile, setBuildFile] = useState<File | null>(null);
@@ -42,16 +43,19 @@ const AdminImageRegistry = () => {
     }, []);
 
     const fetchGHCRConfig = async () => {
+        setLoadingConfig(true);
         try {
             const res = await axios.get(`${API}/admin/settings/ghcr`);
             setGhcrConfig(res.data);
-            // If already connected, show saved state
-            if (res.data.connected) {
-                setIsEditing(false);
+            // If not connected, show edit mode
+            if (!res.data.connected) {
+                setIsEditing(true);
             }
         } catch (err) {
             // Config not set yet
             setIsEditing(true);
+        } finally {
+            setLoadingConfig(false);
         }
     };
 
@@ -59,9 +63,8 @@ const AdminImageRegistry = () => {
         setLoading(true);
         try {
             const res = await axios.get(`${API}/admin/docker-images`);
-            // Filter to only show GHCR images
-            const ghcrImages = res.data.images.filter((img: DockerImage) => img.source === 'ghcr');
-            setImages(ghcrImages);
+            // Show all images (GHCR + Database)
+            setImages(res.data.images);
         } catch (err) {
             toast.error('Failed to fetch images');
         }
@@ -181,6 +184,17 @@ const AdminImageRegistry = () => {
             toast.error('Failed to delete image');
         }
     };
+
+    if (loadingConfig) {
+        return (
+            <div className="p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
+                <div className="flex flex-col items-center gap-4">
+                    <RefreshCw className="w-8 h-8 text-gray-400 animate-spin" />
+                    <p className="text-gray-500 font-mono text-sm">Loading Configuration...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-8 max-w-7xl mx-auto">

@@ -31,6 +31,7 @@ import asyncpg
 import zipfile
 import shutil
 import tempfile
+import httpx
 
 # Optional Docker support
 try:
@@ -1611,22 +1612,30 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
             logger.warning(f"Could not fetch GHCR settings from DB: {e}")
 
     if ghcr_token and ghcr_username:
+        logger.info(f"Fetching GHCR images for user: {ghcr_username}")
         try:
-            import httpx
             async with httpx.AsyncClient() as client:
+                # First try authenticated user's packages (works with PAT tokens)
                 resp = await client.get(
-                    f"https://api.github.com/users/{ghcr_username}/packages?package_type=container",
+                    "https://api.github.com/user/packages?package_type=container",
                     headers={
                         "Authorization": f"Bearer {ghcr_token}",
                         "Accept": "application/vnd.github+json"
                     },
                     timeout=10.0
                 )
+                
+                logger.info(f"GHCR API response status: {resp.status_code}")
+                
                 if resp.status_code == 200:
                     packages = resp.json()
+                    logger.info(f"Found {len(packages)} GHCR packages")
+                    
                     for pkg in packages:
-                        image_url = f"ghcr.io/{ghcr_username}/{pkg['name']}:latest"
-                        # Add to current response if not already there (case-insensitive check)
+                        owner = pkg.get('owner', {}).get('login', ghcr_username)
+                        image_url = f"ghcr.io/{owner.lower()}/{pkg['name'].lower()}:latest"
+                        
+                        # Add if not duplicate
                         if not any(img['image'].lower() == image_url.lower() for img in images):
                             images.append({
                                 'image': image_url,
@@ -1634,9 +1643,14 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                                 'label': pkg['name'],
                                 'created_at': pkg.get('created_at')
                             })
+                else:
+                    logger.warning(f"GHCR API returned: {resp.status_code} - {resp.text[:200]}")
         except Exception as e:
-            logger.warning(f"Failed to fetch from GHCR API: {e}")
+            logger.error(f"Failed to fetch from GHCR API: {e}")
+    else:
+        logger.info(f"GHCR not configured - token: {bool(ghcr_token)}, username: {bool(ghcr_username)}")
     
+    logger.info(f"Returning {len(images)} total images")
     return {
         'images': images,
         'ghcr_connected': bool(ghcr_token),
@@ -1732,7 +1746,6 @@ async def save_ghcr_settings(config: GHCRConfig, admin: dict = Depends(require_a
 async def test_ghcr_connection(config: GHCRConfig, admin: dict = Depends(require_admin)):
     """Test GHCR connection with provided credentials"""
     try:
-        import httpx
         async with httpx.AsyncClient() as client:
             # Test by listing packages
             resp = await client.get(
@@ -3268,8 +3281,6 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
 # NEXUS ENGINE INTEGRATION
 # (Container orchestration for CTF challenges)
 # ===========================================
-
-import httpx
 
 NEXUS_ENGINE_URL = os.environ.get('NEXUS_ENGINE_URL', 'http://172.235.15.209:8081')
 

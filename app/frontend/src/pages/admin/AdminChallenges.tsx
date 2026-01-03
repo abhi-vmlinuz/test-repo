@@ -66,13 +66,13 @@ const AdminChallenges = () => {
 
     // Fetch docker images when modal opens with Docker enabled
     const fetchDockerImages = async () => {
-        if (dockerImages.length > 0) return; // Already loaded
         setLoadingImages(true);
         try {
             const res = await axios.get(`${API}/admin/docker-images`);
             setDockerImages(res.data.images || []);
         } catch (e) {
-            console.error('Failed to fetch docker images');
+            console.error('Failed to fetch docker images:', e);
+            toast.error('Could not load images from registry');
         } finally {
             setLoadingImages(false);
         }
