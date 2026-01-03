@@ -94,6 +94,41 @@ const AdminNexus = () => {
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
 
+    const exportToCSV = () => {
+        if (!history.sessions || history.sessions.length === 0) {
+            toast.error('No history data to export');
+            return;
+        }
+
+        const headers = ['User', 'Email', 'Session ID', 'Challenge ID', 'Started At', 'Ended At', 'Duration (mins)', 'Status', 'Cost (USD)'];
+        const csvRows = [
+            headers.join(','),
+            ...history.sessions.map(session => [
+                `"${session.username || 'Unknown'}"`,
+                `"${session.email || 'N/A'}"`,
+                `"${session.session_id}"`,
+                `"${session.challenge_id}"`,
+                `"${session.started_at ? new Date(session.started_at).toLocaleString() : 'N/A'}"`,
+                `"${session.ended_at ? new Date(session.ended_at).toLocaleString() : 'N/A'}"`,
+                session.duration_mins || 0,
+                `"${session.status}"`,
+                session.cost || 0
+            ].join(','))
+        ];
+
+        const csvString = csvRows.join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `nexus_history_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Data exported to CSV');
+    };
+
     return (
         <div className="space-y-8">
             {/* Header */}
@@ -110,7 +145,7 @@ const AdminNexus = () => {
                         <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                         Refresh
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={exportToCSV}>
                         <Download className="w-4 h-4 mr-2" />
                         Export Data
                     </Button>
