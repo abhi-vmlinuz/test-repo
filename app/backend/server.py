@@ -3355,7 +3355,7 @@ async def get_docker_status(session_id: str, current_user: dict = Depends(get_cu
         raise HTTPException(status_code=503, detail="Nexus Engine unavailable")
 
 
-@api_router.get("/docker/status/{challenge_id}")
+@api_router.get("/docker/challenge-session/{challenge_id}")
 async def get_challenge_session(challenge_id: str, current_user: dict = Depends(get_current_user)):
     """Get user's existing session for a challenge (if any)"""
     user_id = current_user['id']
@@ -3439,7 +3439,7 @@ async def admin_nexus_sessions(current_user: dict = Depends(require_admin)):
     except Exception as e:
         logger.warning(f"Failed to fetch sessions from Nexus: {e}")
     
-    # 2. Also get from database (nexus_usage running sessions)
+    # 2. Also get from database (nexus_usage running sessions) and enrich with Nexus data
     try:
         pool = await Database.get_pool()
         async with pool.acquire() as conn:
@@ -3451,16 +3451,34 @@ async def admin_nexus_sessions(current_user: dict = Depends(require_admin)):
                 LIMIT 50
             ''')
             for row in rows:
-                # Check if already in sessions list
-                if not any(s.get('session_id') == row['session_id'] for s in sessions):
-                    sessions.append({
-                        'session_id': row['session_id'],
-                        'user_id': row['user_id'],
-                        'challenge_id': row['challenge_id'],
-                        'started_at': row['started_at'].isoformat() if row['started_at'] else None,
-                        'status': row['status'],
-                        'source': 'database'
-                    })
+                session_id = row['session_id']
+                # Check if already in sessions list from Nexus
+                existing = next((s for s in sessions if s.get('session_id') == session_id), None)
+                if existing:
+                    continue
+                
+                # Try to get details from Nexus
+                session_data = {
+                    'session_id': session_id,
+                    'user_id': row['user_id'],
+                    'challenge_id': row['challenge_id'],
+                    'started_at': row['started_at'].isoformat() if row['started_at'] else None,
+                    'status': row['status'],
+                    'source': 'database'
+                }
+                
+                # Fetch target_ip from Nexus
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=5.0)
+                        if resp.status_code == 200:
+                            nexus_data = resp.json()
+                            session_data['target_ip'] = nexus_data.get('target_ip')
+                            session_data['expires_at'] = nexus_data.get('expires_at')
+                except:
+                    pass
+                
+                sessions.append(session_data)
     except Exception as e:
         logger.warning(f"Failed to fetch sessions from DB: {e}")
     

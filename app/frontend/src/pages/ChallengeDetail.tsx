@@ -142,7 +142,7 @@ const ChallengeDetail = ({ user, logout }) => {
 
   const checkExistingSession = async () => {
     try {
-      const response = await axios.get(`${API}/docker/status/${id}`);
+      const response = await axios.get(`${API}/docker/challenge-session/${id}`);
       if (response.data && response.data.status === 'running') {
         setDockerInstance(response.data);
       }
