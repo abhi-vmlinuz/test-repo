@@ -1589,10 +1589,6 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
         logger.error(f"Failed to fetch images from DB: {e}")
     
     # 2. Try to fetch from GHCR API (if token available)
-    # Use cache if valid
-    import time
-    now = time.time()
-    
     ghcr_username = os.environ.get('GHCR_USERNAME', '')
     ghcr_token = os.environ.get('GHCR_TOKEN', '')
     
@@ -1614,16 +1610,7 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
         except Exception as e:
             logger.warning(f"Could not fetch GHCR settings from DB: {e}")
 
-    # Check cache
-    if GHCR_CACHE['last_update'] > (now - GHCR_CACHE_TTL) and GHCR_CACHE['ghcr_username'] == ghcr_username and GHCR_CACHE['images']:
-        # Merge existing images with GHCR cache, avoiding duplicates
-        ghcr_images = GHCR_CACHE['images']
-        for g_img in ghcr_images:
-            if not any(img['image'].lower() == g_img['image'].lower() for img in images):
-                images.append(g_img)
-    elif ghcr_token:
-        logger.info(f"Refreshing GHCR cache for {ghcr_username}")
-        new_ghcr_images = []
+    if ghcr_token and ghcr_username:
         try:
             import httpx
             async with httpx.AsyncClient() as client:
@@ -1639,29 +1626,21 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                     packages = resp.json()
                     for pkg in packages:
                         image_url = f"ghcr.io/{ghcr_username}/{pkg['name']}:latest"
-                        img_obj = {
-                            'image': image_url,
-                            'source': 'ghcr',
-                            'label': pkg['name'],
-                            'created_at': pkg.get('created_at')
-                        }
-                        new_ghcr_images.append(img_obj)
                         # Add to current response if not already there (case-insensitive check)
                         if not any(img['image'].lower() == image_url.lower() for img in images):
-                            images.append(img_obj)
-                    
-                    # Update global cache
-                    GHCR_CACHE['last_update'] = now
-                    GHCR_CACHE['images'] = new_ghcr_images
-                    GHCR_CACHE['ghcr_username'] = ghcr_username
+                            images.append({
+                                'image': image_url,
+                                'source': 'ghcr',
+                                'label': pkg['name'],
+                                'created_at': pkg.get('created_at')
+                            })
         except Exception as e:
             logger.warning(f"Failed to fetch from GHCR API: {e}")
     
     return {
         'images': images,
         'ghcr_connected': bool(ghcr_token),
-        'ghcr_username': ghcr_username,
-        'cached': GHCR_CACHE['last_update'] > 0 and GHCR_CACHE['last_update'] > (now - GHCR_CACHE_TTL)
+        'ghcr_username': ghcr_username
     }
 
 

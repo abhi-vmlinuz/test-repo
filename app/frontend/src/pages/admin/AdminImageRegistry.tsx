@@ -193,12 +193,6 @@ const AdminImageRegistry = () => {
                     </h1>
                     <p className="text-gray-500 mt-1">Manage Docker images for CTF challenges</p>
                 </div>
-                {ghcrConfig.connected && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100">
-                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                        <span className="text-xs font-bold uppercase tracking-wider">GHCR ACTIVE</span>
-                    </div>
-                )}
             </div>
 
             {/* GHCR Configuration */}
@@ -485,7 +479,7 @@ const AdminImageRegistry = () => {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 
