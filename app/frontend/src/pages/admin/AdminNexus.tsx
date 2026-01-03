@@ -124,9 +124,10 @@ const AdminNexus = () => {
     };
 
     const tabs = [
-        { id: 'overview', label: 'Overview', icon: Activity },
-        { id: 'sessions', label: 'Active Sessions', icon: Server },
-        { id: 'billing', label: 'Billing & History', icon: DollarSign },
+        { id: 'overview', label: 'Overview', icon: BarChart3 },
+        { id: 'sessions', label: 'Sessions', icon: Server },
+        { id: 'history', label: 'History', icon: Clock },
+        { id: 'billing', label: 'Billing', icon: DollarSign },
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
 
