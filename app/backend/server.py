@@ -3286,7 +3286,7 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
                 timeout=30.0
             )
-            if resp.status_code == 200:
+            if resp.status_code in [200, 404]:  # Treat 404 as already stopped
                 uid = str(current_user['id'])
                 if uid in nexus_sessions:
                     for cid, sess_id in list(nexus_sessions[uid].items()):
@@ -3303,8 +3303,8 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
                             UPDATE nexus_usage SET 
                                 ended_at = NOW(),
                                 status = 'completed',
-                                pod_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER,
-                                estimated_cost = (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035
+                                pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER),
+                                estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035)
                             WHERE session_id = $1 AND status = 'running'
                         ''', session_id)
                 except Exception as e:
@@ -3661,7 +3661,7 @@ async def admin_nexus_history(
                     nu.status,
                     nu.pod_seconds,
                     nu.estimated_cost,
-                    u.username,
+                    u.name,
                     u.email
                 FROM nexus_usage nu
                 LEFT JOIN users u ON nu.user_id = u.id
@@ -3684,7 +3684,7 @@ async def admin_nexus_history(
                 sessions.append({
                     'session_id': row['session_id'],
                     'user_id': row['user_id'],
-                    'username': row['username'] or 'Unknown',
+                    'username': row['name'] or 'Unknown',
                     'email': row['email'],
                     'challenge_id': row['challenge_id'],
                     'started_at': row['started_at'].isoformat() if row['started_at'] else None,

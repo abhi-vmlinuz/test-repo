@@ -23,7 +23,7 @@ const ChallengeDetail = ({ user, logout }) => {
   const [startingDocker, setStartingDocker] = useState(false);
   const [stoppingDocker, setStoppingDocker] = useState(false);
   const [extendingDocker, setExtendingDocker] = useState(false);
-  const [remainingMinutes, setRemainingMinutes] = useState(60);
+  const [remainingTime, setRemainingTime] = useState({ mins: 60, secs: 0 });
   const [submitResult, setSubmitResult] = useState(null);
 
   // Question states
@@ -37,16 +37,20 @@ const ChallengeDetail = ({ user, logout }) => {
     checkExistingSession();
   }, [id]);
 
-  // Timer to update remaining time
+  // Timer to update remaining time with seconds
   useEffect(() => {
     if (!dockerInstance?.expires_at) return;
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.floor((new Date(dockerInstance.expires_at).getTime() - Date.now()) / 60000));
-      setRemainingMinutes(remaining);
-    }, 30000);
-    // Initial calculation
-    const remaining = Math.max(0, Math.floor((new Date(dockerInstance.expires_at).getTime() - Date.now()) / 60000));
-    setRemainingMinutes(remaining);
+
+    const calculateTime = () => {
+      const diff = new Date(dockerInstance.expires_at).getTime() - Date.now();
+      const totalSecs = Math.max(0, Math.floor(diff / 1000));
+      const mins = Math.floor(totalSecs / 60);
+      const secs = totalSecs % 60;
+      setRemainingTime({ mins, secs });
+    };
+
+    const interval = setInterval(calculateTime, 1000);
+    calculateTime();
     return () => clearInterval(interval);
   }, [dockerInstance?.expires_at]);
 
@@ -168,7 +172,6 @@ const ChallengeDetail = ({ user, logout }) => {
 
   const handleStopDocker = async () => {
     if (!dockerInstance?.session_id) return;
-    if (!confirm('Stop and terminate this instance?')) return;
 
     setStoppingDocker(true);
     try {
@@ -375,10 +378,12 @@ const ChallengeDetail = ({ user, logout }) => {
                         <div>
                           <p className="text-gray-500 text-xs uppercase mb-1">Expires At</p>
                           <div className="flex items-baseline gap-2">
-                            <p className={`text-lg font-bold font-mono ${remainingMinutes < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
-                              {dockerInstance.expires_at ? new Date(dockerInstance.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                            <p className={`text-lg font-bold font-mono ${remainingTime.mins < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
+                              {dockerInstance.expires_at ? new Date(dockerInstance.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'}
                             </p>
-                            <span className="text-xs text-gray-400">({remainingMinutes}m)</span>
+                            <span className="text-xs text-gray-400">
+                              ({remainingTime.mins}m {remainingTime.secs}s)
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -399,7 +404,7 @@ const ChallengeDetail = ({ user, logout }) => {
                         )}
                         Stop Instance
                       </Button>
-                      {remainingMinutes < 20 && (
+                      {remainingTime.mins < 20 && (
                         <Button
                           variant="outline"
                           onClick={handleExtendDocker}
@@ -590,8 +595,8 @@ const ChallengeDetail = ({ user, logout }) => {
               </div>
               <div className="mt-4 flex items-center justify-between text-sm">
                 <span className="text-gray-500">Time left:</span>
-                <span className={`font-mono font-medium ${remainingMinutes < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
-                  {remainingMinutes} min
+                <span className={`font-mono font-medium ${remainingTime.mins < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
+                  {remainingTime.mins}m {remainingTime.secs}s
                 </span>
               </div>
             </div>
