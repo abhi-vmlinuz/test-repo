@@ -3355,6 +3355,72 @@ async def get_docker_status(session_id: str, current_user: dict = Depends(get_cu
         raise HTTPException(status_code=503, detail="Nexus Engine unavailable")
 
 
+@api_router.get("/docker/status/{challenge_id}")
+async def get_challenge_session(challenge_id: str, current_user: dict = Depends(get_current_user)):
+    """Get user's existing session for a challenge (if any)"""
+    user_id = current_user['id']
+    
+    # Check in-memory cache first
+    if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
+        session_id = nexus_sessions[user_id][challenge_id]
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                    timeout=10.0
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('status') == 'running':
+                        return {
+                            "session_id": session_id,
+                            "target_ip": data.get('target_ip'),
+                            "expires_at": data.get('expires_at'),
+                            "status": "running"
+                        }
+        except:
+            pass
+        # Session no longer valid, remove from cache
+        del nexus_sessions[user_id][challenge_id]
+    
+    # Check database for running session
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('''
+                SELECT session_id, started_at FROM nexus_usage
+                WHERE user_id = $1 AND challenge_id = $2 AND status = 'running'
+                AND started_at > NOW() - INTERVAL '2 hours'
+                ORDER BY started_at DESC LIMIT 1
+            ''', user_id, challenge_id)
+            
+            if row:
+                session_id = row['session_id']
+                # Verify with Nexus
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(
+                        f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                        timeout=10.0
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        # Cache it
+                        if user_id not in nexus_sessions:
+                            nexus_sessions[user_id] = {}
+                        nexus_sessions[user_id][challenge_id] = session_id
+                        return {
+                            "session_id": session_id,
+                            "target_ip": data.get('target_ip'),
+                            "expires_at": data.get('expires_at'),
+                            "status": "running"
+                        }
+    except Exception as e:
+        logger.warning(f"Error checking session: {e}")
+    
+    # No active session
+    return {"status": "none"}
+
+
 # Nexus Admin Endpoints
 @api_router.get("/admin/nexus/sessions")
 async def admin_nexus_sessions(current_user: dict = Depends(require_admin)):

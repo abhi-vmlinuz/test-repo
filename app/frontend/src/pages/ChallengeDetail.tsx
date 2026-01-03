@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ChallengeDetail = ({ user, logout }) => {
@@ -21,6 +21,9 @@ const ChallengeDetail = ({ user, logout }) => {
   const [unlockedHints, setUnlockedHints] = useState([]);
   const [dockerInstance, setDockerInstance] = useState(null);
   const [startingDocker, setStartingDocker] = useState(false);
+  const [stoppingDocker, setStoppingDocker] = useState(false);
+  const [extendingDocker, setExtendingDocker] = useState(false);
+  const [remainingMinutes, setRemainingMinutes] = useState(60);
   const [submitResult, setSubmitResult] = useState(null);
 
   // Question states
@@ -30,7 +33,22 @@ const ChallengeDetail = ({ user, logout }) => {
 
   useEffect(() => {
     fetchChallenge();
+    // Check for existing docker session
+    checkExistingSession();
   }, [id]);
+
+  // Timer to update remaining time
+  useEffect(() => {
+    if (!dockerInstance?.expires_at) return;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((new Date(dockerInstance.expires_at).getTime() - Date.now()) / 60000));
+      setRemainingMinutes(remaining);
+    }, 30000);
+    // Initial calculation
+    const remaining = Math.max(0, Math.floor((new Date(dockerInstance.expires_at).getTime() - Date.now()) / 60000));
+    setRemainingMinutes(remaining);
+    return () => clearInterval(interval);
+  }, [dockerInstance?.expires_at]);
 
   const fetchChallenge = async () => {
     try {
@@ -122,18 +140,60 @@ const ChallengeDetail = ({ user, logout }) => {
     }
   };
 
+  const checkExistingSession = async () => {
+    try {
+      const response = await axios.get(`${API}/docker/status/${id}`);
+      if (response.data && response.data.status === 'running') {
+        setDockerInstance(response.data);
+      }
+    } catch (error) {
+      // No existing session
+    }
+  };
+
   const handleStartDocker = async () => {
-    if (!challenge.docker_image) return;
+    if (!challenge?.docker_image) return;
 
     setStartingDocker(true);
     try {
       const response = await axios.post(`${API}/docker/start/${id}`);
       setDockerInstance(response.data);
-      toast.success('Docker instance started!');
+      toast.success('Instance started!');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to start Docker instance');
+      toast.error(error.response?.data?.detail || 'Failed to start instance');
     } finally {
       setStartingDocker(false);
+    }
+  };
+
+  const handleStopDocker = async () => {
+    if (!dockerInstance?.session_id) return;
+    if (!confirm('Stop and terminate this instance?')) return;
+
+    setStoppingDocker(true);
+    try {
+      await axios.delete(`${API}/docker/stop/${dockerInstance.session_id}`);
+      setDockerInstance(null);
+      toast.success('Instance stopped');
+    } catch (error) {
+      toast.error('Failed to stop instance');
+    } finally {
+      setStoppingDocker(false);
+    }
+  };
+
+  const handleExtendDocker = async () => {
+    if (!dockerInstance?.session_id) return;
+
+    setExtendingDocker(true);
+    try {
+      const response = await axios.post(`${API}/docker/extend/${dockerInstance.session_id}`);
+      setDockerInstance(prev => ({ ...prev, expires_at: response.data.expires_at }));
+      toast.success('Extended by 30 minutes');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to extend');
+    } finally {
+      setExtendingDocker(false);
     }
   };
 
@@ -279,14 +339,7 @@ const ChallengeDetail = ({ user, logout }) => {
                 ) : (
                   <div className="space-y-4">
                     <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                      <div className="flex justify-between items-center text-gray-500 mb-2">
-                        <span className="text-sm font-medium">STATUS</span>
-                        <span className="text-gray-700 font-bold flex items-center gap-2 text-sm">
-                          <span className="w-2 h-2 bg-gray-600 rounded-full animate-pulse"></span>
-                          {dockerInstance.status || 'Running'}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 mt-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
                           <p className="text-gray-500 text-xs uppercase mb-1">Target IP</p>
                           <div className="flex items-center gap-2">
@@ -294,7 +347,7 @@ const ChallengeDetail = ({ user, logout }) => {
                               className="text-gray-900 select-all cursor-pointer hover:text-gray-600 transition-colors text-lg font-bold font-mono"
                               onClick={() => {
                                 navigator.clipboard.writeText(dockerInstance.target_ip);
-                                toast.success('IP copied to clipboard!');
+                                toast.success('IP copied!');
                               }}
                             >
                               {dockerInstance.target_ip}
@@ -302,30 +355,54 @@ const ChallengeDetail = ({ user, logout }) => {
                             <button
                               onClick={() => {
                                 navigator.clipboard.writeText(dockerInstance.target_ip);
-                                toast.success('IP copied to clipboard!');
+                                toast.success('IP copied!');
                               }}
-                              className="text-gray-400 hover:text-gray-600 transition-colors text-sm"
+                              className="text-gray-400 hover:text-gray-600 text-xs"
                             >
                               Copy
                             </button>
                           </div>
                         </div>
                         <div>
-                          <p className="text-gray-500 text-xs uppercase mb-1">Session ID</p>
-                          <p className="text-gray-400 text-xs font-mono">{dockerInstance.session_id}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500 text-xs uppercase mb-1">Expires</p>
-                          <p className="text-gray-600 text-sm">{new Date(dockerInstance.expires_at).toLocaleTimeString()}</p>
+                          <p className="text-gray-500 text-xs uppercase mb-1">Time Remaining</p>
+                          <p className={`text-lg font-bold font-mono ${remainingMinutes < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
+                            {remainingMinutes} min
+                          </p>
                         </div>
                       </div>
                     </div>
-                    <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-lg p-4">
-                      <p className="text-emerald-400 text-sm font-mono">
-                        💡 Use <span className="bg-black/50 px-1 rounded">nmap {dockerInstance.target_ip}</span> to discover services
-                      </p>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={handleStopDocker}
+                        disabled={stoppingDocker}
+                        className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                      >
+                        {stoppingDocker ? (
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Square className="w-4 h-4 mr-2" />
+                        )}
+                        Stop Instance
+                      </Button>
+                      {remainingMinutes < 20 && (
+                        <Button
+                          variant="outline"
+                          onClick={handleExtendDocker}
+                          disabled={extendingDocker}
+                          className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
+                        >
+                          {extendingDocker ? (
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Clock className="w-4 h-4 mr-2" />
+                          )}
+                          Extend +30m
+                        </Button>
+                      )}
                     </div>
-                    <p className="text-xs text-center text-gray-500 mt-4">This instance will automatically terminate after 60 minutes.</p>
                   </div>
                 )}
               </div>
@@ -487,17 +564,23 @@ const ChallengeDetail = ({ user, logout }) => {
 
           {/* Challenge IP for Docker challenges */}
           {challenge.docker_image && dockerInstance && (
-            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 shadow-sm p-6">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Challenge IP</h3>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Challenge IP</h3>
               <div
-                className="bg-black rounded-lg p-4 cursor-pointer hover:bg-zinc-800 transition-colors"
+                className="bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-gray-100 transition-colors border border-gray-200"
                 onClick={() => {
                   navigator.clipboard.writeText(dockerInstance.target_ip);
-                  toast.success('IP copied to clipboard!');
+                  toast.success('IP copied!');
                 }}
               >
-                <p className="text-green-400 font-mono text-xl font-bold text-center">{dockerInstance.target_ip}</p>
-                <p className="text-gray-500 text-xs text-center mt-2">Click to copy</p>
+                <p className="text-gray-900 font-mono text-xl font-bold text-center">{dockerInstance.target_ip}</p>
+                <p className="text-gray-400 text-xs text-center mt-2">Click to copy</p>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <span className="text-gray-500">Time left:</span>
+                <span className={`font-mono font-medium ${remainingMinutes < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
+                  {remainingMinutes} min
+                </span>
               </div>
             </div>
           )}
@@ -515,8 +598,8 @@ const ChallengeDetail = ({ user, logout }) => {
                 {challenge.difficulty}
               </Badge>
               {challenge.docker_image && (
-                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
-                  🖥️ Lab
+                <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
+                  Lab
                 </Badge>
               )}
             </div>
