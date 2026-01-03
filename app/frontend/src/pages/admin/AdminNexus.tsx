@@ -9,7 +9,7 @@ import {
     Server, DollarSign, Activity, Calculator, Trash2, RefreshCw,
     Cloud, Cpu, HardDrive, Network, Clock, TrendingUp,
     Settings, Zap, CheckCircle, XCircle, BarChart3,
-    Download, Calendar
+    Download, Calendar, ChevronRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -87,13 +87,6 @@ const AdminNexus = () => {
     const totalSessions = history.summary?.total_sessions || 0;
     const maxCost = Math.max(...(history.daily_breakdown || []).map(d => d.cost), 0.01);
 
-    const tabs = [
-        { id: 'overview', label: 'Overview', icon: BarChart3 },
-        { id: 'sessions', label: 'Sessions', icon: Server },
-        { id: 'history', label: 'History', icon: Clock },
-        { id: 'billing', label: 'Billing', icon: DollarSign },
-        { id: 'settings', label: 'Settings', icon: Settings },
-    ];
 
     const exportToCSV = () => {
         if (!history.sessions || history.sessions.length === 0) {
@@ -129,6 +122,13 @@ const AdminNexus = () => {
         document.body.removeChild(link);
         toast.success('Data exported to CSV');
     };
+
+    const tabs = [
+        { id: 'overview', label: 'Overview', icon: Activity },
+        { id: 'sessions', label: 'Active Sessions', icon: Server },
+        { id: 'billing', label: 'Billing & History', icon: DollarSign },
+        { id: 'settings', label: 'Settings', icon: Settings },
+    ];
 
     return (
         <div className="space-y-8">
