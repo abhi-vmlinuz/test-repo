@@ -59,6 +59,11 @@ GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
 GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
 GITHUB_REDIRECT_URI = os.environ.get('GITHUB_REDIRECT_URI', 'https://ctf.zecurx.com/api/auth/github/callback')
 
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'https://ctf.zecurx.com/api/auth/google/callback')
+
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -1042,6 +1047,260 @@ async def _ensure_github_columns(conn):
             logger.info("Added avatar_url column to users table")
     except Exception as e:
         logger.warning(f"Could not ensure GitHub columns: {e}")
+
+
+async def _ensure_oauth_columns(conn):
+    """Ensure OAuth-related columns exist in users table (github_id, google_id, avatar_url)"""
+    try:
+        result = await conn.fetch('''
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'users' AND column_name IN ('github_id', 'google_id', 'avatar_url')
+        ''')
+        existing_columns = {row['column_name'] for row in result}
+        
+        if 'github_id' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN github_id VARCHAR(255) UNIQUE')
+            logger.info("Added github_id column to users table")
+        
+        if 'google_id' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE')
+            logger.info("Added google_id column to users table")
+        
+        if 'avatar_url' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN avatar_url TEXT')
+            logger.info("Added avatar_url column to users table")
+    except Exception as e:
+        logger.warning(f"Could not ensure OAuth columns: {e}")
+
+
+# ===========================================
+# GOOGLE OAUTH LOGIN
+# ===========================================
+
+@api_router.get("/auth/google/login")
+async def google_oauth_login_start():
+    """
+    Initiate Google OAuth for USER LOGIN.
+    Returns the Google authorization URL.
+    """
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+    
+    import secrets
+    state = secrets.token_urlsafe(32)
+    
+    google_auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        f"&response_type=code"
+        f"&scope=openid%20email%20profile"
+        f"&access_type=offline"
+        f"&state={state}"
+    )
+    
+    return {"url": google_auth_url, "state": state}
+
+
+@api_router.get("/auth/google/callback")
+async def google_oauth_callback(code: str, state: Optional[str] = None):
+    """
+    Handle Google OAuth callback for USER LOGIN.
+    - If user exists with same email: link Google and login
+    - If user exists with same google_id: login
+    - If new user: create account and login
+    """
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        return HTMLResponse(content=_google_error_html("Google OAuth not configured"), status_code=500)
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Exchange code for tokens
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "code": code,
+                    "redirect_uri": GOOGLE_REDIRECT_URI,
+                    "grant_type": "authorization_code"
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=15.0
+            )
+            
+            if token_response.status_code != 200:
+                logger.error(f"Google token exchange failed: {token_response.text}")
+                return HTMLResponse(content=_google_error_html("Failed to authenticate with Google"), status_code=400)
+            
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+            
+            if not access_token:
+                return HTMLResponse(content=_google_error_html("No access token received"), status_code=400)
+            
+            # Fetch user info from Google
+            user_response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10.0
+            )
+            
+            if user_response.status_code != 200:
+                return HTMLResponse(content=_google_error_html("Failed to fetch Google user info"), status_code=400)
+            
+            google_user = user_response.json()
+            google_id = str(google_user.get("id"))
+            google_email = google_user.get("email")
+            google_name = google_user.get("name") or google_email.split("@")[0]
+            google_avatar = google_user.get("picture", "")
+            
+            if not google_email:
+                return HTMLResponse(content=_google_error_html("Could not retrieve email from Google"), status_code=400)
+            
+            # Process login/registration
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                # Ensure OAuth columns exist
+                await _ensure_oauth_columns(conn)
+                
+                # 1. Check if user exists with this google_id
+                existing_by_google = await conn.fetchrow(
+                    'SELECT id, name, email, "ctfScore" as score FROM users WHERE google_id = $1',
+                    google_id
+                )
+                
+                if existing_by_google:
+                    # User already linked to this Google - just login
+                    user_id = existing_by_google['id']
+                    # Update avatar in case it changed
+                    await conn.execute(
+                        'UPDATE users SET avatar_url = $1, "updatedAt" = NOW() WHERE id = $2',
+                        google_avatar, user_id
+                    )
+                else:
+                    # 2. Check if user exists with this email
+                    existing_by_email = await conn.fetchrow(
+                        'SELECT id, name, email, "ctfScore" as score FROM users WHERE LOWER(email) = LOWER($1)',
+                        google_email
+                    )
+                    
+                    if existing_by_email:
+                        # Link Google to existing account
+                        user_id = existing_by_email['id']
+                        await conn.execute('''
+                            UPDATE users SET 
+                                google_id = $1, 
+                                avatar_url = COALESCE(avatar_url, $2),
+                                "updatedAt" = NOW()
+                            WHERE id = $3
+                        ''', google_id, google_avatar, user_id)
+                        logger.info(f"Linked Google {google_email} to existing user")
+                    else:
+                        # 3. Create new user
+                        role = await conn.fetchrow("SELECT id FROM \"Role\" WHERE type = 'CTF_USER'")
+                        if not role:
+                            role_id = generate_uuid()
+                            await conn.execute('''
+                                INSERT INTO "Role" (id, name, type, "createdAt", "updatedAt")
+                                VALUES ($1, 'CTF User', 'CTF_USER', NOW(), NOW())
+                            ''', role_id)
+                        else:
+                            role_id = role['id']
+                        
+                        import secrets
+                        random_password = secrets.token_urlsafe(32)
+                        user_id = generate_uuid()
+                        
+                        await conn.execute('''
+                            INSERT INTO users (
+                                id, name, email, password, "roleId",
+                                "isActive", "isVerified", "ctfScore",
+                                google_id, avatar_url,
+                                "createdAt", "updatedAt", "passwordChangedAt"
+                            ) VALUES ($1, $2, $3, $4, $5, true, true, 0, $6, $7, NOW(), NOW(), NOW())
+                        ''', user_id, google_name, google_email, 
+                             hash_password(random_password), role_id, google_id, google_avatar)
+                        
+                        logger.info(f"Created new user from Google: {google_email}")
+                
+                # Fetch user for token creation
+                user = await conn.fetchrow('''
+                    SELECT u.id, u.name, u.email, u."ctfScore" as score, u.avatar_url,
+                           r.type as role_type
+                    FROM users u
+                    JOIN "Role" r ON u."roleId" = r.id
+                    WHERE u.id = $1
+                ''', user_id)
+                
+                role_map = {
+                    'SUPERADMIN': 'superadmin', 
+                    'ADMIN': 'admin', 
+                    'INSTRUCTOR': 'admin',
+                    'STUDENT': 'student',
+                    'CTF_USER': 'user'
+                }
+                
+                token = create_token(user_id)
+                
+                user_data = {
+                    'id': user['id'],
+                    'name': user['name'],
+                    'email': user['email'],
+                    'score': user['score'] or 0,
+                    'role': role_map.get(user['role_type'], 'user'),
+                    'avatar_url': user['avatar_url']
+                }
+                
+                return HTMLResponse(content=f'''
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Login Successful</title></head>
+                    <body>
+                        <script>
+                            const authData = {{
+                                token: '{token}',
+                                user: {json.dumps(user_data)}
+                            }};
+                            
+                            if (window.opener) {{
+                                window.opener.postMessage({{
+                                    type: 'google-login-success',
+                                    data: authData
+                                }}, '*');
+                                window.close();
+                            }} else {{
+                                localStorage.setItem('token', authData.token);
+                                localStorage.setItem('user', JSON.stringify(authData.user));
+                                window.location.href = '/';
+                            }}
+                        </script>
+                        <h2>✅ Login Successful!</h2>
+                        <p>Redirecting...</p>
+                    </body>
+                    </html>
+                ''', status_code=200)
+                
+    except Exception as e:
+        logger.error(f"Google login error: {e}")
+        return HTMLResponse(content=_google_error_html(str(e)), status_code=500)
+
+
+def _google_error_html(message: str) -> str:
+    """Generate error HTML for Google OAuth failures"""
+    return f'''
+        <!DOCTYPE html>
+        <html>
+        <head><title>Login Failed</title></head>
+        <body style="font-family: system-ui; padding: 40px; text-align: center;">
+            <h2 style="color: #ef4444;">❌ Login Failed</h2>
+            <p style="color: #666;">{message}</p>
+            <button onclick="window.close()" style="margin-top: 20px; padding: 10px 20px; background: #18181b; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                Close Window
+            </button>
+        </body>
+        </html>
+    '''
 
 
 # ===========================================

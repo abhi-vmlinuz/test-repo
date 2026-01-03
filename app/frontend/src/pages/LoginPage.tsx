@@ -27,14 +27,15 @@ const LoginPage = ({ setUser }) => {
         setShowForgotPassword(false);
     }, [isLogin]);
 
-    // Listen for GitHub OAuth callback
+    // Listen for OAuth callbacks (GitHub and Google)
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
-            if (event.data?.type === 'github-login-success') {
+            if (event.data?.type === 'github-login-success' || event.data?.type === 'google-login-success') {
                 const { token, user } = event.data.data;
                 localStorage.setItem('token', token);
                 setUser(user);
-                toast.success('Logged in with GitHub!');
+                const provider = event.data.type === 'github-login-success' ? 'GitHub' : 'Google';
+                toast.success(`Logged in with ${provider}!`);
                 navigate('/dashboard');
             }
         };
@@ -70,8 +71,22 @@ const LoginPage = ({ setUser }) => {
         }, 1500);
     };
 
-    const handleGoogleLogin = () => {
-        toast.info("Google integration coming soon.");
+    const handleGoogleLogin = async () => {
+        try {
+            const res = await axios.get(`${API}/auth/google/login`);
+            // Open popup for OAuth
+            const width = 600;
+            const height = 700;
+            const left = window.screenX + (window.outerWidth - width) / 2;
+            const top = window.screenY + (window.outerHeight - height) / 2;
+            window.open(
+                res.data.url,
+                'google-login',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
+        } catch (e) {
+            toast.error('Failed to initiate Google login');
+        }
     };
 
     const handleGithubLogin = async () => {
@@ -328,7 +343,7 @@ const LoginPage = ({ setUser }) => {
                             </div>
                             <div className="mt-6 grid grid-cols-2 gap-3">
                                 <button onClick={handleGoogleLogin} className="flex items-center justify-center gap-2 h-10 bg-white border border-gray-200 hover:border-gray-300 rounded-lg transition-all shadow-sm">
-                                    <Globe className="w-4 h-4 text-gray-600" />
+                                    <img src="/google-logo.svg" alt="Google" className="w-4 h-4" />
                                     <span className="text-sm font-medium text-gray-700">Google</span>
                                 </button>
                                 <button onClick={handleGithubLogin} className="flex items-center justify-center gap-2 h-10 bg-white border border-gray-200 hover:border-gray-300 rounded-lg transition-all shadow-sm">
