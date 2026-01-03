@@ -20,6 +20,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
+import asyncio
 import json
 from datetime import datetime, timezone, timedelta
 import bcrypt
@@ -3614,25 +3615,81 @@ async def admin_terminate_session(session_id: str, current_user: dict = Depends(
 
 @api_router.post("/admin/nexus/cleanup")
 async def admin_cleanup_orphans(current_user: dict = Depends(require_admin)):
-    """Admin-only: Clean up orphaned resources in K8s and database"""
-    cleaned = {"pods": 0, "services": 0, "db_records": 0}
-    
-    # Mark stale sessions as expired (older than 2 hours and still running)
+    """Admin-only: Manually trigger the Janitor cleanup cycle"""
     try:
+        # We run the cleanup logic once immediately
+        cleaned_count = 0
+        
+        # 1. Get K8s state
+        cmd = "kubectl get svc -n nexus-challenges -o jsonpath='{.items[*].metadata.name}'"
+        process = await asyncio.create_subprocess_shell(
+            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await process.communicate()
+        active_services = stdout.decode().split()
+        k8s_session_ids = [s.replace('svc-', '') for s in active_services if s.startswith('svc-sess-')]
+        
+        # 2. Get DB state
         pool = await Database.get_pool()
         async with pool.acquire() as conn:
-            result = await conn.execute('''
-                UPDATE nexus_usage SET 
-                    status = 'expired',
-                    ended_at = COALESCE(ended_at, NOW())
-                WHERE status = 'running' 
-                AND started_at < NOW() - INTERVAL '2 hours'
-            ''')
-            cleaned["db_records"] = int(result.split()[-1]) if result else 0
+            rows = await conn.fetch("SELECT session_id FROM nexus_usage WHERE status = 'running'")
+            db_session_ids = [r['session_id'] for r in rows]
+            
+            # Identify and Kill orphans
+            orphans = [sid for sid in k8s_session_ids if sid not in db_session_ids]
+            async with httpx.AsyncClient() as client:
+                for sid in orphans:
+                    await client.delete(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{sid}", timeout=5.0)
+                    cleaned_count += 1
+            
+            # also clean pods
+            await asyncio.create_subprocess_shell("kubectl delete pods -n nexus-challenges --field-selector=status.phase!=Running")
+
+            return {"success": True, "orphans_cleaned": cleaned_count, "message": "Cleanup cycle completed"}
     except Exception as e:
-        logger.warning(f"Failed to clean DB: {e}")
-    
-    return {"success": True, "cleaned": cleaned}
+        logger.error(f"Manual cleanup failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def nexus_cleanup_janitor_task():
+    """Background loop to identify and kill orphan K8s resources (Strict Guard)"""
+    logger.info("🛡️ Nexus Janitor: Guard loop initialized.")
+    while True:
+        try:
+            # 1. Cross-reference K8s with Database
+            cmd = "kubectl get svc -n nexus-challenges -o jsonpath='{.items[*].metadata.name}'"
+            process = await asyncio.create_subprocess_shell(
+                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            stdout, _ = await process.communicate()
+            active_services = stdout.decode().split()
+            k8s_session_ids = [s.replace('svc-', '') for s in active_services if s.startswith('svc-sess-')]
+            
+            if k8s_session_ids:
+                pool = await Database.get_pool()
+                async with pool.acquire() as conn:
+                    rows = await conn.fetch("SELECT session_id FROM nexus_usage WHERE status = 'running'")
+                    db_session_ids = [r['session_id'] for r in rows]
+                    
+                    orphans = [sid for sid in k8s_session_ids if sid not in db_session_ids]
+                    if orphans:
+                        logger.warning(f"🛡️ Janitor: Killing {len(orphans)} silent orphans to save credits.")
+                        async with httpx.AsyncClient() as client:
+                            for sid in orphans:
+                                try:
+                                    await client.delete(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{sid}", timeout=5.0)
+                                    # Force delete if Nexus is slow
+                                    await asyncio.create_subprocess_shell(f"kubectl delete svc -n nexus-challenges svc-{sid} --now")
+                                    await asyncio.create_subprocess_shell(f"kubectl delete pod -n nexus-challenges chal-{sid} --now")
+                                except: pass
+
+            # 2. Cleanup non-running pods (failed/completed) to keep namespace clean
+            await asyncio.create_subprocess_shell("kubectl delete pods -n nexus-challenges --field-selector=status.phase!=Running --ignore-not-found")
+            
+        except Exception as e:
+            logger.error(f"🛡️ Janitor Cycle Error: {e}")
+        
+        await asyncio.sleep(600)  # Check every 10 minutes
 
 
 @api_router.get("/admin/nexus/history")
@@ -3836,6 +3893,9 @@ async def startup():
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise
+    
+    # Start background janitor for Nexus
+    asyncio.create_task(nexus_cleanup_janitor_task())
 
 
 @app.on_event("shutdown")
