@@ -45,9 +45,82 @@ const AdminChallenges = () => {
     const [zipPreview, setZipPreview] = useState<{ files: string[]; count: number } | null>(null);
     const [loadingZipPreview, setLoadingZipPreview] = useState(false);
 
+    // GitHub OAuth state
+    const [githubConnected, setGithubConnected] = useState(false);
+    const [githubUsername, setGithubUsername] = useState('');
+    const [githubRepos, setGithubRepos] = useState<any[]>([]);
+    const [loadingGithub, setLoadingGithub] = useState(false);
+
     useEffect(() => {
         fetchData();
+        checkGithubStatus();
+
+        // Listen for OAuth callback messages
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === 'github-oauth-success') {
+                setGithubConnected(true);
+                setGithubUsername(event.data.username);
+                toast.success(`Connected to GitHub as ${event.data.username}`);
+                fetchGithubRepos();
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
     }, []);
+
+    const checkGithubStatus = async () => {
+        try {
+            const res = await axios.get(`${API}/auth/github/status`);
+            if (res.data.connected) {
+                setGithubConnected(true);
+                setGithubUsername(res.data.username);
+            }
+        } catch (e) {
+            // GitHub not connected
+        }
+    };
+
+    const connectGithub = async () => {
+        try {
+            const res = await axios.get(`${API}/auth/github`);
+            // Open popup for OAuth
+            const width = 600;
+            const height = 700;
+            const left = window.screenX + (window.outerWidth - width) / 2;
+            const top = window.screenY + (window.outerHeight - height) / 2;
+            window.open(
+                res.data.url,
+                'github-oauth',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
+        } catch (e) {
+            toast.error('Failed to initiate GitHub connection');
+        }
+    };
+
+    const disconnectGithub = async () => {
+        try {
+            await axios.delete(`${API}/auth/github/disconnect`);
+            setGithubConnected(false);
+            setGithubUsername('');
+            setGithubRepos([]);
+            toast.success('GitHub disconnected');
+        } catch (e) {
+            toast.error('Failed to disconnect GitHub');
+        }
+    };
+
+    const fetchGithubRepos = async () => {
+        setLoadingGithub(true);
+        try {
+            const res = await axios.get(`${API}/github/repos`);
+            setGithubRepos(res.data.repos || []);
+        } catch (e) {
+            console.error('Failed to fetch repos');
+        } finally {
+            setLoadingGithub(false);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -815,34 +888,90 @@ const AdminChallenges = () => {
                                                 <div className="bg-white border border-gray-200 rounded-xl p-4">
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center">
-                                                                <span className="text-xl">🐙</span>
+                                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-200">
+                                                                <img src="/github-mark.svg" alt="GitHub" className="w-6 h-6" />
                                                             </div>
                                                             <div>
                                                                 <p className="font-medium text-gray-900">GitHub Integration</p>
-                                                                <p className="text-sm text-gray-500">Connect to import challenges from repos</p>
+                                                                {githubConnected ? (
+                                                                    <p className="text-sm text-emerald-600">Connected as @{githubUsername}</p>
+                                                                ) : (
+                                                                    <p className="text-sm text-gray-500">Connect to import challenges from repos</p>
+                                                                )}
                                                             </div>
                                                         </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toast.info('GitHub OAuth coming soon!')}
-                                                            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition-colors"
-                                                        >
-                                                            Connect GitHub
-                                                        </button>
+                                                        {githubConnected ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={disconnectGithub}
+                                                                className="px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                                                            >
+                                                                Disconnect
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={connectGithub}
+                                                                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition-colors"
+                                                            >
+                                                                Connect GitHub
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
 
-                                                {/* Repo Browser Placeholder */}
-                                                <div className="border border-gray-200 rounded-xl p-6 text-center">
-                                                    <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                                                        <span className="text-3xl text-gray-400">🔒</span>
+                                                {/* Repo Browser */}
+                                                {githubConnected ? (
+                                                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                                                            <span className="text-sm font-medium text-gray-700">Your Repositories</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={fetchGithubRepos}
+                                                                disabled={loadingGithub}
+                                                                className="text-xs text-blue-600 hover:text-blue-700"
+                                                            >
+                                                                {loadingGithub ? 'Loading...' : 'Refresh'}
+                                                            </button>
+                                                        </div>
+                                                        <div className="max-h-48 overflow-y-auto">
+                                                            {githubRepos.length > 0 ? (
+                                                                githubRepos.map((repo, idx) => (
+                                                                    <div
+                                                                        key={idx}
+                                                                        onClick={() => setFormData(prev => ({ ...prev, github_repo: repo.html_url }))}
+                                                                        className={`px-4 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${formData.github_repo === repo.html_url ? 'bg-blue-50 border-blue-100' : ''
+                                                                            }`}
+                                                                    >
+                                                                        <div className="flex items-center justify-between">
+                                                                            <div>
+                                                                                <p className="font-medium text-gray-900 text-sm">{repo.name}</p>
+                                                                                <p className="text-xs text-gray-500 truncate max-w-xs">{repo.description || 'No description'}</p>
+                                                                            </div>
+                                                                            {repo.private && (
+                                                                                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Private</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))
+                                                            ) : (
+                                                                <div className="p-6 text-center text-gray-400 text-sm">
+                                                                    {loadingGithub ? 'Loading repositories...' : 'No repositories found'}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <p className="text-gray-500">Connect your GitHub account to browse repos</p>
-                                                    <p className="text-xs text-gray-400 mt-2">
-                                                        Once connected, you can select any repo and folder containing a Dockerfile
-                                                    </p>
-                                                </div>
+                                                ) : (
+                                                    <div className="border border-gray-200 rounded-xl p-6 text-center">
+                                                        <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                                            <img src="/github-mark.svg" alt="GitHub" className="w-8 h-8 opacity-30" />
+                                                        </div>
+                                                        <p className="text-gray-500">Connect your GitHub account to browse repos</p>
+                                                        <p className="text-xs text-gray-400 mt-2">
+                                                            Once connected, you can select any repo and folder containing a Dockerfile
+                                                        </p>
+                                                    </div>
+                                                )}
 
                                                 {/* Manual GitHub URL fallback */}
                                                 <div className="pt-4 border-t border-gray-200">

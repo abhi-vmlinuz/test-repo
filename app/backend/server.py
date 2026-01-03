@@ -11,7 +11,7 @@ Features:
 """
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, File, UploadFile, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -53,6 +53,11 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'ctf-secret-key-change-in-production')
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24
+
+# GitHub OAuth Configuration
+GITHUB_CLIENT_ID = os.environ.get('GITHUB_CLIENT_ID', '')
+GITHUB_CLIENT_SECRET = os.environ.get('GITHUB_CLIENT_SECRET', '')
+GITHUB_REDIRECT_URI = os.environ.get('GITHUB_REDIRECT_URI', 'https://ctf.zecurx.com/api/auth/github/callback')
 
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -534,6 +539,225 @@ async def register(user_data: UserRegister):
                 'role': 'user'
             }
         }
+
+
+# ===========================================
+# GITHUB OAUTH INTEGRATION
+# ===========================================
+
+@api_router.get("/auth/github")
+async def github_oauth_start():
+    """
+    Initiate GitHub OAuth flow.
+    Returns the GitHub authorization URL to redirect the user to.
+    """
+    if not GITHUB_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="GitHub OAuth not configured")
+    
+    # Generate state for CSRF protection
+    import secrets
+    state = secrets.token_urlsafe(32)
+    
+    # Store state in a temporary way (in production, use Redis or database)
+    # For now, we'll include it in the redirect and verify on callback
+    
+    github_auth_url = (
+        f"https://github.com/login/oauth/authorize"
+        f"?client_id={GITHUB_CLIENT_ID}"
+        f"&redirect_uri={GITHUB_REDIRECT_URI}"
+        f"&scope=read:user,repo,read:packages,write:packages"
+        f"&state={state}"
+    )
+    
+    return {"url": github_auth_url, "state": state}
+
+
+@api_router.get("/auth/github/callback")
+async def github_oauth_callback(code: str, state: Optional[str] = None):
+    """
+    Handle GitHub OAuth callback.
+    Exchanges the code for an access token and fetches user info.
+    """
+    if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+        raise HTTPException(status_code=500, detail="GitHub OAuth not configured")
+    
+    try:
+        # Exchange code for access token
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://github.com/login/oauth/access_token",
+                data={
+                    "client_id": GITHUB_CLIENT_ID,
+                    "client_secret": GITHUB_CLIENT_SECRET,
+                    "code": code,
+                    "redirect_uri": GITHUB_REDIRECT_URI
+                },
+                headers={"Accept": "application/json"},
+                timeout=15.0
+            )
+            
+            if token_response.status_code != 200:
+                logger.error(f"GitHub token exchange failed: {token_response.text}")
+                raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+            
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+            
+            if not access_token:
+                logger.error(f"No access token in response: {token_data}")
+                raise HTTPException(status_code=400, detail="No access token received")
+            
+            # Fetch user info from GitHub
+            user_response = await client.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=10.0
+            )
+            
+            if user_response.status_code != 200:
+                raise HTTPException(status_code=400, detail="Failed to fetch GitHub user info")
+            
+            github_user = user_response.json()
+            
+            # Store the GitHub connection in admin_settings for this user
+            # This links the GitHub account for repo access
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                # Store GitHub token (encrypted in production)
+                await conn.execute('''
+                    INSERT INTO admin_settings (key, value, encrypted, updated_at)
+                    VALUES ('github_oauth_token', $1, true, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+                ''', access_token)
+                
+                await conn.execute('''
+                    INSERT INTO admin_settings (key, value, updated_at)
+                    VALUES ('github_oauth_username', $1, NOW())
+                    ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()
+                ''', github_user.get('login', ''))
+            
+            logger.info(f"GitHub OAuth successful for user: {github_user.get('login')}")
+            
+            # Return HTML that closes the popup and notifies the parent
+            return HTMLResponse(content=f'''
+                <!DOCTYPE html>
+                <html>
+                <head><title>GitHub Connected</title></head>
+                <body>
+                    <script>
+                        if (window.opener) {{
+                            window.opener.postMessage({{
+                                type: 'github-oauth-success',
+                                username: '{github_user.get("login", "")}',
+                                avatar: '{github_user.get("avatar_url", "")}'
+                            }}, '*');
+                            window.close();
+                        }} else {{
+                            document.body.innerHTML = '<h2> GitHub Connected!</h2><p>You can close this window.</p>';
+                        }}
+                    </script>
+                    <h2> GitHub Connected!</h2>
+                    <p>Connected as: <strong>{github_user.get("login", "")}</strong></p>
+                    <p>You can close this window.</p>
+                </body>
+                </html>
+            ''', status_code=200)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"GitHub OAuth error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/auth/github/status")
+async def github_oauth_status(admin: dict = Depends(require_admin)):
+    """Check if GitHub is connected via OAuth"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            token = await conn.fetchrow(
+                "SELECT value FROM admin_settings WHERE key = 'github_oauth_token'"
+            )
+            username = await conn.fetchrow(
+                "SELECT value FROM admin_settings WHERE key = 'github_oauth_username'"
+            )
+            
+            if token and username:
+                return {
+                    "connected": True,
+                    "username": username['value']
+                }
+            return {"connected": False}
+    except Exception as e:
+        logger.error(f"Error checking GitHub status: {e}")
+        return {"connected": False}
+
+
+@api_router.delete("/auth/github/disconnect")
+async def github_oauth_disconnect(admin: dict = Depends(require_admin)):
+    """Disconnect GitHub OAuth"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("DELETE FROM admin_settings WHERE key = 'github_oauth_token'")
+            await conn.execute("DELETE FROM admin_settings WHERE key = 'github_oauth_username'")
+        return {"success": True, "message": "GitHub disconnected"}
+    except Exception as e:
+        logger.error(f"Error disconnecting GitHub: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/github/repos")
+async def list_github_repos(admin: dict = Depends(require_admin)):
+    """List user's GitHub repositories for challenge import"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            token_row = await conn.fetchrow(
+                "SELECT value FROM admin_settings WHERE key = 'github_oauth_token'"
+            )
+            
+            if not token_row:
+                raise HTTPException(status_code=401, detail="GitHub not connected")
+            
+            access_token = token_row['value']
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://api.github.com/user/repos?per_page=100&sort=updated",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Accept": "application/vnd.github+json"
+                    },
+                    timeout=15.0
+                )
+                
+                if response.status_code != 200:
+                    raise HTTPException(status_code=400, detail="Failed to fetch repositories")
+                
+                repos = response.json()
+                return {
+                    "repos": [
+                        {
+                            "name": repo["name"],
+                            "full_name": repo["full_name"],
+                            "description": repo.get("description"),
+                            "html_url": repo["html_url"],
+                            "private": repo["private"],
+                            "updated_at": repo["updated_at"]
+                        }
+                        for repo in repos
+                    ]
+                }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching repos: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ===========================================
