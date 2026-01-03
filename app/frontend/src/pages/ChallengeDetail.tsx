@@ -343,31 +343,43 @@ const ChallengeDetail = ({ user, logout }) => {
                         <div>
                           <p className="text-gray-500 text-xs uppercase mb-1">Target IP</p>
                           <div className="flex items-center gap-2">
-                            <p
-                              className="text-gray-900 select-all cursor-pointer hover:text-gray-600 transition-colors text-lg font-bold font-mono"
-                              onClick={() => {
-                                navigator.clipboard.writeText(dockerInstance.target_ip);
-                                toast.success('IP copied!');
-                              }}
-                            >
-                              {dockerInstance.target_ip}
-                            </p>
-                            <button
-                              onClick={() => {
-                                navigator.clipboard.writeText(dockerInstance.target_ip);
-                                toast.success('IP copied!');
-                              }}
-                              className="text-gray-400 hover:text-gray-600 text-xs"
-                            >
-                              Copy
-                            </button>
+                            {dockerInstance.target_ip ? (
+                              <>
+                                <p
+                                  className="text-gray-900 select-all cursor-pointer hover:text-gray-600 transition-colors text-lg font-bold font-mono"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(dockerInstance.target_ip);
+                                    toast.success('IP copied!');
+                                  }}
+                                >
+                                  {dockerInstance.target_ip}
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(dockerInstance.target_ip);
+                                    toast.success('IP copied!');
+                                  }}
+                                  className="text-gray-400 hover:text-gray-600 text-xs"
+                                >
+                                  Copy
+                                </button>
+                              </>
+                            ) : (
+                              <div className="flex items-center gap-2 text-amber-600 font-medium animate-pulse">
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                                <span className="text-sm">Pending...</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div>
-                          <p className="text-gray-500 text-xs uppercase mb-1">Time Remaining</p>
-                          <p className={`text-lg font-bold font-mono ${remainingMinutes < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
-                            {remainingMinutes} min
-                          </p>
+                          <p className="text-gray-500 text-xs uppercase mb-1">Expires At</p>
+                          <div className="flex items-baseline gap-2">
+                            <p className={`text-lg font-bold font-mono ${remainingMinutes < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
+                              {dockerInstance.expires_at ? new Date(dockerInstance.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                            </p>
+                            <span className="text-xs text-gray-400">({remainingMinutes}m)</span>
+                          </div>
                         </div>
                       </div>
                     </div>

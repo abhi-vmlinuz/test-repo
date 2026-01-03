@@ -3232,9 +3232,9 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                 
                 session_data = spawn_resp.json()
                 
-                if user_id not in nexus_sessions:
-                    nexus_sessions[user_id] = {}
-                nexus_sessions[user_id][challenge_id] = session_data['session_id']
+                if str(user_id) not in nexus_sessions:
+                    nexus_sessions[str(user_id)] = {}
+                nexus_sessions[str(user_id)][str(challenge_id)] = session_data['session_id']
                 
                 # Track usage for billing (insert into nexus_usage table)
                 try:
@@ -3258,7 +3258,7 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                             INSERT INTO nexus_usage (
                                 id, user_id, challenge_id, session_id, started_at, status
                             ) VALUES ($1, $2, $3, $4, NOW(), 'running')
-                        ''', generate_uuid(), user_id, challenge_id, session_data['session_id'])
+                        ''', generate_uuid(), str(user_id), str(challenge_id), session_data['session_id'])
                 except Exception as e:
                     logger.warning(f"Failed to record usage: {e}")  # Don't fail the request
                 
@@ -3287,11 +3287,11 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
                 timeout=30.0
             )
             if resp.status_code == 200:
-                user_id = current_user['id']
-                if user_id in nexus_sessions:
-                    for chal_id, sess_id in list(nexus_sessions[user_id].items()):
+                uid = str(current_user['id'])
+                if uid in nexus_sessions:
+                    for cid, sess_id in list(nexus_sessions[uid].items()):
                         if sess_id == session_id:
-                            del nexus_sessions[user_id][chal_id]
+                            del nexus_sessions[uid][cid]
                             break
                 
                 # Update usage record with end time and calculate cost
@@ -3375,11 +3375,12 @@ async def get_docker_status(session_id: str, current_user: dict = Depends(get_cu
 @api_router.get("/docker/challenge-session/{challenge_id}")
 async def get_challenge_session(challenge_id: str, current_user: dict = Depends(get_current_user)):
     """Get user's existing session for a challenge (if any)"""
-    user_id = current_user['id']
+    user_id = str(current_user['id'])
     
     # Check in-memory cache first
     if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
         session_id = nexus_sessions[user_id][challenge_id]
+        logger.info(f"Found session {session_id} in cache for user {user_id}")
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -3395,8 +3396,9 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                             "expires_at": data.get('expires_at'),
                             "status": "running"
                         }
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Error checking cache session {session_id}: {e}")
+        
         # Session no longer valid, remove from cache
         del nexus_sessions[user_id][challenge_id]
     
@@ -3407,34 +3409,42 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
             row = await conn.fetchrow('''
                 SELECT session_id, started_at FROM nexus_usage
                 WHERE user_id = $1 AND challenge_id = $2 AND status = 'running'
-                AND started_at > NOW() - INTERVAL '2 hours'
+                AND started_at > NOW() - INTERVAL '4 hours'
                 ORDER BY started_at DESC LIMIT 1
             ''', user_id, challenge_id)
             
             if row:
                 session_id = row['session_id']
+                logger.info(f"Found running session {session_id} in DB for user {user_id}")
                 # Verify with Nexus
-                async with httpx.AsyncClient() as client:
-                    resp = await client.get(
-                        f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
-                        timeout=10.0
-                    )
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        # Cache it
-                        if user_id not in nexus_sessions:
-                            nexus_sessions[user_id] = {}
-                        nexus_sessions[user_id][challenge_id] = session_id
-                        return {
-                            "session_id": session_id,
-                            "target_ip": data.get('target_ip'),
-                            "expires_at": data.get('expires_at'),
-                            "status": "running"
-                        }
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(
+                            f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                            timeout=10.0
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            # Cache it
+                            if user_id not in nexus_sessions:
+                                nexus_sessions[user_id] = {}
+                            nexus_sessions[user_id][challenge_id] = session_id
+                            return {
+                                "session_id": session_id,
+                                "target_ip": data.get('target_ip'),
+                                "expires_at": data.get('expires_at'),
+                                "status": "running"
+                            }
+                        else:
+                            logger.info(f"Session {session_id} found in DB but not running in Nexus (status {resp.status_code})")
+                            # Mark as terminated in DB
+                            await conn.execute("UPDATE nexus_usage SET status = 'terminated', ended_at = NOW() WHERE session_id = $1", session_id)
+                except Exception as e:
+                    logger.warning(f"Error verifying DB session {session_id} with Nexus: {e}")
     except Exception as e:
-        logger.warning(f"Error checking session: {e}")
+        logger.warning(f"Error checking persistence from DB: {e}")
     
-    # No active session
+    # No active session found
     return {"status": "none"}
 
 
