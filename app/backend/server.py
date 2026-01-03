@@ -329,6 +329,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             user = await conn.fetchrow('''
                 SELECT u.id, u.name, u.email, u."ctfScore" as score,
                        u."isActive", u."isLocked" as is_banned,
+                       u.avatar_url,
                        r.type as role_type
                 FROM users u
                 JOIN "Role" r ON u."roleId" = r.id
@@ -355,7 +356,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 'score': user['score'] or 0,
                 'role': role_map.get(user['role_type'], 'user'),
                 'role_type': user['role_type'],  # Include for LMS integration
-                'is_active': user['isActive']
+                'is_active': user['isActive'],
+                'avatar_url': user['avatar_url']
             }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -409,6 +411,7 @@ async def login(credentials: UserLogin):
         user = await conn.fetchrow('''
             SELECT u.id, u.name, u.email, u.password,
                    u."ctfScore" as score, u."isLocked" as is_banned,
+                   u.avatar_url,
                    r.type as role_type
             FROM users u
             JOIN "Role" r ON u."roleId" = r.id
@@ -475,7 +478,8 @@ async def login(credentials: UserLogin):
                 'email': user['email'],
                 'score': user['score'] or 0,
                 'role': role_map.get(user['role_type'], 'user'),
-                'role_type': user['role_type']  # Include actual role type for LMS integration
+                'role_type': user['role_type'],  # Include actual role type for LMS integration
+                'avatar_url': user['avatar_url']
             }
         }
 
@@ -576,8 +580,13 @@ async def github_oauth_start():
 async def github_oauth_callback(code: str, state: Optional[str] = None):
     """
     Handle GitHub OAuth callback.
-    Exchanges the code for an access token and fetches user info.
+    Routes to login flow if state starts with 'login_', otherwise handles admin integration.
     """
+    # Route to login callback if this is a login flow
+    if state and state.startswith('login_'):
+        return await _handle_github_login_callback(code, state)
+    
+    # Otherwise, this is admin repo integration
     if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
         raise HTTPException(status_code=500, detail="GitHub OAuth not configured")
     
@@ -758,6 +767,281 @@ async def list_github_repos(admin: dict = Depends(require_admin)):
     except Exception as e:
         logger.error(f"Error fetching repos: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===========================================
+# GITHUB OAUTH LOGIN (User Authentication)
+# ===========================================
+
+@api_router.get("/auth/github/login")
+async def github_oauth_login_start():
+    """
+    Initiate GitHub OAuth for USER LOGIN (not admin integration).
+    This is for users to sign in/sign up with their GitHub account.
+    Uses the same callback URL but with 'login_' state prefix.
+    """
+    if not GITHUB_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="GitHub OAuth not configured")
+    
+    import secrets
+    state = "login_" + secrets.token_urlsafe(32)  # Prefix to identify this is for login
+    
+    # Use user:email scope to get user's email even if private
+    # Use the SAME callback URL - we'll route based on state prefix
+    github_auth_url = (
+        f"https://github.com/login/oauth/authorize"
+        f"?client_id={GITHUB_CLIENT_ID}"
+        f"&redirect_uri={GITHUB_REDIRECT_URI}"
+        f"&scope=read:user,user:email"
+        f"&state={state}"
+    )
+    
+    return {"url": github_auth_url, "state": state}
+
+
+async def _handle_github_login_callback(code: str, state: Optional[str] = None):
+    """
+    Handle GitHub OAuth callback for USER LOGIN.
+    Called from main callback when state starts with 'login_'.
+    - If user exists with same email: link GitHub and login
+    - If user exists with same github_id: login
+    - If new user: create account and login
+    """
+    if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+        return HTMLResponse(content=_github_error_html("GitHub OAuth not configured"), status_code=500)
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Exchange code for access token
+            token_response = await client.post(
+                "https://github.com/login/oauth/access_token",
+                data={
+                    "client_id": GITHUB_CLIENT_ID,
+                    "client_secret": GITHUB_CLIENT_SECRET,
+                    "code": code,
+                    "redirect_uri": GITHUB_REDIRECT_URI
+                },
+                headers={"Accept": "application/json"},
+                timeout=15.0
+            )
+            
+            if token_response.status_code != 200:
+                logger.error(f"GitHub token exchange failed: {token_response.text}")
+                return HTMLResponse(content=_github_error_html("Failed to authenticate with GitHub"), status_code=400)
+            
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+            
+            if not access_token:
+                return HTMLResponse(content=_github_error_html("No access token received"), status_code=400)
+            
+            # Fetch user info
+            user_response = await client.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=10.0
+            )
+            
+            if user_response.status_code != 200:
+                return HTMLResponse(content=_github_error_html("Failed to fetch GitHub user info"), status_code=400)
+            
+            github_user = user_response.json()
+            github_id = str(github_user.get("id"))
+            github_login = github_user.get("login", "")
+            github_avatar = github_user.get("avatar_url", "")
+            github_name = github_user.get("name") or github_login
+            
+            # Try to get email (some users have private emails)
+            github_email = github_user.get("email")
+            if not github_email:
+                emails_response = await client.get(
+                    "https://api.github.com/user/emails",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Accept": "application/vnd.github+json"
+                    },
+                    timeout=10.0
+                )
+                if emails_response.status_code == 200:
+                    emails = emails_response.json()
+                    primary_email = next((e["email"] for e in emails if e.get("primary")), None)
+                    github_email = primary_email or (emails[0]["email"] if emails else None)
+            
+            if not github_email:
+                return HTMLResponse(content=_github_error_html("Could not retrieve email from GitHub. Please make sure your email is public or use password login."), status_code=400)
+            
+            # Process login/registration
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                # First, ensure github_id and avatar_url columns exist
+                await _ensure_github_columns(conn)
+                
+                # 1. Check if user exists with this github_id
+                existing_by_github = await conn.fetchrow(
+                    'SELECT id, name, email, "ctfScore" as score, "roleId" FROM users WHERE github_id = $1',
+                    github_id
+                )
+                
+                if existing_by_github:
+                    # User already linked to this GitHub - just login
+                    user_id = existing_by_github['id']
+                    # Update avatar in case it changed
+                    await conn.execute(
+                        'UPDATE users SET avatar_url = $1, "updatedAt" = NOW() WHERE id = $2',
+                        github_avatar, user_id
+                    )
+                else:
+                    # 2. Check if user exists with this email
+                    existing_by_email = await conn.fetchrow(
+                        'SELECT id, name, email, "ctfScore" as score, "roleId" FROM users WHERE LOWER(email) = LOWER($1)',
+                        github_email
+                    )
+                    
+                    if existing_by_email:
+                        # Link GitHub to existing account
+                        user_id = existing_by_email['id']
+                        await conn.execute('''
+                            UPDATE users SET 
+                                github_id = $1, 
+                                avatar_url = $2,
+                                "updatedAt" = NOW()
+                            WHERE id = $3
+                        ''', github_id, github_avatar, user_id)
+                        logger.info(f"Linked GitHub {github_login} to existing user {github_email}")
+                    else:
+                        # 3. Create new user
+                        # Get CTF_USER role
+                        role = await conn.fetchrow("SELECT id FROM \"Role\" WHERE type = 'CTF_USER'")
+                        if not role:
+                            role_id = generate_uuid()
+                            await conn.execute('''
+                                INSERT INTO "Role" (id, name, type, "createdAt", "updatedAt")
+                                VALUES ($1, 'CTF User', 'CTF_USER', NOW(), NOW())
+                            ''', role_id)
+                        else:
+                            role_id = role['id']
+                        
+                        # Create user with random password (they'll use GitHub to login)
+                        import secrets
+                        random_password = secrets.token_urlsafe(32)
+                        user_id = generate_uuid()
+                        
+                        await conn.execute('''
+                            INSERT INTO users (
+                                id, name, email, password, "roleId",
+                                "isActive", "isVerified", "ctfScore",
+                                github_id, avatar_url,
+                                "createdAt", "updatedAt", "passwordChangedAt"
+                            ) VALUES ($1, $2, $3, $4, $5, true, true, 0, $6, $7, NOW(), NOW(), NOW())
+                        ''', user_id, github_name, github_email, 
+                             hash_password(random_password), role_id, github_id, github_avatar)
+                        
+                        logger.info(f"Created new user from GitHub: {github_login} ({github_email})")
+                
+                # Fetch user for token creation
+                user = await conn.fetchrow('''
+                    SELECT u.id, u.name, u.email, u."ctfScore" as score, u.avatar_url,
+                           r.type as role_type
+                    FROM users u
+                    JOIN "Role" r ON u."roleId" = r.id
+                    WHERE u.id = $1
+                ''', user_id)
+                
+                # Map roles
+                role_map = {
+                    'SUPERADMIN': 'superadmin', 
+                    'ADMIN': 'admin', 
+                    'INSTRUCTOR': 'admin',
+                    'STUDENT': 'student',
+                    'CTF_USER': 'user'
+                }
+                
+                token = create_token(user_id)
+                
+                # Return HTML that sends message to parent and redirects
+                user_data = {
+                    'id': user['id'],
+                    'name': user['name'],
+                    'email': user['email'],
+                    'score': user['score'] or 0,
+                    'role': role_map.get(user['role_type'], 'user'),
+                    'avatar_url': user['avatar_url']
+                }
+                
+                return HTMLResponse(content=f'''
+                    <!DOCTYPE html>
+                    <html>
+                    <head><title>Login Successful</title></head>
+                    <body>
+                        <script>
+                            const authData = {{
+                                token: '{token}',
+                                user: {json.dumps(user_data)}
+                            }};
+                            
+                            if (window.opener) {{
+                                window.opener.postMessage({{
+                                    type: 'github-login-success',
+                                    data: authData
+                                }}, '*');
+                                window.close();
+                            }} else {{
+                                // In case opened directly, store in localStorage and redirect
+                                localStorage.setItem('token', authData.token);
+                                localStorage.setItem('user', JSON.stringify(authData.user));
+                                window.location.href = '/';
+                            }}
+                        </script>
+                        <h2>✅ Login Successful!</h2>
+                        <p>Redirecting...</p>
+                    </body>
+                    </html>
+                ''', status_code=200)
+                
+    except Exception as e:
+        logger.error(f"GitHub login error: {e}")
+        return HTMLResponse(content=_github_error_html(str(e)), status_code=500)
+
+
+def _github_error_html(message: str) -> str:
+    """Generate error HTML for GitHub OAuth failures"""
+    return f'''
+        <!DOCTYPE html>
+        <html>
+        <head><title>Login Failed</title></head>
+        <body style="font-family: system-ui; padding: 40px; text-align: center;">
+            <h2 style="color: #ef4444;">❌ Login Failed</h2>
+            <p style="color: #666;">{message}</p>
+            <button onclick="window.close()" style="margin-top: 20px; padding: 10px 20px; background: #18181b; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                Close Window
+            </button>
+        </body>
+        </html>
+    '''
+
+
+async def _ensure_github_columns(conn):
+    """Ensure github_id and avatar_url columns exist in users table"""
+    try:
+        # Check if columns exist
+        result = await conn.fetch('''
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = 'users' AND column_name IN ('github_id', 'avatar_url')
+        ''')
+        existing_columns = {row['column_name'] for row in result}
+        
+        if 'github_id' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN github_id VARCHAR(255) UNIQUE')
+            logger.info("Added github_id column to users table")
+        
+        if 'avatar_url' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN avatar_url TEXT')
+            logger.info("Added avatar_url column to users table")
+    except Exception as e:
+        logger.warning(f"Could not ensure GitHub columns: {e}")
 
 
 # ===========================================
