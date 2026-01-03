@@ -41,18 +41,12 @@ const Challenges = ({ user, logout }) => {
       setCategories(categoriesRes.data);
       setChallenges(challengesRes.data);
 
-      // Get solved challenge IDs
-      const solvedIds = new Set();
-      for (const challenge of challengesRes.data) {
-        try {
-          const detailRes = await axios.get(`${API}/challenges/${challenge.id}`);
-          if (detailRes.data.user_progress?.solved) {
-            solvedIds.add(challenge.id);
-          }
-        } catch (err) {
-          // Ignore errors for individual challenges
-        }
-      }
+      // Extract solved challenge IDs from the initial list response
+      const solvedIds = new Set(
+        challengesRes.data
+          .filter(c => c.is_solved)
+          .map(c => c.id)
+      );
       setSolvedChallenges(solvedIds);
     } catch (error) {
       toast.error('Failed to load challenges');
@@ -186,7 +180,7 @@ const Challenges = ({ user, logout }) => {
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isSolved ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-zinc-600 group-hover:bg-zinc-900 group-hover:text-white'}`}>
                         {isSolved ? <CheckCircle2 className="w-6 h-6" /> : <Icon className="w-6 h-6" strokeWidth={1.5} />}
                       </div>
-                      <Badge className={`${getDifficultyStyle(challenge.difficulty)} px-2.5 py-1 text-[10px] uppercase font-bold tracking-wide border`}>
+                      <Badge variant="outline" className={`${getDifficultyStyle(challenge.difficulty)} px-2.5 py-1 text-[10px] uppercase font-bold tracking-wide border`}>
                         {challenge.difficulty}
                       </Badge>
                     </div>

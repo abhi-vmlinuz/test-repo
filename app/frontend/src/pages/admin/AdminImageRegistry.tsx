@@ -185,12 +185,20 @@ const AdminImageRegistry = () => {
     return (
         <div className="p-8 max-w-7xl mx-auto">
             {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                    <Package className="w-7 h-7" />
-                    Image Registry
-                </h1>
-                <p className="text-gray-500 mt-1">Manage Docker images for CTF challenges</p>
+            <div className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                        <img src="/logo.png" alt="ZecurX" className="w-8 h-8" />
+                        Image Registry
+                    </h1>
+                    <p className="text-gray-500 mt-1">Manage Docker images for CTF challenges</p>
+                </div>
+                {ghcrConfig.connected && (
+                    <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                        <span className="text-xs font-bold uppercase tracking-wider">GHCR ACTIVE</span>
+                    </div>
+                )}
             </div>
 
             {/* GHCR Configuration */}
@@ -349,7 +357,10 @@ const AdminImageRegistry = () => {
                         </p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">ZIP File</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                            <span>ZIP File</span>
+                            <span className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">Max 300MB</span>
+                        </label>
                         <input
                             type="file"
                             accept=".zip"

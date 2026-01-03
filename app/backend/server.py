@@ -11,6 +11,7 @@ Features:
 """
 
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, File, UploadFile, Form
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -303,6 +304,7 @@ app = FastAPI(
 
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 
 # ===========================================
@@ -353,6 +355,16 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def get_current_user_optional(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional)) -> Optional[dict]:
+    """Optional authentication for public pages"""
+    if not credentials:
+        return None
+    try:
+        return await get_current_user(credentials)
+    except:
+        return None
 
 
 async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
@@ -546,26 +558,33 @@ async def get_categories():
 # ===========================================
 
 @api_router.get("/challenges")
-async def get_challenges(category_id: Optional[str] = None):
-    """Get all public CTF challenges"""
+async def get_challenges(
+    category_id: Optional[str] = None, 
+    user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Get all public CTF challenges with solve status in one query"""
+    user_id = user['id'] if user else None
     pool = await Database.get_pool()
+    
+    query = '''
+        SELECT 
+            c.id, c."categoryId", c.title, c.description, c.difficulty, 
+            c.points, c."dockerImage", c.hints, c.questions, c.solves, c."isPublished",
+            EXISTS(
+                SELECT 1 FROM ctf_public_progress p 
+                WHERE p."challengeId" = c.id AND p."userId" = $1 AND p.solved = true
+            ) as is_solved
+        FROM ctf_public_challenges c
+        WHERE c."isPublished" = true
+    '''
+    
     async with pool.acquire() as conn:
         if category_id:
-            challenges = await conn.fetch('''
-                SELECT id, "categoryId", title, description, difficulty, 
-                       points, "dockerImage", hints, questions, solves, "isPublished"
-                FROM ctf_public_challenges
-                WHERE "categoryId" = $1 AND "isPublished" = true
-                ORDER BY points
-            ''', category_id)
+            query += ' AND c."categoryId" = $2 ORDER BY c.points'
+            challenges = await conn.fetch(query, user_id, category_id)
         else:
-            challenges = await conn.fetch('''
-                SELECT id, "categoryId", title, description, difficulty,
-                       points, "dockerImage", hints, questions, solves, "isPublished"
-                FROM ctf_public_challenges
-                WHERE "isPublished" = true
-                ORDER BY points
-            ''')
+            query += ' ORDER BY c.points'
+            challenges = await conn.fetch(query, user_id)
         
         result = []
         for ch in challenges:
@@ -593,13 +612,12 @@ async def get_challenges(category_id: Optional[str] = None):
                 'difficulty': ch['difficulty'].lower() if ch['difficulty'] else 'medium',
                 'points': ch['points'] or 0,
                 'total_points': total_points,  # Base + questions
+                'is_solved': ch['is_solved'],
                 'docker_image': ch['dockerImage'],
                 'hints': hints,
                 'questions': questions,
-                'solves': ch['solves'],
-                'is_published': ch['isPublished']
+                'solves': ch['solves']
             })
-        
         return result
 
 
@@ -887,64 +905,50 @@ async def get_leaderboard(limit: int = 100):
 @api_router.get("/me/stats")
 @api_router.get("/stats/me")  # Alias for frontend compatibility
 async def get_my_stats(current_user: dict = Depends(get_current_user)):
-    """Get current user's CTF statistics"""
+    """Get current user's CTF statistics with optimized aggregation"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        # Total challenges solved
-        solved = await conn.fetchval('''
-            SELECT COUNT(*) FROM ctf_public_progress
-            WHERE "userId" = $1 AND solved = true
+        # Get general stats in one query
+        basic_stats = await conn.fetchrow('''
+            SELECT 
+                (SELECT COUNT(*) FROM ctf_public_progress WHERE "userId" = $1 AND solved = true) as solved_count,
+                (SELECT COALESCE(SUM("scoreEarned"), 0) FROM ctf_public_progress WHERE "userId" = $1) as total_points,
+                (SELECT COUNT(*) + 1 FROM users WHERE "ctfScore" > (SELECT "ctfScore" FROM users WHERE id = $1)) as rank,
+                (SELECT COUNT(*) FROM ctf_public_challenges WHERE "isPublished" = true) as total_challenges
         ''', current_user['id'])
-        
-        # Total points
-        points = await conn.fetchval('''
-            SELECT COALESCE(SUM("scoreEarned"), 0) FROM ctf_public_progress
-            WHERE "userId" = $1
-        ''', current_user['id'])
-        
-        # Rank
-        rank = await conn.fetchval('''
-            SELECT COUNT(*) + 1 FROM users
-            WHERE "ctfScore" > (SELECT "ctfScore" FROM users WHERE id = $1)
-        ''', current_user['id'])
-        
-        # Category breakdown
+
+        # Get category breakdown with totals in one query (Eliminates N+1)
         categories = await conn.fetch('''
-            SELECT c.name, COUNT(p.id) as solved_count
+            SELECT 
+                c.name, 
+                COUNT(p.id) as solved_count,
+                (SELECT COUNT(*) FROM ctf_public_challenges WHERE "categoryId" = c.id AND "isPublished" = true) as total_count
             FROM ctf_categories c
             LEFT JOIN ctf_public_challenges ch ON c.id = ch."categoryId"
             LEFT JOIN ctf_public_progress p ON ch.id = p."challengeId" 
                 AND p."userId" = $1 AND p.solved = true
+            WHERE c."isActive" = true
             GROUP BY c.id, c.name
         ''', current_user['id'])
         
-        # Get total challenges for completion percentage
-        total_challenges = await conn.fetchval('''
-            SELECT COUNT(*) FROM ctf_public_challenges WHERE "isPublished" = true
-        ''')
-        
-        # Get category stats for frontend
-        category_stats = []
-        for cat in categories:
-            cat_total = await conn.fetchval('''
-                SELECT COUNT(*) FROM ctf_public_challenges 
-                WHERE "categoryId" = (SELECT id FROM ctf_categories WHERE name = $1)
-                AND "isPublished" = true
-            ''', cat['name'])
-            category_stats.append({
+        category_stats = [
+            {
                 'category': cat['name'],
-                'solved': cat['solved_count'] or 0,
-                'total': cat_total or 0
-            })
+                'solved': cat['solved_count'],
+                'total': cat['total_count']
+            }
+            for cat in categories
+        ]
         
         return {
-            'challenges_solved': solved,
-            'total_challenges': total_challenges,
-            'total_points': points,
-            'total_score': points,  # Alias for frontend
-            'rank': rank,
-            'score': current_user.get('score', 0),
-            'categories': [dict(c) for c in categories],
+            'solved': basic_stats['solved_count'] or 0,
+            'points': basic_stats['total_points'] or 0,
+            'rank': basic_stats['rank'] or 0,
+            'total_challenges': basic_stats['total_challenges'] or 0,
+            'categories': category_stats,
+            'challenges_solved': basic_stats['solved_count'] or 0,
+            'total_points': basic_stats['total_points'] or 0,
+            'total_score': basic_stats['total_points'] or 0,
             'category_stats': category_stats
         }
 
@@ -1414,6 +1418,137 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
 
 
 # ===========================================
+# CHALLENGE ARTIFACTS API
+# ===========================================
+
+@api_router.get("/challenges/{challenge_id}/artifacts")
+async def get_challenge_artifacts(challenge_id: str):
+    """List all artifacts for a challenge"""
+    # Wait, did I already add the table creation? Yes, in the first multi_replace that succeeded partially.
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch('''
+            SELECT id, filename, file_size, mime_type, created_at 
+            FROM ctf_challenge_artifacts 
+            WHERE challenge_id = $1
+            ORDER BY created_at DESC
+        ''', challenge_id)
+        
+        return [dict(r) for r in rows]
+
+@api_router.post("/admin/challenges/{challenge_id}/artifacts")
+async def upload_challenge_artifact(
+    challenge_id: str, 
+    file: UploadFile = File(...), 
+    admin: dict = Depends(require_admin)
+):
+    """Upload an artifact for a challenge"""
+    import mimetypes
+    import time
+    
+    # 300MB Limit: 300 * 1024 * 1024 bytes
+    MAX_SIZE = 300 * 1024 * 1024
+    
+    # Pre-check size if possible (some clients don't send content-length)
+    # So we'll check during read
+    
+    # Security: Sanitize filename and use UUID for storage
+    original_filename = file.filename
+    clean_filename = "".join(c for c in original_filename if c.isalnum() or c in "._- ").strip()
+    if not clean_filename:
+        clean_filename = "artifact_" + str(uuid.uuid4())[:8]
+        
+    artifact_id = uuid.uuid4()
+    # Store with UUID as filename to prevent traversal/overwrite
+    storage_name = f"{artifact_id}_{clean_filename}"
+    file_path = ROOT_DIR / "uploads" / "artifacts" / storage_name
+    
+    try:
+        # Check size by reading chunk by chunk or fully
+        content = await file.read()
+        file_size = len(content)
+        
+        if file_size > MAX_SIZE:
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 300MB.")
+        
+        with open(file_path, "wb") as f:
+            f.write(content)
+            
+        mime_type, _ = mimetypes.guess_type(clean_filename)
+        
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute('''
+                INSERT INTO ctf_challenge_artifacts (id, challenge_id, filename, file_path, file_size, mime_type)
+                VALUES ($1, $2, $3, $4, $5, $6)
+            ''', artifact_id, challenge_id, clean_filename, str(file_path), file_size, mime_type)
+            
+        return {
+            "id": str(artifact_id),
+            "filename": clean_filename,
+            "size": file_size
+        }
+    except Exception as e:
+        logger.error(f"Artifact upload failed: {e}")
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@api_router.delete("/admin/artifacts/{artifact_id}")
+async def delete_challenge_artifact(artifact_id: str, admin: dict = Depends(require_admin)):
+    """Delete an artifact"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow('SELECT file_path FROM ctf_challenge_artifacts WHERE id = $1', uuid.UUID(artifact_id))
+        if not row:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+        
+        file_path = Path(row['file_path'])
+        if file_path.exists():
+            file_path.unlink()
+            
+        await conn.execute('DELETE FROM ctf_challenge_artifacts WHERE id = $1', uuid.UUID(artifact_id))
+        return {"success": True}
+
+@api_router.get("/artifacts/download/{artifact_id}")
+async def download_artifact(artifact_id: str):
+    """Download an artifact"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow('SELECT file_path, filename, mime_type FROM ctf_challenge_artifacts WHERE id = $1', uuid.UUID(artifact_id))
+        if not row:
+            raise HTTPException(status_code=404, detail="Artifact not found")
+            
+        file_path = Path(row['file_path'])
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File missing on server")
+            
+        return FileResponse(
+            path=file_path,
+            filename=row['filename'],
+            media_type=row['mime_type'] or 'application/octet-stream'
+        )
+
+@api_router.post("/admin/zip-info")
+async def get_zip_info(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
+    """Extract file list from a ZIP for preview"""
+    import zipfile
+    import io
+    
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="Only ZIP files are supported for preview")
+    
+    try:
+        content = await file.read()
+        with zipfile.ZipFile(io.BytesIO(content)) as z:
+            # Get list of files, ignore hidden/mac files
+            files = [info.filename for info in z.infolist() if not info.filename.startswith('__MACOSX') and not info.filename.split('/')[-1].startswith('.')]
+            return {"files": files, "count": len(files)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid ZIP file: {str(e)}")
+
+
+# ===========================================
 # ADMIN: DOCKER CHALLENGE UPLOAD
 # ===========================================
 
@@ -1454,6 +1589,10 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
         logger.error(f"Failed to fetch images from DB: {e}")
     
     # 2. Try to fetch from GHCR API (if token available)
+    # Use cache if valid
+    import time
+    now = time.time()
+    
     ghcr_username = os.environ.get('GHCR_USERNAME', '')
     ghcr_token = os.environ.get('GHCR_TOKEN', '')
     
@@ -1474,12 +1613,20 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                     ghcr_token = token_row['value']
         except Exception as e:
             logger.warning(f"Could not fetch GHCR settings from DB: {e}")
-    
-    if ghcr_token:
+
+    # Check cache
+    if GHCR_CACHE['last_update'] > (now - GHCR_CACHE_TTL) and GHCR_CACHE['ghcr_username'] == ghcr_username and GHCR_CACHE['images']:
+        # Merge existing images with GHCR cache, avoiding duplicates
+        ghcr_images = GHCR_CACHE['images']
+        for g_img in ghcr_images:
+            if not any(img['image'].lower() == g_img['image'].lower() for img in images):
+                images.append(g_img)
+    elif ghcr_token:
+        logger.info(f"Refreshing GHCR cache for {ghcr_username}")
+        new_ghcr_images = []
         try:
             import httpx
             async with httpx.AsyncClient() as client:
-                # GitHub Packages API - list packages
                 resp = await client.get(
                     f"https://api.github.com/users/{ghcr_username}/packages?package_type=container",
                     headers={
@@ -1492,23 +1639,29 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                     packages = resp.json()
                     for pkg in packages:
                         image_url = f"ghcr.io/{ghcr_username}/{pkg['name']}:latest"
-                        # Check if already in list
-                        if not any(img['image'] == image_url for img in images):
-                            images.append({
-                                'image': image_url,
-                                'source': 'ghcr',
-                                'label': pkg['name'],
-                                'created_at': pkg.get('created_at')
-                            })
+                        img_obj = {
+                            'image': image_url,
+                            'source': 'ghcr',
+                            'label': pkg['name'],
+                            'created_at': pkg.get('created_at')
+                        }
+                        new_ghcr_images.append(img_obj)
+                        # Add to current response if not already there (case-insensitive check)
+                        if not any(img['image'].lower() == image_url.lower() for img in images):
+                            images.append(img_obj)
+                    
+                    # Update global cache
+                    GHCR_CACHE['last_update'] = now
+                    GHCR_CACHE['images'] = new_ghcr_images
+                    GHCR_CACHE['ghcr_username'] = ghcr_username
         except Exception as e:
             logger.warning(f"Failed to fetch from GHCR API: {e}")
     
-    # Return only our own images (GHCR + database)
-    # No third-party Docker Hub images - admins should upload their own
     return {
         'images': images,
         'ghcr_connected': bool(ghcr_token),
-        'ghcr_username': ghcr_username
+        'ghcr_username': ghcr_username,
+        'cached': GHCR_CACHE['last_update'] > 0 and GHCR_CACHE['last_update'] > (now - GHCR_CACHE_TTL)
     }
 
 
@@ -3887,9 +4040,29 @@ async def admin_nexus_billing(current_user: dict = Depends(require_admin)):
 @app.on_event("startup")
 async def startup():
     logger.info("Starting CTF Platform API v2.0 (PostgreSQL)")
+    
+    # Initialize Artifacts directory
+    ARTIFACTS_DIR = ROOT_DIR / "uploads" / "artifacts"
+    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+    
     try:
-        await Database.get_pool()
+        pool = await Database.get_pool()
         logger.info("Database connection established")
+        
+        # Migration: Create Artifacts Table
+        async with pool.acquire() as conn:
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS ctf_challenge_artifacts (
+                    id UUID PRIMARY KEY,
+                    challenge_id TEXT NOT NULL,
+                    filename TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    file_size INTEGER,
+                    mime_type TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            logger.info("Artifacts table verified")
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise

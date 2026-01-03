@@ -55,13 +55,10 @@ const AdminLayout = ({ user, logout }) => {
                 <div className="mb-10 px-2">
                     <Link to="/" className="flex items-center gap-3 group">
                         <div className="relative">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-red-200 to-orange-400 rounded-lg opacity-0 group-hover:opacity-50 blur transition duration-500" />
-                            <div className="relative w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
-                                <Zap className="w-5 h-5 text-white" fill="white" />
-                            </div>
+                            <img src="/logo.png" alt="ZecurX" className="w-8 h-8 object-contain" />
                         </div>
                         <div>
-                            <span className="block text-lg font-bold tracking-tight text-zinc-900 leading-none">ZecurX</span>
+                            <span className="block text-lg font-bold tracking-tight text-zinc-900 leading-none">ZecurX LABS</span>
                             <span className="text-[10px] uppercase font-bold text-red-600 tracking-wider">Admin Panel</span>
                         </div>
                     </Link>
@@ -123,11 +120,9 @@ const AdminLayout = ({ user, logout }) => {
             {/* Mobile Header */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 flex items-center justify-between px-4">
                 <Link to="/" className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
-                        <Shield className="w-4 h-4 text-white" fill="white" />
-                    </div>
+                    <img src="/logo.png" alt="ZecurX" className="w-7 h-7 object-contain" />
                     <div>
-                        <span className="block text-lg font-bold tracking-tight text-zinc-900 leading-none">ZecurX</span>
+                        <span className="block text-lg font-bold tracking-tight text-zinc-900 leading-none">ZecurX LABS</span>
                         <span className="text-[10px] uppercase font-bold text-red-600 tracking-wider">Admin</span>
                     </div>
                 </Link>

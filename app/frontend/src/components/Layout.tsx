@@ -34,12 +34,9 @@ const Layout = ({ user, children, logout }) => {
                 <div className="mb-10 px-2">
                     <Link to="/" className="flex items-center gap-3 group">
                         <div className="relative">
-                            <div className="absolute -inset-1 bg-gradient-to-r from-gray-200 to-gray-400 rounded-lg opacity-0 group-hover:opacity-50 blur transition duration-500" />
-                            <div className="relative w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
-                                <Shield className="w-5 h-5 text-white" fill="white" />
-                            </div>
+                            <img src="/logo.png" alt="ZecurX" className="w-8 h-8 object-contain" />
                         </div>
-                        <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX</span>
+                        <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX LABS</span>
                     </Link>
                 </div>
 
@@ -89,10 +86,8 @@ const Layout = ({ user, children, logout }) => {
             {/* Mobile Header */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 flex items-center justify-between px-4">
                 <Link to="/" className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
-                        <Shield className="w-4 h-4 text-white" fill="white" />
-                    </div>
-                    <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX</span>
+                    <img src="/logo.png" alt="ZecurX" className="w-7 h-7 object-contain" />
+                    <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX LABS</span>
                 </Link>
                 <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-500">
                     {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}

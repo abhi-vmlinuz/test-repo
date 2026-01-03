@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock } from 'lucide-react';
+import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ChallengeDetail = ({ user, logout }) => {
@@ -30,9 +30,11 @@ const ChallengeDetail = ({ user, logout }) => {
   const [questionInputs, setQuestionInputs] = useState({});
   const [solvedQuestions, setSolvedQuestions] = useState([]);
   const [submittingQuestion, setSubmittingQuestion] = useState(null);
+  const [artifacts, setArtifacts] = useState([]);
 
   useEffect(() => {
     fetchChallenge();
+    fetchArtifacts();
     // Check for existing docker session
     checkExistingSession();
   }, [id]);
@@ -66,6 +68,15 @@ const ChallengeDetail = ({ user, logout }) => {
     } catch (error) {
       toast.error('Failed to load challenge');
       navigate('/challenges');
+    }
+  };
+
+  const fetchArtifacts = async () => {
+    try {
+      const response = await axios.get(`${API}/challenges/${id}/artifacts`);
+      setArtifacts(response.data);
+    } catch (error) {
+      console.error('Failed to fetch artifacts', error);
     }
   };
 
@@ -422,6 +433,66 @@ const ChallengeDetail = ({ user, logout }) => {
                     </div>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Challenge Artifacts Section */}
+          {artifacts && artifacts.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-8 bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden"
+            >
+              <div className="bg-white px-8 py-5 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-50 rounded-lg">
+                    <Paperclip className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <h2 className="text-lg font-bold text-zinc-900 uppercase tracking-wide">Challenge Artifacts</h2>
+                </div>
+                <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-100">
+                  {artifacts.length} {artifacts.length === 1 ? 'FILE' : 'FILES'}
+                </Badge>
+              </div>
+              <div className="p-8 bg-white">
+                <p className="text-sm text-gray-500 mb-6 font-medium">
+                  The following files are provided for this challenge. Download them to analyze and find the flag.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {artifacts.map((art) => (
+                    <div
+                      key={art.id}
+                      className="group flex items-center justify-between p-4 bg-gray-50 hover:bg-white hover:shadow-md hover:border-indigo-200 border border-gray-100 rounded-xl transition-all duration-200 cursor-default"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center border border-gray-200 group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">
+                          <FileText className="w-6 h-6 text-gray-400 group-hover:text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors">{art.filename}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono uppercase">
+                              {(art.file_size / 1024).toFixed(1)} KB
+                            </span>
+                            <span className="text-[11px] text-gray-400 font-medium">
+                              {art.mime_type?.split('/')[1]?.toUpperCase() || 'DATA'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <a
+                        href={`${API}/artifacts/download/${art.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-3 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-full transition-all flex items-center justify-center border border-transparent hover:border-indigo-100 hover:shadow-sm"
+                        title="Download Artifact"
+                      >
+                        <Download className="w-5 h-5" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
               </div>
             </motion.div>
           )}

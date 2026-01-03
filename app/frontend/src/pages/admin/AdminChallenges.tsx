@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag, Paperclip, Download, FileText, Upload, FolderOpen } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
@@ -37,9 +37,13 @@ const AdminChallenges = () => {
         github_repo: '',
         github_path: '',
         hints: [] as { text: string; cost: number }[],
-        questions: [] as { question: string; flag: string; points: number }[], // Multiple questions support
+        questions: [] as { question: string; flag: string; points: number }[],
         is_published: true
     });
+    const [artifacts, setArtifacts] = useState<any[]>([]);
+    const [uploadingArtifact, setUploadingArtifact] = useState(false);
+    const [zipPreview, setZipPreview] = useState<{ files: string[]; count: number } | null>(null);
+    const [loadingZipPreview, setLoadingZipPreview] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -122,6 +126,7 @@ const AdminChallenges = () => {
             questions: [],
             is_published: true
         });
+        setArtifacts([]);
         setShowModal(true);
     };
 
@@ -148,6 +153,57 @@ const AdminChallenges = () => {
             is_published: challenge.is_published !== false
         });
         setShowModal(true);
+        fetchArtifacts(challenge.id);
+    };
+
+    const fetchArtifacts = async (challengeId) => {
+        try {
+            const res = await axios.get(`${API}/challenges/${challengeId}/artifacts`);
+            setArtifacts(res.data);
+        } catch (error) {
+            console.error('Failed to fetch artifacts', error);
+        }
+    };
+
+    const handleUploadArtifact = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0] || !editingChallenge) return;
+
+        const file = e.target.files[0];
+
+        // 300MB Check
+        if (file.size > 300 * 1024 * 1024) {
+            toast.error('File exceeds 300MB limit');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setUploadingArtifact(true);
+        try {
+            await axios.post(`${API}/admin/challenges/${editingChallenge.id}/artifacts`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success('Artifact uploaded successfully');
+            fetchArtifacts(editingChallenge.id);
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Failed to upload artifact');
+        } finally {
+            setUploadingArtifact(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleDeleteArtifact = async (artifactId) => {
+        if (!window.confirm('Are you sure you want to delete this artifact?')) return;
+
+        try {
+            await axios.delete(`${API}/admin/artifacts/${artifactId}`);
+            toast.success('Artifact deleted');
+            if (editingChallenge) fetchArtifacts(editingChallenge.id);
+        } catch (error) {
+            toast.error('Failed to delete artifact');
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -597,28 +653,37 @@ const AdminChallenges = () => {
                                                         <div className="text-center py-4 text-gray-400">Loading images...</div>
                                                     ) : dockerImages.length > 0 ? (
                                                         <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto mb-3">
-                                                            {dockerImages.map((img, idx) => (
-                                                                <button
-                                                                    key={idx}
-                                                                    type="button"
-                                                                    onClick={() => setFormData(prev => ({ ...prev, docker_image: img.image }))}
-                                                                    className={`p-3 text-left text-sm rounded-lg border transition-all ${formData.docker_image === img.image
-                                                                        ? 'border-gray-900 bg-gray-900 text-white'
-                                                                        : 'border-gray-200 hover:border-gray-400 bg-white'
-                                                                        }`}
-                                                                >
-                                                                    <div className="flex items-center justify-between">
-                                                                        <span className="font-medium truncate">📦 {img.label || img.image.split('/').pop()}</span>
-                                                                        <span className={`text-xs px-2 py-0.5 rounded ${img.source === 'ghcr' ? 'bg-purple-100 text-purple-700' :
-                                                                            img.source === 'database' ? 'bg-blue-100 text-blue-700' :
-                                                                                'bg-gray-100 text-gray-600'
-                                                                            }`}>
-                                                                            {img.source === 'ghcr' ? 'GHCR' : img.source === 'database' ? 'In Use' : 'Public'}
-                                                                        </span>
-                                                                    </div>
-                                                                    <p className="text-xs opacity-70 truncate mt-1">{img.image}</p>
-                                                                </button>
-                                                            ))}
+                                                            {/* Filter out duplicates by image URL, prioritizing database (In Use) entries */}
+                                                            {(() => {
+                                                                const seen = new Set();
+                                                                return dockerImages.filter(img => {
+                                                                    const key = img.image.toLowerCase();
+                                                                    if (seen.has(key)) return false;
+                                                                    seen.add(key);
+                                                                    return true;
+                                                                }).map((img, idx) => (
+                                                                    <button
+                                                                        key={idx}
+                                                                        type="button"
+                                                                        onClick={() => setFormData(prev => ({ ...prev, docker_image: img.image }))}
+                                                                        className={`p-3 text-left text-sm rounded-lg border transition-all ${formData.docker_image === img.image
+                                                                            ? 'border-gray-900 bg-gray-900 text-white'
+                                                                            : 'border-gray-200 hover:border-gray-400 bg-white'
+                                                                            }`}
+                                                                    >
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="font-medium truncate">📦 {img.label || img.image.split('/').pop()}</span>
+                                                                            <span className={`text-xs px-2 py-0.5 rounded ${img.source === 'ghcr' ? 'bg-purple-100 text-purple-700' :
+                                                                                img.source === 'database' ? 'bg-blue-100 text-blue-700' :
+                                                                                    'bg-gray-100 text-gray-600'
+                                                                                }`}>
+                                                                                {img.source === 'ghcr' ? 'GHCR' : img.source === 'database' ? 'In Use' : 'Public'}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-xs opacity-70 truncate mt-1">{img.image}</p>
+                                                                    </button>
+                                                                ));
+                                                            })()}
                                                         </div>
                                                     ) : (
                                                         <div className="text-center py-6 bg-gray-50 rounded-lg mb-3">
@@ -642,41 +707,98 @@ const AdminChallenges = () => {
                                         {/* File Upload Source */}
                                         {formData.docker_source === 'upload' && (
                                             <div className="space-y-4">
-                                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors cursor-pointer">
+                                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors cursor-pointer relative">
                                                     <input
                                                         type="file"
                                                         accept=".zip"
                                                         className="hidden"
                                                         id="docker-upload"
-                                                        onChange={(e) => {
+                                                        onChange={async (e) => {
                                                             const file = e.target.files?.[0];
                                                             if (file) {
+                                                                if (file.size > 300 * 1024 * 1024) {
+                                                                    toast.error('File exceeds 300MB limit');
+                                                                    return;
+                                                                }
                                                                 setFormData(prev => ({ ...prev, uploadedFile: file }));
                                                                 toast.success(`Selected: ${file.name}`);
+
+                                                                // Fetch ZIP preview
+                                                                setLoadingZipPreview(true);
+                                                                try {
+                                                                    const zipData = new FormData();
+                                                                    zipData.append('file', file);
+                                                                    const zipRes = await axios.post(`${API}/admin/zip-info`, zipData);
+                                                                    setZipPreview(zipRes.data);
+                                                                } catch (err) {
+                                                                    console.error('ZIP preview failed', err);
+                                                                } finally {
+                                                                    setLoadingZipPreview(false);
+                                                                }
                                                             }
                                                         }}
                                                     />
                                                     <label htmlFor="docker-upload" className="cursor-pointer">
                                                         {formData.uploadedFile ? (
                                                             <>
-                                                                <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                                                                    <span className="text-3xl">✅</span>
+                                                                <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                                                    <FileText className="w-8 h-8 text-blue-600" />
                                                                 </div>
                                                                 <p className="font-medium text-gray-900">{formData.uploadedFile.name}</p>
-                                                                <p className="text-sm text-gray-500 mt-1">Click to replace</p>
+                                                                <p className="text-xs text-gray-400 mt-1">{(formData.uploadedFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                                                                <p className="text-sm text-blue-600 mt-2 font-medium">Click to replace</p>
                                                             </>
                                                         ) : (
                                                             <>
                                                                 <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                                                                    <span className="text-3xl">📁</span>
+                                                                    <Upload className="w-8 h-8 text-gray-500" />
                                                                 </div>
                                                                 <p className="font-medium text-gray-900">Upload Challenge Files</p>
                                                                 <p className="text-sm text-gray-500 mt-1">ZIP file containing Dockerfile and resources</p>
-                                                                <p className="text-xs text-gray-400 mt-3">Max 50MB • Requires Dockerfile in root</p>
+                                                                <p className="text-xs text-gray-400 mt-3 font-medium text-amber-600">Max 300MB • Requires Dockerfile in root</p>
                                                             </>
                                                         )}
                                                     </label>
                                                 </div>
+
+                                                {/* ZIP Preview Section */}
+                                                {loadingZipPreview && (
+                                                    <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center gap-2">
+                                                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                                        <span className="text-sm text-gray-500">Scanning ZIP contents...</span>
+                                                    </div>
+                                                )}
+
+                                                {zipPreview && formData.uploadedFile && (
+                                                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <FolderOpen className="w-4 h-4 text-gray-500" />
+                                                                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">ZIP Preview</span>
+                                                            </div>
+                                                            <Badge variant="outline" className="text-[10px] bg-white">
+                                                                {zipPreview.count} Files
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="p-3 max-h-48 overflow-y-auto font-mono text-[11px] space-y-1">
+                                                            {!zipPreview.files.some(f => f.toLowerCase().includes('dockerfile')) && (
+                                                                <div className="p-2 mb-2 bg-red-50 text-red-600 rounded flex items-center gap-2 border border-red-100">
+                                                                    <X className="w-3 h-3" />
+                                                                    <span>No Dockerfile found in root!</span>
+                                                                </div>
+                                                            )}
+                                                            {zipPreview.files.map((file, i) => (
+                                                                <div key={i} className="flex items-center gap-2 text-gray-600 hover:bg-gray-50 rounded px-1 transition-colors">
+                                                                    <span className="text-gray-300 w-4 font-mono">{i + 1}.</span>
+                                                                    <span className={file.toLowerCase().includes('dockerfile') ? 'text-blue-600 font-bold' : ''}>
+                                                                        {file}
+                                                                        {file.toLowerCase().includes('dockerfile') && ' 🔨'}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
                                                     <p className="text-xs text-blue-700">
                                                         <strong>ZIP Structure:</strong> Your ZIP should contain a Dockerfile at the root level,
@@ -855,6 +977,83 @@ const AdminChallenges = () => {
                                         </button>
                                     </div>
                                 ))}
+                            </div>
+
+                            {/* Challenge Artifacts */}
+                            <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <div className="flex items-center gap-2">
+                                        <Paperclip className="w-5 h-5 text-gray-600" />
+                                        <div>
+                                            <h3 className="font-medium text-gray-700">Challenge Artifacts</h3>
+                                            <p className="text-xs text-gray-400">Files for users to download and analyze</p>
+                                        </div>
+                                    </div>
+                                    {editingChallenge ? (
+                                        <div className="relative">
+                                            <input
+                                                type="file"
+                                                id="artifact-upload"
+                                                className="hidden"
+                                                onChange={handleUploadArtifact}
+                                                disabled={uploadingArtifact}
+                                            />
+                                            <label
+                                                htmlFor="artifact-upload"
+                                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
+                                            >
+                                                {uploadingArtifact ? (
+                                                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                ) : (
+                                                    <Upload className="w-3 h-3" />
+                                                )}
+                                                Add Artifact
+                                            </label>
+                                        </div>
+                                    ) : (
+                                        <Badge variant="outline" className="text-[10px] text-gray-400">Save Challenge First</Badge>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    {artifacts.map((art) => (
+                                        <div key={art.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 group">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-white rounded border border-gray-200">
+                                                    <FileText className="w-4 h-4 text-indigo-500" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">{art.filename}</p>
+                                                    <p className="text-[10px] text-gray-400">
+                                                        {(art.file_size / 1024).toFixed(1)} KB • {art.mime_type || 'Unknown type'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <a
+                                                    href={`${API}/artifacts/download/${art.id}`}
+                                                    className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                                                    title="Download"
+                                                >
+                                                    <Download className="w-4 h-4" />
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteArtifact(art.id)}
+                                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {artifacts.length === 0 && editingChallenge && (
+                                        <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-lg">
+                                            <p className="text-sm text-gray-400 italic">No artifacts uploaded yet</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Published Toggle */}
