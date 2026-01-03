@@ -3320,16 +3320,33 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
 
 @api_router.post("/docker/extend/{session_id}")
 async def extend_docker_instance(session_id: str, current_user: dict = Depends(get_current_user)):
-    """Extend container TTL by 15 minutes"""
+    """Extend container TTL by 30 minutes"""
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/extend",
-                json={"extra_minutes": 15},
+                json={"extra_minutes": 30},
                 timeout=10.0
             )
             if resp.status_code == 200:
-                return resp.json()
+                result = resp.json()
+                
+                # Track extension in database for billing
+                try:
+                    pool = await Database.get_pool()
+                    async with pool.acquire() as conn:
+                        # Record extension event and add estimated cost for 30 min
+                        # Cost: $0.035/hour = $0.0175 for 30 min
+                        await conn.execute('''
+                            UPDATE nexus_usage SET 
+                                estimated_cost = COALESCE(estimated_cost, 0) + 0.0175,
+                                pod_seconds = COALESCE(pod_seconds, 0) + 1800
+                            WHERE session_id = $1
+                        ''', session_id)
+                except Exception as e:
+                    logger.warning(f"Failed to record extension: {e}")
+                
+                return result
             else:
                 raise HTTPException(status_code=resp.status_code, detail="Failed to extend session")
     except httpx.RequestError as e:
@@ -3606,6 +3623,117 @@ async def admin_cleanup_orphans(current_user: dict = Depends(require_admin)):
         logger.warning(f"Failed to clean DB: {e}")
     
     return {"success": True, "cleaned": cleaned}
+
+
+@api_router.get("/admin/nexus/history")
+async def admin_nexus_history(
+    page: int = 1,
+    limit: int = 50,
+    current_user: dict = Depends(require_admin)
+):
+    """Get complete session history with user info and billing details"""
+    offset = (page - 1) * limit
+    
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Get total count
+            total = await conn.fetchval('SELECT COUNT(*) FROM nexus_usage')
+            
+            # Get sessions with user details
+            rows = await conn.fetch('''
+                SELECT 
+                    nu.session_id,
+                    nu.user_id,
+                    nu.challenge_id,
+                    nu.started_at,
+                    nu.ended_at,
+                    nu.status,
+                    nu.pod_seconds,
+                    nu.estimated_cost,
+                    u.username,
+                    u.email
+                FROM nexus_usage nu
+                LEFT JOIN users u ON nu.user_id = u.id
+                ORDER BY nu.started_at DESC
+                LIMIT $1 OFFSET $2
+            ''', limit, offset)
+            
+            sessions = []
+            for row in rows:
+                duration_mins = (row['pod_seconds'] or 0) // 60 if row['pod_seconds'] else None
+                if not duration_mins and row['started_at'] and row['status'] == 'running':
+                    # Calculate current duration for running sessions
+                    from datetime import datetime, timezone
+                    now = datetime.now(timezone.utc)
+                    started = row['started_at']
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    duration_mins = int((now - started).total_seconds() / 60)
+                
+                sessions.append({
+                    'session_id': row['session_id'],
+                    'user_id': row['user_id'],
+                    'username': row['username'] or 'Unknown',
+                    'email': row['email'],
+                    'challenge_id': row['challenge_id'],
+                    'started_at': row['started_at'].isoformat() if row['started_at'] else None,
+                    'ended_at': row['ended_at'].isoformat() if row['ended_at'] else None,
+                    'status': row['status'],
+                    'duration_mins': duration_mins,
+                    'cost': round(float(row['estimated_cost'] or 0), 4)
+                })
+            
+            # Get summary stats
+            stats = await conn.fetchrow('''
+                SELECT 
+                    COUNT(*) as total_sessions,
+                    COALESCE(SUM(estimated_cost), 0) as total_cost,
+                    COALESCE(SUM(pod_seconds), 0) as total_seconds,
+                    COUNT(DISTINCT user_id) as unique_users
+                FROM nexus_usage
+            ''')
+            
+            # Get daily breakdown for last 7 days
+            daily = await conn.fetch('''
+                SELECT 
+                    DATE(started_at) as date,
+                    COUNT(*) as sessions,
+                    COALESCE(SUM(estimated_cost), 0) as cost,
+                    COALESCE(SUM(pod_seconds), 0) as seconds
+                FROM nexus_usage
+                WHERE started_at >= CURRENT_DATE - INTERVAL '7 days'
+                GROUP BY DATE(started_at)
+                ORDER BY date DESC
+            ''')
+            
+            return {
+                "sessions": sessions,
+                "pagination": {
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "pages": (total + limit - 1) // limit if total else 0
+                },
+                "summary": {
+                    "total_sessions": int(stats['total_sessions'] or 0),
+                    "total_cost": round(float(stats['total_cost'] or 0), 4),
+                    "total_hours": round((stats['total_seconds'] or 0) / 3600, 2),
+                    "unique_users": int(stats['unique_users'] or 0)
+                },
+                "daily_breakdown": [
+                    {
+                        "date": row['date'].isoformat(),
+                        "sessions": int(row['sessions']),
+                        "cost": round(float(row['cost'] or 0), 4),
+                        "hours": round((row['seconds'] or 0) / 3600, 2)
+                    }
+                    for row in daily
+                ]
+            }
+    except Exception as e:
+        logger.error(f"Failed to get history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch history")
 
 
 @api_router.get("/admin/nexus/pricing")

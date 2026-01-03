@@ -14,12 +14,12 @@ import {
 import { motion } from 'framer-motion';
 
 const AdminNexus = () => {
-    const [stats, setStats] = useState({ active_sessions: 0, total_pods: 0 });
+    const [stats, setStats] = useState({ active_sessions: 0, total_pods: 0, total_sessions_today: 0, estimated_cost_today: 0 });
     const [sessions, setSessions] = useState([]);
     const [pricing, setPricing] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
-    const [billingData, setBillingData] = useState<{ date: string; cost: number; sessions: number }[]>([]);
+    const [history, setHistory] = useState({ sessions: [], summary: { total_sessions: 0, total_cost: 0, total_hours: 0, unique_users: 0 }, daily_breakdown: [] });
 
     // Pricing calculator inputs
     const [hours, setHours] = useState(8);
@@ -32,14 +32,14 @@ const AdminNexus = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, sessionsRes, billingRes] = await Promise.all([
-                axios.get(`${API}/admin/nexus/stats`).catch(() => ({ data: { active_sessions: 0, total_pods: 0 } })),
+            const [statsRes, sessionsRes, historyRes] = await Promise.all([
+                axios.get(`${API}/admin/nexus/stats`).catch(() => ({ data: { active_sessions: 0, total_pods: 0, total_sessions_today: 0, estimated_cost_today: 0 } })),
                 axios.get(`${API}/admin/nexus/sessions`).catch(() => ({ data: { sessions: [] } })),
-                axios.get(`${API}/admin/nexus/billing`).catch(() => ({ data: { history: [] } }))
+                axios.get(`${API}/admin/nexus/history`).catch(() => ({ data: { sessions: [], summary: {}, daily_breakdown: [] } }))
             ]);
             setStats(statsRes.data);
             setSessions(sessionsRes.data.sessions || []);
-            setBillingData(billingRes.data.history || []);
+            setHistory(historyRes.data);
         } catch (error) {
             console.error('Failed to fetch Nexus data:', error);
         } finally {
@@ -82,13 +82,14 @@ const AdminNexus = () => {
         }
     };
 
-    const totalBillingCost = billingData.reduce((sum, d) => sum + d.cost, 0);
-    const totalSessions = billingData.reduce((sum, d) => sum + d.sessions, 0);
-    const maxCost = Math.max(...billingData.map(d => d.cost));
+    const totalBillingCost = history.summary?.total_cost || 0;
+    const totalSessions = history.summary?.total_sessions || 0;
+    const maxCost = Math.max(...(history.daily_breakdown || []).map(d => d.cost), 0.01);
 
     const tabs = [
         { id: 'overview', label: 'Overview', icon: BarChart3 },
         { id: 'sessions', label: 'Sessions', icon: Server },
+        { id: 'history', label: 'History', icon: Clock },
         { id: 'billing', label: 'Billing', icon: DollarSign },
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
@@ -212,11 +213,11 @@ const AdminNexus = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {billingData.length > 0 ? (
+                            {(history.daily_breakdown || []).length > 0 ? (
                                 <div className="flex items-end gap-3 h-48">
-                                    {billingData.map((day, idx) => (
+                                    {(history.daily_breakdown || []).map((day, idx) => (
                                         <div key={idx} className="flex-1 flex flex-col items-center">
-                                            <div className="text-xs text-gray-500 mb-2">${day.cost}</div>
+                                            <div className="text-xs text-gray-500 mb-2">${day.cost.toFixed(4)}</div>
                                             <div
                                                 className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all hover:from-blue-600 hover:to-blue-500"
                                                 style={{ height: `${maxCost > 0 ? (day.cost / maxCost) * 140 : 0}px` }}
@@ -399,6 +400,153 @@ const AdminNexus = () => {
                 </div>
             )}
 
+            {/* History Tab - Session Logs */}
+            {activeTab === 'history' && (
+                <div className="space-y-6">
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Card className="border border-gray-200 bg-white">
+                            <CardContent className="pt-6">
+                                <div className="text-center">
+                                    <p className="text-sm font-medium text-gray-500">Total Sessions</p>
+                                    <p className="text-2xl font-bold text-zinc-900 mt-1">{history.summary?.total_sessions || 0}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border border-gray-200 bg-white">
+                            <CardContent className="pt-6">
+                                <div className="text-center">
+                                    <p className="text-sm font-medium text-gray-500">Total Cost</p>
+                                    <p className="text-2xl font-bold text-emerald-600 mt-1">${(history.summary?.total_cost || 0).toFixed(4)}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border border-gray-200 bg-white">
+                            <CardContent className="pt-6">
+                                <div className="text-center">
+                                    <p className="text-sm font-medium text-gray-500">Total Hours</p>
+                                    <p className="text-2xl font-bold text-blue-600 mt-1">{(history.summary?.total_hours || 0).toFixed(1)}h</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border border-gray-200 bg-white">
+                            <CardContent className="pt-6">
+                                <div className="text-center">
+                                    <p className="text-sm font-medium text-gray-500">Unique Users</p>
+                                    <p className="text-2xl font-bold text-purple-600 mt-1">{history.summary?.unique_users || 0}</p>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Session Logs Table */}
+                    <Card className="border border-gray-200 bg-white">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Clock className="w-5 h-5 text-gray-500" />
+                                Session Logs
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">User</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Session ID</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Started</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Duration</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
+                                            <th className="text-right py-3 px-4 font-medium text-gray-500">Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(history.sessions || []).map((session: any, idx: number) => (
+                                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                                                <td className="py-3 px-4">
+                                                    <div>
+                                                        <p className="font-medium text-zinc-900">{session.username}</p>
+                                                        <p className="text-xs text-gray-400">{session.email}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <code className="text-xs bg-gray-100 px-2 py-1 rounded">{session.session_id?.substring(0, 12)}...</code>
+                                                </td>
+                                                <td className="py-3 px-4 text-gray-600">
+                                                    {session.started_at ? new Date(session.started_at).toLocaleString() : 'N/A'}
+                                                </td>
+                                                <td className="py-3 px-4 text-gray-600">
+                                                    {session.duration_mins ? `${session.duration_mins} min` : 'N/A'}
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={
+                                                            session.status === 'running' ? 'border-green-200 text-green-700 bg-green-50' :
+                                                                session.status === 'terminated' ? 'border-red-200 text-red-700 bg-red-50' :
+                                                                    'border-gray-200 text-gray-700 bg-gray-50'
+                                                        }
+                                                    >
+                                                        {session.status}
+                                                    </Badge>
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-medium text-zinc-900">
+                                                    ${session.cost?.toFixed(4) || '0.0000'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {(!history.sessions || history.sessions.length === 0) && (
+                                    <div className="text-center py-8 text-gray-500">
+                                        No session history yet
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Daily Breakdown Table */}
+                    <Card className="border border-gray-200 bg-white">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Calendar className="w-5 h-5 text-gray-500" />
+                                Daily Breakdown (Last 7 Days)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
+                                            <th className="text-center py-3 px-4 font-medium text-gray-500">Sessions</th>
+                                            <th className="text-center py-3 px-4 font-medium text-gray-500">Hours</th>
+                                            <th className="text-right py-3 px-4 font-medium text-gray-500">Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(history.daily_breakdown || []).map((day: any, idx: number) => (
+                                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                                                <td className="py-3 px-4 font-medium text-zinc-900">{day.date}</td>
+                                                <td className="py-3 px-4 text-center text-gray-600">{day.sessions}</td>
+                                                <td className="py-3 px-4 text-center text-gray-600">{day.hours?.toFixed(1)}h</td>
+                                                <td className="py-3 px-4 text-right font-medium text-emerald-600">${day.cost?.toFixed(4)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {(!history.daily_breakdown || history.daily_breakdown.length === 0) && (
+                                    <div className="text-center py-8 text-gray-500">
+                                        No data for the last 7 days
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
+
             {/* Billing Tab */}
             {activeTab === 'billing' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -495,10 +643,10 @@ const AdminNexus = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {billingData.length > 0 ? (
+                            {(history.daily_breakdown || []).length > 0 ? (
                                 <>
                                     <div className="space-y-3">
-                                        {billingData.map((day, idx) => (
+                                        {(history.daily_breakdown || []).map((day, idx) => (
                                             <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                                 <div>
                                                     <p className="font-medium text-zinc-900">{day.date}</p>
