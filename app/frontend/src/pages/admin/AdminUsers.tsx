@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Search, Shield, Ban, RotateCcw, ChevronDown, Crown, UserCog, X } from 'lucide-react';
+import { Search, Shield, Ban, RotateCcw, ChevronDown, Crown, UserCog, X, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
@@ -47,11 +47,11 @@ const AdminUsers = ({ user: currentAdmin }) => {
     const getRoleBadge = (role) => {
         switch (role) {
             case 'superadmin':
-                return <Badge className="bg-purple-100 text-purple-700"><Crown className="w-3 h-3 mr-1" />Superadmin</Badge>;
+                return <Badge className="bg-purple-100 text-purple-700" variant={undefined}><Crown className="w-3 h-3 mr-1" />Superadmin</Badge>;
             case 'admin':
-                return <Badge className="bg-indigo-100 text-indigo-700"><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
+                return <Badge className="bg-indigo-100 text-indigo-700" variant={undefined}><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
             default:
-                return <Badge className="bg-gray-100 text-gray-600">User</Badge>;
+                return <Badge className="bg-gray-100 text-gray-600" variant={undefined}>User</Badge>;
         }
     };
 
@@ -103,6 +103,32 @@ const AdminUsers = ({ user: currentAdmin }) => {
             fetchUsers();
         } catch (error) {
             toast.error(error.response?.data?.detail || 'Failed to update role');
+        }
+    };
+
+    const handleDeleteUser = async (targetUser) => {
+        setOpenDropdown(null);
+        if (!confirm(`Are you sure you want to PERMANENTLY DELETE user "${targetUser.username}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        // Double confirmation for safety
+        const verification = prompt(`To confirm deletion, type "${targetUser.username}" below:`);
+        if (verification !== targetUser.username) {
+            if (verification) toast.error("Verification failed. User was not deleted.");
+            return;
+        }
+
+        try {
+            await axios.delete(`${API}/admin/users/${targetUser.id}`);
+            toast.success('User deleted successfully');
+            fetchUsers();
+            if (selectedUser?.id === targetUser.id) {
+                setShowUserDetail(false);
+                setSelectedUser(null);
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || 'Failed to delete user');
         }
     };
 
@@ -188,9 +214,9 @@ const AdminUsers = ({ user: currentAdmin }) => {
                                 <td className="px-6 py-4 font-mono font-bold text-gray-900">{u.score || 0}</td>
                                 <td className="px-6 py-4">
                                     {u.is_banned ? (
-                                        <Badge className="bg-red-100 text-red-700">Banned</Badge>
+                                        <Badge className="bg-red-100 text-red-700" variant={undefined}>Banned</Badge>
                                     ) : (
-                                        <Badge className="bg-emerald-100 text-emerald-700">Active</Badge>
+                                        <Badge className="bg-emerald-100 text-emerald-700" variant={undefined}>Active</Badge>
                                     )}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500">
@@ -243,6 +269,20 @@ const AdminUsers = ({ user: currentAdmin }) => {
                                                             </button>
                                                         </>
                                                     )}
+
+                                                    {/* Delete Option - Restricted */}
+                                                    {(currentAdmin?.role === 'superadmin' || u.role === 'user') && u.role !== 'superadmin' && (
+                                                        <>
+                                                            <hr className="my-2 border-gray-100" />
+                                                            <button
+                                                                onClick={() => handleDeleteUser(u)}
+                                                                className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 flex items-center gap-2 text-red-600 font-medium"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                                Delete User
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -261,63 +301,65 @@ const AdminUsers = ({ user: currentAdmin }) => {
             </div>
 
             {/* User Detail Modal */}
-            {showUserDetail && selectedUser && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
-                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                        <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500">
-                                    {selectedUser.username.substring(0, 2).toUpperCase()}
+            {
+                showUserDetail && selectedUser && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
+                        <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500">
+                                        {selectedUser.username.substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900">{selectedUser.username}</h2>
+                                        <p className="text-gray-400">{selectedUser.email}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900">{selectedUser.username}</h2>
-                                    <p className="text-gray-400">{selectedUser.email}</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setShowUserDetail(false)}
-                                className="p-2 hover:bg-gray-100 rounded-lg"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        <div className="p-6">
-                            {/* Stats */}
-                            <div className="grid grid-cols-3 gap-4 mb-6">
-                                <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                    <p className="text-2xl font-bold text-gray-900">{selectedUser.score || 0}</p>
-                                    <p className="text-xs text-gray-400">Total Score</p>
-                                </div>
-                                <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                    <p className="text-2xl font-bold text-gray-900">{selectedUser.solved_challenges?.length || 0}</p>
-                                    <p className="text-xs text-gray-400">Solved</p>
-                                </div>
-                                <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                    <p className="text-2xl font-bold text-gray-900 capitalize">{selectedUser.role || 'user'}</p>
-                                    <p className="text-xs text-gray-400">Role</p>
-                                </div>
+                                <button
+                                    onClick={() => setShowUserDetail(false)}
+                                    className="p-2 hover:bg-gray-100 rounded-lg"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
 
-                            {/* Solved Challenges */}
-                            <h3 className="font-semibold text-gray-900 mb-4">Solved Challenges</h3>
-                            {selectedUser.solved_challenges?.length > 0 ? (
-                                <div className="space-y-2">
-                                    {selectedUser.solved_challenges.map((progress, idx) => (
-                                        <div key={idx} className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-lg">
-                                            <span className="text-gray-900">{progress.challenge_title}</span>
-                                            <span className="font-mono text-sm text-gray-500">+{progress.score_earned} pts</span>
-                                        </div>
-                                    ))}
+                            <div className="p-6">
+                                {/* Stats */}
+                                <div className="grid grid-cols-3 gap-4 mb-6">
+                                    <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900">{selectedUser.score || 0}</p>
+                                        <p className="text-xs text-gray-400">Total Score</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900">{selectedUser.solved_challenges?.length || 0}</p>
+                                        <p className="text-xs text-gray-400">Solved</p>
+                                    </div>
+                                    <div className="bg-gray-50 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900 capitalize">{selectedUser.role || 'user'}</p>
+                                        <p className="text-xs text-gray-400">Role</p>
+                                    </div>
                                 </div>
-                            ) : (
-                                <p className="text-gray-400 text-center py-8">No challenges solved yet</p>
-                            )}
+
+                                {/* Solved Challenges */}
+                                <h3 className="font-semibold text-gray-900 mb-4">Solved Challenges</h3>
+                                {selectedUser.solved_challenges?.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {selectedUser.solved_challenges.map((progress, idx) => (
+                                            <div key={idx} className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-lg">
+                                                <span className="text-gray-900">{progress.challenge_title}</span>
+                                                <span className="font-mono text-sm text-gray-500">+{progress.score_earned} pts</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-gray-400 text-center py-8">No challenges solved yet</p>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

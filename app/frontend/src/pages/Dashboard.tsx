@@ -111,10 +111,6 @@ const Dashboard = ({ user, logout }) => {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-gray-100 pb-6">
           <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-emerald-50 border border-emerald-100/50 rounded-full mb-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-emerald-700 tracking-wide uppercase">System Operational</span>
-            </div>
             <h1 className="text-2xl font-semibold text-zinc-900 tracking-tight">
               Welcome back, {user?.username}
             </h1>

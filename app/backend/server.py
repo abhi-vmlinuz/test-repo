@@ -334,7 +334,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             user = await conn.fetchrow('''
                 SELECT u.id, u.name, u.email, u."ctfScore" as score,
                        u."isActive", u."isLocked" as is_banned,
-                       u.avatar_url,
+                       u.avatar_url, u."createdAt" as created_at,
                        r.type as role_type
                 FROM users u
                 JOIN "Role" r ON u."roleId" = r.id
@@ -362,7 +362,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 'role': role_map.get(user['role_type'], 'user'),
                 'role_type': user['role_type'],  # Include for LMS integration
                 'is_active': user['isActive'],
-                'avatar_url': user['avatar_url']
+                'avatar_url': user['avatar_url'],
+                'created_at': user['created_at'].isoformat() if user['created_at'] else None
             }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -949,6 +950,7 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                 # Fetch user for token creation
                 user = await conn.fetchrow('''
                     SELECT u.id, u.name, u.email, u."ctfScore" as score, u.avatar_url,
+                           u."createdAt" as created_at,
                            r.type as role_type
                     FROM users u
                     JOIN "Role" r ON u."roleId" = r.id
@@ -974,7 +976,8 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                     'email': user['email'],
                     'score': user['score'] or 0,
                     'role': role_map.get(user['role_type'], 'user'),
-                    'avatar_url': user['avatar_url']
+                    'avatar_url': user['avatar_url'],
+                    'created_at': user['created_at'].isoformat() if user['created_at'] else None
                 }
                 
                 return HTMLResponse(content=f'''
@@ -1228,6 +1231,7 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                 # Fetch user for token creation
                 user = await conn.fetchrow('''
                     SELECT u.id, u.name, u.email, u."ctfScore" as score, u.avatar_url,
+                           u."createdAt" as created_at,
                            r.type as role_type
                     FROM users u
                     JOIN "Role" r ON u."roleId" = r.id
@@ -1251,7 +1255,8 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                     'email': user['email'],
                     'score': user['score'] or 0,
                     'role': role_map.get(user['role_type'], 'user'),
-                    'avatar_url': user['avatar_url']
+                    'avatar_url': user['avatar_url'],
+                    'created_at': user['created_at'].isoformat() if user['created_at'] else None
                 }
                 
                 return HTMLResponse(content=f'''
@@ -2049,6 +2054,48 @@ async def admin_reset_user_progress(user_id: str, admin: dict = Depends(require_
         await conn.execute('''
             UPDATE users SET "ctfScore" = 0, "updatedAt" = NOW() WHERE id = $1
         ''', user_id)
+        
+        return {'success': True}
+
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, admin: dict = Depends(require_admin)):
+    """Delete a user account"""
+    # Prevent deleting self
+    if user_id == admin['id']:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Check target user role
+        target_user = await conn.fetchrow('''
+            SELECT u.id, r.type as role_type
+            FROM users u
+            JOIN "Role" r ON u."roleId" = r.id
+            WHERE u.id = $1
+        ''', user_id)
+        
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Prevent deleting superadmin unless you are one (or maybe not even then? let's allow superadmin to delete other admins/users)
+        # Actually safer: Only Superadmin can delete other Admins. Admins can only delete Users.
+        # And NOBODY can delete a Superadmin via this API (manual DB intervention required for safety).
+        
+        target_role = target_user['role_type']
+        admin_role = admin['role']
+        
+        if target_role == 'SUPERADMIN':
+            raise HTTPException(status_code=403, detail="Cannot delete a Superadmin account")
+            
+        if target_role in ['ADMIN', 'INSTRUCTOR'] and admin_role != 'superadmin':
+             raise HTTPException(status_code=403, detail="Only Superadmin can delete other Admins")
+
+        # Proceed with delete
+        # Note: Foreign key cascades should handle related data (progress, submissions, etc.)
+        # but let's be explicit about crucial data if needed. 
+        # Assuming standard CASCADE setup in DB schema.
+        await conn.execute('DELETE FROM users WHERE id = $1', user_id)
         
         return {'success': True}
 

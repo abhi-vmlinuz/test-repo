@@ -267,11 +267,14 @@ const Profile = ({ user, logout, setUser }) => {
                   <p className="text-xs font-bold text-gray-500 uppercase">Member Since</p>
                 </div>
                 <p className="text-gray-900 font-medium pl-7">
-                  {new Date(user.created_at).toLocaleDateString('en-US', {
-                    month: 'long',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
+                  {user.created_at
+                    ? new Date(user.created_at).toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })
+                    : 'Not available'
+                  }
                 </p>
               </div>
             </div>

@@ -59,23 +59,35 @@ const Layout = ({ user, children, logout }) => {
 
                 {/* User Profile Snippet */}
                 <div className="border-t border-gray-100 pt-4 mt-auto">
-                    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer relative">
-                        <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center text-[10px] font-bold text-zinc-900 shadow-sm">
-                            {user?.username?.substring(0, 2).toUpperCase()}
-                        </div>
+                    <Link to="/profile" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer relative">
+                        {user?.avatar_url ? (
+                            <img
+                                src={user.avatar_url}
+                                alt={user?.username || user?.name}
+                                className="w-8 h-8 rounded-md object-cover border border-gray-200 shadow-sm"
+                            />
+                        ) : (
+                            <div className="w-8 h-8 rounded-md bg-white border border-gray-200 flex items-center justify-center text-[10px] font-bold text-zinc-900 shadow-sm">
+                                {(user?.username || user?.name)?.substring(0, 2).toUpperCase()}
+                            </div>
+                        )}
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-zinc-900 truncate">{user?.username}</p>
+                            <p className="text-sm font-medium text-zinc-900 truncate">{user?.username || user?.name}</p>
                             <div className="flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                <p className="text-[10px] text-gray-500">{user?.role === 'superadmin' ? 'ROOT' : 'USER'}</p>
+                                <p className="text-[10px] text-gray-500">{user?.role === 'superadmin' ? 'ROOT' : user?.role?.toUpperCase() || 'USER'}</p>
                             </div>
                         </div>
+                    </Link>
 
-                        {/* Logout Button */}
-                        <button onClick={logout} className="ml-2 text-gray-400 hover:text-red-500 transition-colors" title="Logout">
-                            <LogOut className="w-4 h-4" />
-                        </button>
-                    </div>
+                    {/* Logout Button - Moved outside the clickable profile area */}
+                    <button
+                        onClick={logout}
+                        className="w-full mt-2 p-2 flex items-center justify-center gap-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors text-xs"
+                    >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out</span>
+                    </button>
 
                     <div className="mt-4 px-1">
                         <p className="text-[10px] text-gray-300 font-mono text-center">v2.0.4</p>
