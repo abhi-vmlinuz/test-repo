@@ -38,8 +38,10 @@ const AdminChallenges = () => {
         github_path: '',
         hints: [] as { text: string; cost: number }[],
         questions: [] as { question: string; flag: string; points: number }[],
+        tags: [] as string[],
         is_published: true
     });
+
     const [artifacts, setArtifacts] = useState<any[]>([]);
     const [uploadingArtifact, setUploadingArtifact] = useState(false);
     const [zipPreview, setZipPreview] = useState<{ files: string[]; count: number } | null>(null);
@@ -197,6 +199,7 @@ const AdminChallenges = () => {
             github_path: '',
             hints: [],
             questions: [],
+            tags: [],
             is_published: true
         });
         setArtifacts([]);
@@ -223,6 +226,7 @@ const AdminChallenges = () => {
             github_path: challenge.github_path || '',
             hints: challenge.hints || [],
             questions: challenge.questions || [],
+            tags: challenge.tags || [],
             is_published: challenge.is_published !== false
         });
         setShowModal(true);
@@ -1066,7 +1070,66 @@ const AdminChallenges = () => {
                                 )}
                             </div>
 
+                            {/* Tags */}
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                                <div>
+                                    <h3 className="font-medium text-gray-700">Tags</h3>
+                                    <p className="text-xs text-gray-400">Add tags to help categorize this challenge</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {formData.tags.map((tag, idx) => (
+                                        <span
+                                            key={idx}
+                                            className="inline-flex items-center gap-1 px-3 py-1 bg-zinc-900 text-white text-sm rounded-full"
+                                        >
+                                            {tag}
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({
+                                                    ...formData,
+                                                    tags: formData.tags.filter((_, i) => i !== idx)
+                                                })}
+                                                className="ml-1 hover:text-red-300"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        </span>
+                                    ))}
+                                    <input
+                                        type="text"
+                                        placeholder="Add tag..."
+                                        className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-500 w-28"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ',') {
+                                                e.preventDefault();
+                                                const value = (e.target as HTMLInputElement).value.trim().toLowerCase();
+                                                if (value && !formData.tags.includes(value)) {
+                                                    setFormData({ ...formData, tags: [...formData.tags, value] });
+                                                    (e.target as HTMLInputElement).value = '';
+                                                }
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                    <span className="text-xs text-gray-400">Suggestions:</span>
+                                    {['web', 'crypto', 'forensics', 'pwn', 'reverse', 'misc', 'osint', 'network'].map(tag => (
+                                        !formData.tags.includes(tag) && (
+                                            <button
+                                                key={tag}
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, tags: [...formData.tags, tag] })}
+                                                className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300"
+                                            >
+                                                + {tag}
+                                            </button>
+                                        )
+                                    ))}
+                                </div>
+                            </div>
+
                             {/* Hints */}
+
                             <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <h3 className="font-medium text-gray-700">Hints</h3>

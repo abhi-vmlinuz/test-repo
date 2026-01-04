@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip } from 'lucide-react';
+import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ChallengeDetail = ({ user, logout }) => {
@@ -31,6 +31,7 @@ const ChallengeDetail = ({ user, logout }) => {
   const [solvedQuestions, setSolvedQuestions] = useState([]);
   const [submittingQuestion, setSubmittingQuestion] = useState(null);
   const [artifacts, setArtifacts] = useState([]);
+  const [visibleHints, setVisibleHints] = useState<number[]>([]); // Track which unlocked hints are currently visible
 
   useEffect(() => {
     fetchChallenge();
@@ -126,6 +127,17 @@ const ChallengeDetail = ({ user, logout }) => {
         toast.success(`${response.data.message} (+${response.data.points} points)`);
         fetchChallenge();
         setFlagInput('');
+
+        // Auto-stop the instance if running (save resources after solving)
+        if (dockerInstance?.session_id) {
+          try {
+            await axios.delete(`${API}/docker/stop/${dockerInstance.session_id}`);
+            setDockerInstance(null);
+            toast.info('Lab instance stopped - challenge complete! 🎉');
+          } catch (e) {
+            // Instance might already be stopped
+          }
+        }
       } else {
         setSubmitResult('incorrect');
         toast.error(response.data.message);
@@ -321,8 +333,7 @@ const ChallengeDetail = ({ user, logout }) => {
 
           {/* Header Card */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`bg-white rounded-2xl border ${isSolved ? 'border-emerald-200 shadow-emerald-50' : 'border-gray-200'} shadow-sm overflow-hidden relative`}>
-            {/* Decorative Gradient */}
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-zinc-900 via-gray-700 to-zinc-900"></div>
+
 
             {isSolved && (
               <div className="bg-emerald-50 border-b border-emerald-100 px-6 py-3 flex items-center gap-2">
@@ -474,21 +485,23 @@ const ChallengeDetail = ({ user, logout }) => {
                         )}
                         Stop Instance
                       </Button>
-                      {remainingTime.mins < 20 && (
-                        <Button
-                          variant="outline"
-                          onClick={handleExtendDocker}
-                          disabled={extendingDocker}
-                          className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300"
-                        >
-                          {extendingDocker ? (
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <Clock className="w-4 h-4 mr-2" />
-                          )}
-                          Extend +30m
-                        </Button>
-                      )}
+                      {/* Always show extend button when instance is running */}
+                      <Button
+                        variant="outline"
+                        onClick={handleExtendDocker}
+                        disabled={extendingDocker}
+                        className={`flex-1 transition-all ${remainingTime.mins < 20
+                          ? 'border-amber-300 text-amber-600 hover:bg-amber-50 hover:border-amber-400 animate-pulse'
+                          : 'border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300'
+                          }`}
+                      >
+                        {extendingDocker ? (
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Clock className="w-4 h-4 mr-2" />
+                        )}
+                        Extend +30m
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -678,23 +691,53 @@ const ChallengeDetail = ({ user, logout }) => {
                   {challenge.hints.map((hint, index) => {
                     const isUnlocked = unlockedHints.includes(index);
                     return (
-                      <div key={index} className="p-6">
-                        <div className="flex items-center justify-between mb-3">
+                      <div key={index} className="p-4">
+                        <div className="flex items-center justify-between">
                           <span className="font-bold text-sm text-gray-700">Hint #{index + 1}</span>
-                          <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 hover:bg-green-100">Free</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-[10px]">Free</Badge>
+                            {isUnlocked && (
+                              <button
+                                onClick={() => {
+                                  if (visibleHints.includes(index)) {
+                                    setVisibleHints(prev => prev.filter(i => i !== index));
+                                  } else {
+                                    setVisibleHints(prev => [...prev, index]);
+                                  }
+                                }}
+                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                                title={visibleHints.includes(index) ? 'Hide hint' : 'Show hint'}
+                              >
+                                {visibleHints.includes(index) ? (
+                                  <EyeOff className="w-4 h-4" />
+                                ) : (
+                                  <Eye className="w-4 h-4" />
+                                )}
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {isUnlocked ? (
-                          <div className="bg-amber-50/50 p-3 rounded-lg border border-amber-100 text-sm text-gray-700">
-                            {hint.text}
-                          </div>
+                          visibleHints.includes(index) ? (
+                            <div className="mt-3 bg-amber-50/50 p-3 rounded-lg border border-amber-100 text-sm text-gray-700 animate-in fade-in slide-in-from-top-1 duration-200">
+                              {hint.text}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-xs text-gray-400 italic">Click the eye icon to reveal this hint</p>
+                          )
                         ) : (
                           <Button
                             variant="outline"
-                            className="w-full border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50"
-                            onClick={() => handleUnlockHint(index)}
+                            className="w-full mt-3 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50"
+                            onClick={() => {
+                              handleUnlockHint(index);
+                              // Automatically show the hint when first unlocked
+                              setVisibleHints(prev => [...prev, index]);
+                            }}
                           >
-                            Show Hint
+                            <Lightbulb className="w-4 h-4 mr-2" />
+                            Unlock Hint
                           </Button>
                         )}
                       </div>

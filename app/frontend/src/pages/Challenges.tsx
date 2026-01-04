@@ -242,13 +242,22 @@ const Challenges = ({ user, logout }) => {
 
                     {/* Footer Info */}
                     <div className="flex items-center justify-between pt-4 border-t border-gray-50 mt-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {category && (
                           <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
                             {category.name}
                           </span>
                         )}
+                        {challenge.tags && challenge.tags.slice(0, 2).map((tag: string, i: number) => (
+                          <span key={i} className="text-[10px] font-medium text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded">
+                            {tag}
+                          </span>
+                        ))}
+                        {challenge.tags && challenge.tags.length > 2 && (
+                          <span className="text-[10px] text-gray-400">+{challenge.tags.length - 2}</span>
+                        )}
                       </div>
+
                       <div className="text-right">
                         <span className="block text-lg font-mono font-bold text-zinc-900">{challenge.points}</span>
                         <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Points</span>

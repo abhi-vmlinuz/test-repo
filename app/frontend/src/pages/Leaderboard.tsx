@@ -4,20 +4,24 @@ import { API, toast } from '../App';
 import Layout from '@/components/Layout';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import { Trophy, Medal, Award, TrendingUp, Calendar, Clock, Crown } from 'lucide-react';
+import { Trophy, Medal, Award, TrendingUp, Calendar, Clock, Crown, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Leaderboard = ({ user, logout }) => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState('all');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchLeaderboard();
-  }, []);
+  }, [timeFilter]);
 
   const fetchLeaderboard = async () => {
+    setLoading(true);
     try {
-      const response = await axios.get(`${API}/leaderboard?limit=50`);
+      const periodMap = { 'all': 'all', 'month': 'month', 'week': 'week' };
+      const response = await axios.get(`${API}/leaderboard?limit=50&period=${periodMap[timeFilter]}`);
       setLeaderboard(response.data);
     } catch (error) {
       toast.error('Failed to load leaderboard');
@@ -28,6 +32,37 @@ const Leaderboard = ({ user, logout }) => {
 
   // Find current user's rank
   const userRank = leaderboard.findIndex(p => p.id === user.id) + 1;
+  const userScore = leaderboard.find(p => p.id === user.id)?.score || 0;
+
+  const handleViewProfile = (userId: string) => {
+    navigate(`/profile/${userId}`);
+  };
+
+  // Avatar component
+  const UserAvatar = ({ player, size = 'md', className = '' }) => {
+    const sizeClasses = {
+      sm: 'w-8 h-8 text-xs',
+      md: 'w-10 h-10 text-sm',
+      lg: 'w-16 h-16 text-xl',
+      xl: 'w-20 h-20 text-2xl'
+    };
+
+    if (player?.avatar_url) {
+      return (
+        <img
+          src={player.avatar_url}
+          alt={player.username}
+          className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
+        />
+      );
+    }
+
+    return (
+      <div className={`${sizeClasses[size]} rounded-full flex items-center justify-center font-bold ${className}`}>
+        {player?.username?.substring(0, 2).toUpperCase() || '??'}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -61,7 +96,7 @@ const Leaderboard = ({ user, logout }) => {
                   : 'text-gray-500 hover:text-gray-900'
                   }`}
               >
-                {filter === 'all' ? 'All Time' : filter}
+                {filter === 'all' ? 'All Time' : filter === 'week' ? 'This Week' : 'This Month'}
               </button>
             ))}
           </div>
@@ -83,8 +118,10 @@ const Leaderboard = ({ user, logout }) => {
               </div>
 
               <div className="mb-8">
-                <div className="text-2xl font-bold text-gray-200">{user.score.toLocaleString()}</div>
-                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total Points</div>
+                <div className="text-2xl font-bold text-gray-200">{userScore.toLocaleString()}</div>
+                <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                  {timeFilter === 'all' ? 'Total Points' : timeFilter === 'week' ? 'Points This Week' : 'Points This Month'}
+                </div>
               </div>
 
               <div className="py-4 border-t border-white/10 flex items-center gap-3">
@@ -106,41 +143,52 @@ const Leaderboard = ({ user, logout }) => {
             {leaderboard.length >= 3 && (
               <div className="grid grid-cols-3 gap-4 items-end mb-8">
                 {/* 2nd Place */}
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white border border-gray-100 rounded-2xl p-6 text-center shadow-sm relative pt-12">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white border border-gray-100 rounded-2xl p-6 text-center shadow-sm relative pt-12 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => handleViewProfile(leaderboard[1]?.id)}
+                >
                   <div className="absolute -top-6 left-1/2 -translate-x-1/2">
                     <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center border-4 border-white shadow-sm font-bold text-gray-500 text-lg">2</div>
                   </div>
-                  <div className="w-16 h-16 mx-auto bg-gray-100 rounded-full mb-3 flex items-center justify-center text-xl font-bold text-gray-600">
-                    {leaderboard[1]?.username.substring(0, 2).toUpperCase()}
-                  </div>
+                  <UserAvatar player={leaderboard[1]} size="lg" className="mx-auto mb-3 bg-gray-100 text-gray-600" />
                   <div className="font-bold text-gray-900 truncate">{leaderboard[1]?.username}</div>
                   <div className="font-mono text-gray-500 text-sm font-medium">{leaderboard[1]?.score} pts</div>
                 </motion.div>
 
                 {/* 1st Place */}
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-b from-yellow-50 to-white border border-yellow-100 rounded-2xl p-8 text-center shadow-md relative pt-16 z-10 transform -translate-y-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-gradient-to-b from-yellow-50 to-white border border-yellow-100 rounded-2xl p-8 text-center shadow-md relative pt-16 z-10 transform -translate-y-4 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => handleViewProfile(leaderboard[0]?.id)}
+                >
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2">
                     <div className="relative">
                       <Crown className="w-8 h-8 text-yellow-500 absolute -top-8 left-1/2 -translate-x-1/2" fill="currentColor" />
                       <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center border-4 border-white shadow-md font-bold text-white text-2xl">1</div>
                     </div>
                   </div>
-                  <div className="w-20 h-20 mx-auto bg-yellow-100 rounded-full mb-3 flex items-center justify-center text-2xl font-bold text-yellow-600 border border-yellow-200">
-                    {leaderboard[0]?.username.substring(0, 2).toUpperCase()}
-                  </div>
+                  <UserAvatar player={leaderboard[0]} size="xl" className="mx-auto mb-3 bg-yellow-100 text-yellow-600 border border-yellow-200" />
                   <div className="font-bold text-lg text-gray-900 truncate">{leaderboard[0]?.username}</div>
                   <div className="font-mono text-yellow-600 font-bold text-xl">{leaderboard[0]?.score} pts</div>
-                  <Badge className="mt-2 bg-yellow-400 text-black border-0 hover:bg-yellow-500">Champion</Badge>
+                  <Badge className="mt-2 bg-yellow-400 text-black border-0 hover:bg-yellow-500" variant={undefined}>Champion</Badge>
                 </motion.div>
 
                 {/* 3rd Place */}
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white border border-orange-100 rounded-2xl p-6 text-center shadow-sm relative pt-12">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white border border-orange-100 rounded-2xl p-6 text-center shadow-sm relative pt-12 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => handleViewProfile(leaderboard[2]?.id)}
+                >
                   <div className="absolute -top-6 left-1/2 -translate-x-1/2">
                     <div className="w-12 h-12 bg-orange-200 rounded-full flex items-center justify-center border-4 border-white shadow-sm font-bold text-orange-700 text-lg">3</div>
                   </div>
-                  <div className="w-16 h-16 mx-auto bg-orange-50 rounded-full mb-3 flex items-center justify-center text-xl font-bold text-orange-500">
-                    {leaderboard[2]?.username.substring(0, 2).toUpperCase()}
-                  </div>
+                  <UserAvatar player={leaderboard[2]} size="lg" className="mx-auto mb-3 bg-orange-50 text-orange-500" />
                   <div className="font-bold text-gray-900 truncate">{leaderboard[2]?.username}</div>
                   <div className="font-mono text-gray-500 text-sm font-medium">{leaderboard[2]?.score} pts</div>
                 </motion.div>
@@ -160,13 +208,27 @@ const Leaderboard = ({ user, logout }) => {
                   const isCurrentUser = player.id === user.id;
 
                   return (
-                    <div key={player.id} className={`grid grid-cols-12 gap-4 p-4 items-center transition-colors hover:bg-gray-50 ${isCurrentUser ? 'bg-blue-50/30' : ''}`}>
+                    <div
+                      key={player.id}
+                      className={`grid grid-cols-12 gap-4 p-4 items-center transition-colors hover:bg-gray-50 cursor-pointer ${isCurrentUser ? 'bg-blue-50/30' : ''}`}
+                      onClick={() => handleViewProfile(player.id)}
+                    >
                       <div className="col-span-2 md:col-span-1 text-center font-mono font-bold text-gray-400">
                         #{rank}
                       </div>
                       <div className="col-span-7 md:col-span-8 flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full hidden sm:flex items-center justify-center text-sm font-bold border ${isCurrentUser ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-gray-600 border-gray-100'}`}>
-                          {player.username.substring(0, 2).toUpperCase()}
+                        <div className="hidden sm:block">
+                          {player.avatar_url ? (
+                            <img
+                              src={player.avatar_url}
+                              alt={player.username}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border ${isCurrentUser ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-gray-600 border-gray-100'}`}>
+                              {player.username.substring(0, 2).toUpperCase()}
+                            </div>
+                          )}
                         </div>
                         <div>
                           <div className={`font-semibold text-sm ${isCurrentUser ? 'text-blue-700' : 'text-zinc-900'}`}>
@@ -192,3 +254,4 @@ const Leaderboard = ({ user, logout }) => {
 };
 
 export default Leaderboard;
+

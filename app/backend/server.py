@@ -138,6 +138,11 @@ class CategoryCreate(BaseModel):
     icon: str = "🏴"
     color: str = "gray"
 
+class ProfileUpdate(BaseModel):
+    bio: Optional[str] = None
+    social_links: Optional[Dict[str, str]] = None
+
+
 class PublicChallengeCreate(BaseModel):
     category_id: str
     title: str
@@ -151,7 +156,9 @@ class PublicChallengeCreate(BaseModel):
     github_path: Optional[str] = None
     hints: List[Hint] = []
     questions: List[Question] = []
+    tags: List[str] = []  # Tags for filtering/display (e.g., "web", "crypto", "forensics")
     is_published: bool = True
+
 
 class FlagSubmit(BaseModel):
     challenge_id: str
@@ -360,11 +367,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 # FASTAPI APP SETUP
 # ===========================================
 
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, File, UploadFile, Form
+from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.staticfiles import StaticFiles
+
+# ...
+
 app = FastAPI(
     title="ZecurX CTF Platform API",
     description="CTF Platform integrated with ZecurX LMS",
     version="2.0.0"
 )
+
+# Serve uploaded files (avatars, etc.)
+app.mount("/uploads", StaticFiles(directory=str(ROOT_DIR / "uploads")), name="uploads")
+
 
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
@@ -547,6 +564,90 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: dict = Depends(get_current_user)):
     """Get current user info"""
     return current_user
+
+
+@api_router.patch("/auth/me")
+@api_router.put("/auth/me")
+async def update_me(data: ProfileUpdate, current_user: dict = Depends(get_current_user)):
+    """Update current user profile (bio, social links)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Build update query
+        update_fields = []
+        params = []
+        idx = 1
+        
+        if data.bio is not None:
+            update_fields.append(f'bio = ${idx}')
+            params.append(data.bio)
+            idx += 1
+            
+        if data.social_links is not None:
+            update_fields.append(f'social_links = ${idx}')
+            params.append(json.dumps(data.social_links))
+            idx += 1
+            
+        if not update_fields:
+            return current_user
+            
+        params.append(current_user['id'])
+        
+        await conn.execute(f'''
+            UPDATE users 
+            SET {', '.join(update_fields)}, "updatedAt" = NOW()
+            WHERE id = ${idx}
+        ''', *params)
+        
+        # Return updated usage
+        return {**current_user, **data.dict(exclude_unset=True)}
+
+
+@api_router.post("/auth/me/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...), 
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload user avatar"""
+    # Validation: 5MB limit, image only
+    if file.size and file.size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+        
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="Invalid file type (image only)")
+    
+    pool = await Database.get_pool()
+    
+    # Save file
+    ext = file.filename.split('.')[-1]
+    filename = f"{current_user['id']}_{int(datetime.now().timestamp())}.{ext}"
+    
+    # Ensure directory exists (uploads/avatars)
+    AVATARS_DIR = ROOT_DIR / "uploads" / "avatars"
+    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    file_path = AVATARS_DIR / filename
+    
+    try:
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+            
+        # URL (Assuming web server serves /uploads from backend URL)
+        # Note: Frontend needs to prepend API root or similar if not relative
+        # Using relative path valid for this server
+        avatar_url = f"{os.environ.get('BACKEND_URL', '')}/uploads/avatars/{filename}"
+        
+        # Update user
+        async with pool.acquire() as conn:
+            await conn.execute('UPDATE users SET avatar_url = $1 WHERE id = $2', avatar_url, current_user['id'])
+            
+        return {'avatar_url': avatar_url}
+        
+    except Exception as e:
+        logger.error(f"Avatar upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save avatar")
+
+
 
 
 # ===========================================
@@ -1397,7 +1498,7 @@ async def get_challenges(
     query = '''
         SELECT 
             c.id, c."categoryId", c.title, c.description, c.difficulty, 
-            c.points, c."dockerImage", c.hints, c.questions, c.solves, c."isPublished",
+            c.points, c."dockerImage", c.hints, c.questions, c.solves, c."isPublished", c.tags,
             EXISTS(
                 SELECT 1 FROM ctf_public_progress p 
                 WHERE p."challengeId" = c.id AND p."userId" = $1 AND p.solved = true
@@ -1432,6 +1533,11 @@ async def get_challenges(
             question_points = sum(q.get('points', 25) for q in questions)
             total_points = (ch['points'] or 0) + question_points
             
+            # Parse tags
+            tags = []
+            if ch.get('tags'):
+                tags = json.loads(ch['tags']) if isinstance(ch['tags'], str) else ch['tags']
+            
             result.append({
                 'id': ch['id'],
                 'category_id': ch['categoryId'],
@@ -1444,6 +1550,7 @@ async def get_challenges(
                 'docker_image': ch['dockerImage'],
                 'hints': hints,
                 'questions': questions,
+                'tags': tags,
                 'solves': ch['solves']
             })
         return result
@@ -1456,7 +1563,7 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow('''
             SELECT id, "categoryId", title, description, difficulty,
-                   points, "dockerImage", hints, questions, solves, flag
+                   points, "dockerImage", hints, questions, solves, flag, tags
             FROM ctf_public_challenges
             WHERE id = $1 AND "isPublished" = true
         ''', challenge_id)
@@ -1492,6 +1599,11 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
         # Check if challenge has a main flag (not empty/null)
         has_main_flag = bool(challenge['flag'] and challenge['flag'].strip())
         
+        # Parse tags
+        tags = []
+        if challenge.get('tags'):
+            tags = json.loads(challenge['tags']) if isinstance(challenge['tags'], str) else challenge['tags']
+        
         return {
             'id': challenge['id'],
             'category_id': challenge['categoryId'],
@@ -1502,6 +1614,7 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
             'docker_image': challenge['dockerImage'],
             'hints': hints,
             'questions': questions,
+            'tags': tags,
             'solves': challenge['solves'],
             'has_main_flag': has_main_flag,
             'user_progress': {
@@ -1511,6 +1624,7 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
                 'score_earned': progress['scoreEarned'] if progress else 0
             }
         }
+
 
 
 # ===========================================
@@ -1703,27 +1817,60 @@ async def unlock_hint(hint_request: HintRequest, current_user: dict = Depends(ge
 # ===========================================
 
 @api_router.get("/leaderboard")
-async def get_leaderboard(limit: int = 100):
-    """Get global CTF leaderboard"""
+async def get_leaderboard(limit: int = 100, period: str = "all"):
+    """
+    Get global CTF leaderboard.
+    
+    Args:
+        limit: Maximum number of users to return
+        period: Time period filter - "all" (default), "week", "month"
+    """
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        users = await conn.fetch('''
-            SELECT u.id, u.name, u.email, u."ctfScore" as score
-            FROM users u
-            WHERE u."ctfScore" > 0
-            ORDER BY u."ctfScore" DESC
-            LIMIT $1
-        ''', limit)
+        if period == "all":
+            # All-time leaderboard from ctfScore
+            users = await conn.fetch('''
+                SELECT u.id, u.name, u.email, u."ctfScore" as score, u.avatar_url
+                FROM users u
+                WHERE u."ctfScore" > 0
+                ORDER BY u."ctfScore" DESC
+                LIMIT $1
+            ''', limit)
+        else:
+            # Time-filtered leaderboard - calculate from submissions
+            if period == "week":
+                interval = "7 days"
+            else:  # month
+                interval = "30 days"
+            
+            users = await conn.fetch(f'''
+                SELECT 
+                    u.id, 
+                    u.name, 
+                    u.email, 
+                    u.avatar_url,
+                    COALESCE(SUM(cp.score_earned), 0) as score
+                FROM users u
+                LEFT JOIN ctf_public_progress cp ON u.id = cp.user_id 
+                    AND cp.solved_at >= NOW() - INTERVAL '{interval}'
+                    AND cp.is_solved = true
+                GROUP BY u.id, u.name, u.email, u.avatar_url
+                HAVING COALESCE(SUM(cp.score_earned), 0) > 0
+                ORDER BY score DESC
+                LIMIT $1
+            ''', limit)
         
         return [
             {
                 'rank': i + 1,
                 'id': u['id'],
                 'username': u['name'] or u['email'].split('@')[0],
-                'score': u['score']
+                'score': int(u['score'] or 0),
+                'avatar_url': u.get('avatar_url')
             }
             for i, u in enumerate(users)
         ]
+
 
 
 # ===========================================
@@ -1778,6 +1925,129 @@ async def get_my_stats(current_user: dict = Depends(get_current_user)):
             'total_points': basic_stats['total_points'] or 0,
             'total_score': basic_stats['total_points'] or 0,
             'category_stats': category_stats
+        }
+
+
+# ===========================================
+# PUBLIC USER PROFILE
+# ===========================================
+
+@api_router.get("/profile/{user_id}")
+async def get_public_profile(user_id: str):
+    """
+    Get public profile of a user.
+    Returns limited info: username, avatar, score, achievements, activity calendar.
+    Does NOT return email or private data.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get user basic info
+        user = await conn.fetchrow('''
+            SELECT id, name, "ctfScore" as score, avatar_url, bio, social_links, "createdAt" as created_at
+            FROM users WHERE id = $1
+        ''', user_id)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get rank
+        rank_result = await conn.fetchrow('''
+            SELECT COUNT(*) + 1 as rank FROM users WHERE "ctfScore" > $1
+        ''', user['score'] or 0)
+        
+        # Get challenge stats
+        stats = await conn.fetchrow('''
+            SELECT 
+                COUNT(*) FILTER (WHERE solved = true) as challenges_solved,
+                COALESCE(SUM("scoreEarned"), 0) as total_points
+            FROM ctf_public_progress WHERE "userId" = $1
+        ''', user_id)
+        
+        # Get category breakdown
+        categories = await conn.fetch('''
+            SELECT 
+                c.name as category,
+                COUNT(p.id) FILTER (WHERE p.solved = true) as solved,
+                (SELECT COUNT(*) FROM ctf_public_challenges WHERE "categoryId" = c.id AND "isPublished" = true) as total
+            FROM ctf_categories c
+            LEFT JOIN ctf_public_challenges ch ON c.id = ch."categoryId"
+            LEFT JOIN ctf_public_progress p ON ch.id = p."challengeId" AND p."userId" = $1
+            WHERE c."isActive" = true
+            GROUP BY c.id, c.name
+        ''', user_id)
+        
+        # Get activity data for the past year (365 days)
+        # Count challenges solved per day
+        activity = await conn.fetch('''
+            SELECT 
+                DATE(solved_at) as date,
+                COUNT(*) as count
+            FROM ctf_public_progress
+            WHERE "userId" = $1 
+                AND solved = true 
+                AND solved_at >= NOW() - INTERVAL '365 days'
+            GROUP BY DATE(solved_at)
+            ORDER BY date
+        ''', user_id)
+        
+        # Format activity for calendar
+        activity_data = {}
+        for row in activity:
+            if row['date']:
+                activity_data[row['date'].strftime('%Y-%m-%d')] = row['count']
+        
+        # Parse social links
+        social_links = {}
+        if user.get('social_links'):
+            try:
+                social_links = json.loads(user['social_links']) if isinstance(user['social_links'], str) else user['social_links']
+            except:
+                pass
+        
+        # Calculate achievements
+        total_challenges = await conn.fetchval('SELECT COUNT(*) FROM ctf_public_challenges WHERE "isPublished" = true')
+        challenges_solved = stats['challenges_solved'] or 0
+        score = user['score'] or 0
+        completion = (challenges_solved / total_challenges * 100) if total_challenges > 0 else 0
+        
+        achievements = []
+        if challenges_solved > 0:
+            achievements.append({'name': 'First Blood', 'description': 'Solved first challenge', 'earned': True})
+        else:
+            achievements.append({'name': 'First Blood', 'description': 'Solve your first challenge', 'earned': False})
+            
+        if score >= 100:
+            achievements.append({'name': 'Getting Started', 'description': 'Earned 100 points', 'earned': True})
+        else:
+            achievements.append({'name': 'Getting Started', 'description': 'Earn 100 points', 'earned': False})
+            
+        if completion >= 50:
+            achievements.append({'name': 'Halfway There', 'description': 'Completed 50% of challenges', 'earned': True})
+        else:
+            achievements.append({'name': 'Halfway There', 'description': 'Complete 50% of challenges', 'earned': False})
+            
+        if completion == 100:
+            achievements.append({'name': 'Master Hacker', 'description': 'Completed all challenges', 'earned': True})
+        else:
+            achievements.append({'name': 'Master Hacker', 'description': 'Complete all challenges', 'earned': False})
+        
+        return {
+            'id': user['id'],
+            'username': user['name'] or 'Anonymous',
+            'avatar_url': user.get('avatar_url'),
+            'bio': user.get('bio') or '',
+            'social_links': social_links,
+            'score': score,
+            'rank': rank_result['rank'],
+            'member_since': user['created_at'].strftime('%B %Y') if user['created_at'] else None,
+            'challenges_solved': challenges_solved,
+            'completion_percentage': round(completion, 1),
+            'category_stats': [
+                {'category': cat['category'], 'solved': cat['solved'], 'total': cat['total']}
+                for cat in categories
+            ],
+            'achievements': achievements,
+            'activity': activity_data  # Date -> count mapping for calendar
         }
 
 
@@ -2214,6 +2484,9 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
             questions = c['questions']
             if isinstance(questions, str):
                 questions = json.loads(questions)
+            tags = c.get('tags') or []
+            if isinstance(tags, str):
+                tags = json.loads(tags)
             
             result.append({
                 'id': c['id'],
@@ -2226,9 +2499,11 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
                 'docker_image': c['dockerImage'],
                 'hints': hints or [],
                 'questions': questions or [],
+                'tags': tags or [],
                 'is_published': c['isPublished'],
                 'solves': c['solves']
             })
+
         
         return result
 
@@ -2242,17 +2517,18 @@ async def admin_create_challenge(data: PublicChallengeCreate, admin: dict = Depe
         
         hints = [{'text': h.text, 'cost': h.cost} for h in data.hints]
         questions = [{'question': q.question, 'flag': q.flag, 'points': q.points} for q in data.questions]
+        tags = data.tags if data.tags else []
         
         await conn.execute('''
             INSERT INTO ctf_public_challenges (
                 id, "categoryId", title, description, difficulty, points,
                 flag, "dockerImage", "dockerCommand", hints, questions,
-                "isPublished", solves, "createdAt", "updatedAt"
-            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, 0, NOW(), NOW())
+                tags, "isPublished", solves, "createdAt", "updatedAt"
+            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, 0, NOW(), NOW())
         ''', challenge_id, data.category_id, data.title, data.description,
              data.difficulty.upper(), data.points, data.flag,
              data.docker_image, None,  # dockerCommand deprecated
-             json.dumps(hints), json.dumps(questions), data.is_published)
+             json.dumps(hints), json.dumps(questions), json.dumps(tags), data.is_published)
         
         return {'id': challenge_id}
 
@@ -2264,16 +2540,17 @@ async def admin_update_challenge(challenge_id: str, data: PublicChallengeCreate,
     async with pool.acquire() as conn:
         hints = [{'text': h.text, 'cost': h.cost} for h in data.hints]
         questions = [{'question': q.question, 'flag': q.flag, 'points': q.points} for q in data.questions]
+        tags = data.tags if data.tags else []
         
         await conn.execute('''
             UPDATE ctf_public_challenges SET
                 "categoryId" = $1, title = $2, description = $3, difficulty = $4::"CtfDifficulty",
                 points = $5, flag = $6, "dockerImage" = $7, "dockerCommand" = $8,
-                hints = $9, questions = $10, "isPublished" = $11, "updatedAt" = NOW()
-            WHERE id = $12
+                hints = $9, questions = $10, tags = $11, "isPublished" = $12, "updatedAt" = NOW()
+            WHERE id = $13
         ''', data.category_id, data.title, data.description, data.difficulty.upper(),
              data.points, data.flag, data.docker_image, None,  # dockerCommand deprecated
-             json.dumps(hints), json.dumps(questions), data.is_published, challenge_id)
+             json.dumps(hints), json.dumps(questions), json.dumps(tags), data.is_published, challenge_id)
         
         return {'success': True}
 
@@ -4946,6 +5223,28 @@ async def startup():
                 )
             ''')
             logger.info("Artifacts table verified")
+            
+            # Migration: Add tags column to challenges table if not exists
+            try:
+                await conn.execute('''
+                    ALTER TABLE ctf_public_challenges 
+                    ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb
+                ''')
+                logger.info("Tags column migration complete")
+            except Exception as e:
+                logger.debug(f"Tags column already exists or migration skipped: {e}")
+
+            # Migration: Add bio and social_links to users table
+            try:
+                await conn.execute('''
+                    ALTER TABLE users 
+                    ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT '',
+                    ADD COLUMN IF NOT EXISTS social_links JSONB DEFAULT '{}'::jsonb
+                ''')
+                logger.info("User profile columns migration complete")
+            except Exception as e:
+                logger.debug(f"User profile columns already exist or migration skipped: {e}")
+
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
         raise

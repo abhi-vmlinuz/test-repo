@@ -13,6 +13,7 @@ import Challenges from '@/pages/Challenges';
 import ChallengeDetail from '@/pages/ChallengeDetail';
 import Leaderboard from '@/pages/Leaderboard';
 import Profile from '@/pages/Profile';
+import PublicProfile from '@/pages/PublicProfile';
 
 // Static/Info Pages
 import AboutUs from '@/pages/AboutUs';
@@ -127,6 +128,8 @@ function App() {
           <Route path="/challenges/:id" element={user ? <ChallengeDetail user={user} logout={logout} /> : <Navigate to="/login" />} />
           <Route path="/leaderboard" element={user ? <Leaderboard user={user} logout={logout} /> : <Navigate to="/login" />} />
           <Route path="/profile" element={user ? <Profile user={user} logout={logout} setUser={setUser} /> : <Navigate to="/login" />} />
+          <Route path="/profile/:userId" element={user ? <PublicProfile user={user} logout={logout} /> : <Navigate to="/login" />} />
+
 
           {/* Admin routes */}
           <Route

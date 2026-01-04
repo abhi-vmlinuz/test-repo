@@ -3,9 +3,10 @@ import axios from 'axios';
 import { API, toast } from '../App';
 import Layout from '@/components/Layout';
 import { Badge } from '@/components/ui/badge';
-import { User, Mail, Trophy, Target, Calendar, Award, Edit3, X, Shield, Zap, LogOut } from 'lucide-react';
+import { User, Mail, Trophy, Target, Calendar, Award, Edit3, X, Shield, Zap, LogOut, Camera, Github, Twitter, Linkedin, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea'; // Assuming Textarea exists or I use textarea
 import { motion } from 'framer-motion';
 
 const Profile = ({ user, logout, setUser }) => {
@@ -16,9 +17,18 @@ const Profile = ({ user, logout, setUser }) => {
     username: '',
     email: '',
     current_password: '',
-    new_password: ''
+    new_password: '',
+    bio: '',
+    social_links: {
+      github: '',
+      twitter: '',
+      linkedin: '',
+      website: ''
+    }
   });
+
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -26,14 +36,16 @@ const Profile = ({ user, logout, setUser }) => {
 
   useEffect(() => {
     if (user) {
-      setEditForm({
-        username: user.username || '',
+      setEditForm(prev => ({
+        ...prev,
+        username: user.username || user.name || '',
         email: user.email || '',
-        current_password: '',
-        new_password: ''
-      });
+        bio: user.bio || '',
+        social_links: user.social_links || { github: '', twitter: '', linkedin: '', website: '' }
+      }));
     }
   }, [user]);
+
 
   const fetchProfile = async () => {
     try {
@@ -51,18 +63,62 @@ const Profile = ({ user, logout, setUser }) => {
     }
   };
 
-  const handleUpdateProfile = async () => {
-    if (!editForm.username.trim() || !editForm.email.trim()) {
-      toast.error('Username and email are required');
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be smaller than 5MB');
       return;
     }
 
+    setUploadingAvatar(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post(`${API}/auth/me/avatar`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setUser(prev => ({ ...prev, avatar_url: response.data.avatar_url }));
+      toast.success('Avatar updated successfully');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to upload avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
     setSaving(true);
     try {
-      // For now, just show a message about future OAuth implementation
-      toast.info('Profile editing will be available after OAuth2 setup');
+      // 1. Update Bio and Social Links
+      const simpleLinks = {};
+      // Filter out empty links
+      if (editForm.social_links) {
+        Object.entries(editForm.social_links).forEach(([k, v]) => {
+          simpleLinks[k] = v || '';
+        });
+      }
+
+      const updateData = {
+        bio: editForm.bio,
+        social_links: simpleLinks
+      };
+
+      const res = await axios.patch(`${API}/auth/me`, updateData);
+      setUser(prev => ({ ...prev, ...res.data }));
+
+      // 2. Note about username/email
+      if (editForm.username !== user.username || editForm.email !== user.email) {
+        toast.info('Username and email changes are not fully supported yet in this update.');
+      }
+
+      toast.success('Profile updated successfully');
       setShowEditModal(false);
     } catch (error) {
+      console.error(error);
       toast.error('Failed to update profile');
     } finally {
       setSaving(false);
@@ -301,50 +357,111 @@ const Profile = ({ user, logout, setUser }) => {
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-bold text-zinc-700 mb-2">Username</label>
-                <Input
-                  value={editForm.username}
-                  onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                  placeholder="Enter username"
-                  className="bg-gray-50 border-gray-200"
-                />
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              {/* Identity Section */}
+              <div className="flex flex-col items-center mb-6">
+                <div className="relative group cursor-pointer mb-3">
+                  <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-gray-100 group-hover:border-zinc-200 transition-colors bg-gray-50">
+                    {(user.avatar_url || uploadingAvatar) ? (
+                      <img src={user.avatar_url} className={`w-full h-full object-cover ${uploadingAvatar ? 'opacity-50' : ''}`} />
+                    ) : (
+                      <div className="w-full h-full bg-zinc-900 flex items-center justify-center text-white text-2xl font-bold">
+                        {(user.username || user.name)?.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer">
+                    <Camera className="w-8 h-8 text-white" />
+                    <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+                  </label>
+                  {uploadingAvatar && <div className="absolute inset-0 flex items-center justify-center"><div className="w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin"></div></div>}
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Profile Picture</p>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-bold text-zinc-700 mb-2">Email</label>
-                <Input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  placeholder="Enter email"
-                  className="bg-gray-50 border-gray-200"
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-100">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-4">Security</p>
-
-                <div className="space-y-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-2">Current Password</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Username</label>
                     <Input
-                      type="password"
-                      value={editForm.current_password}
-                      onChange={(e) => setEditForm({ ...editForm, current_password: e.target.value })}
-                      placeholder="Enter current password"
+                      value={editForm.username}
+                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                      className="bg-gray-50 border-gray-200"
+                      placeholder="Username"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-2">New Password</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Email</label>
                     <Input
-                      type="password"
-                      value={editForm.new_password}
-                      onChange={(e) => setEditForm({ ...editForm, new_password: e.target.value })}
-                      placeholder="Enter new password"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                      className="bg-gray-50 border-gray-200"
+                      placeholder="Email"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Bio</label>
+                  <Textarea
+                    value={editForm.bio}
+                    onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                    className="bg-gray-50 border-gray-200 min-h-[100px] resize-none"
+                    placeholder="Tell the world about yourself..."
+                    maxLength={500}
+                  />
+                  <p className="text-right text-[10px] text-gray-400 mt-1">{editForm.bio?.length || 0}/500</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-3">Social Connections</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
+                        <img src="/github-mark.svg" className="w-4 h-4 opacity-70" alt="GitHub" />
+                      </div>
+                      <Input
+                        value={editForm.social_links?.github || ''}
+                        onChange={(e) => setEditForm({ ...editForm, social_links: { ...editForm.social_links, github: e.target.value } })}
+                        className="pl-10 bg-gray-50 border-gray-200"
+                        placeholder="GitHub URL"
+                      />
+                    </div>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
+                        <img src="/linkedin.svg" className="w-4 h-4 opacity-70" alt="LinkedIn" />
+                      </div>
+                      <Input
+                        value={editForm.social_links?.linkedin || ''}
+                        onChange={(e) => setEditForm({ ...editForm, social_links: { ...editForm.social_links, linkedin: e.target.value } })}
+                        className="pl-10 bg-gray-50 border-gray-200"
+                        placeholder="LinkedIn URL"
+                      />
+                    </div>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
+                        <img src="/x.svg" className="w-4 h-4 opacity-70" alt="X (Twitter)" />
+                      </div>
+                      <Input
+                        value={editForm.social_links?.twitter || ''}
+                        onChange={(e) => setEditForm({ ...editForm, social_links: { ...editForm.social_links, twitter: e.target.value } })}
+                        className="pl-10 bg-gray-50 border-gray-200"
+                        placeholder="X (Twitter) URL"
+                      />
+                    </div>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
+                        <Globe className="w-4 h-4 text-gray-400" />
+                      </div>
+                      <Input
+                        value={editForm.social_links?.website || ''}
+                        onChange={(e) => setEditForm({ ...editForm, social_links: { ...editForm.social_links, website: e.target.value } })}
+                        className="pl-10 bg-gray-50 border-gray-200"
+                        placeholder="Personal Website URL"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
