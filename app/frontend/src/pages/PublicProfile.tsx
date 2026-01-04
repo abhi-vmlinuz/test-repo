@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy, Calendar, Target, Shield, Zap, Award, Github, Twitter, Linkedin, Globe, MapPin, User, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 const PublicProfile = ({ user, logout }) => {
     const { userId } = useParams();
     const navigate = useNavigate();
@@ -54,37 +56,47 @@ const PublicProfile = ({ user, logout }) => {
         };
 
         return (
-            <div className="w-full overflow-x-auto pb-2">
-                <div className="flex gap-1 min-w-max">
-                    {Array.from({ length: 53 }).map((_, weekIndex) => (
-                        <div key={weekIndex} className="grid grid-rows-7 gap-1">
-                            {Array.from({ length: 7 }).map((_, dayIndex) => {
-                                const dateIndex = weekIndex * 7 + dayIndex;
-                                if (dateIndex >= dates.length) return null;
-                                const date = dates[dateIndex];
-                                const count = data[date] || 0;
+            <TooltipProvider delayDuration={100}>
+                <div className="w-full overflow-x-auto pb-2 border-t border-gray-50 pt-6 mt-4">
+                    <div className="flex gap-1 min-w-max">
+                        {Array.from({ length: 53 }).map((_, weekIndex) => (
+                            <div key={weekIndex} className="grid grid-rows-7 gap-1">
+                                {Array.from({ length: 7 }).map((_, dayIndex) => {
+                                    const dateIndex = weekIndex * 7 + dayIndex;
+                                    if (dateIndex >= dates.length) return null;
+                                    const date = dates[dateIndex];
+                                    const count = data[date] || 0;
 
-                                return (
-                                    <div
-                                        key={date}
-                                        className={`w-3 h-3 rounded-[2px] ${getColor(count)}`}
-                                        title={`${date}: ${count} contributions`}
-                                    ></div>
-                                );
-                            })}
-                        </div>
-                    ))}
+                                    return (
+                                        <Tooltip key={date}>
+                                            <TooltipTrigger asChild>
+                                                <div
+                                                    className={`w-3.5 h-3.5 rounded-[2px] cursor-pointer transition-colors ${getColor(count)}`}
+                                                ></div>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="bg-zinc-900 border-zinc-800 text-white font-medium">
+                                                <div>
+                                                    <div className="text-[10px] font-mono opacity-50 mb-0.5">{date}</div>
+                                                    <div>{count} {count === 1 ? 'completion' : 'completions'}</div>
+                                                </div>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    );
+                                })}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-4 text-[10px] text-gray-400 justify-end uppercase tracking-widest font-bold">
+                        <span>Less</span>
+                        <div className="w-3 h-3 bg-gray-100 rounded-[2px]"></div>
+                        <div className="w-3 h-3 bg-emerald-200 rounded-[2px]"></div>
+                        <div className="w-3 h-3 bg-emerald-300 rounded-[2px]"></div>
+                        <div className="w-3 h-3 bg-emerald-400 rounded-[2px]"></div>
+                        <div className="w-3 h-3 bg-emerald-500 rounded-[2px]"></div>
+                        <span>More</span>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 justify-end">
-                    <span>Less</span>
-                    <div className="w-3 h-3 bg-gray-100 rounded-[2px]"></div>
-                    <div className="w-3 h-3 bg-emerald-200 rounded-[2px]"></div>
-                    <div className="w-3 h-3 bg-emerald-300 rounded-[2px]"></div>
-                    <div className="w-3 h-3 bg-emerald-400 rounded-[2px]"></div>
-                    <div className="w-3 h-3 bg-emerald-500 rounded-[2px]"></div>
-                    <span>More</span>
-                </div>
-            </div>
+            </TooltipProvider>
         );
     };
 

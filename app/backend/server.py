@@ -393,10 +393,11 @@ async def serve_upload(file_path: str):
             
         mime_type, _ = mimetypes.guess_type(file_location)
         
-        with open(file_location, "rb") as f:
-            content = f.read()
-            
-        return Response(content=content, media_type=mime_type or "application/octet-stream")
+        return FileResponse(
+            path=file_location, 
+            media_type=mime_type or "application/octet-stream",
+            filename=file_location.name
+        )
     except Exception as e:
         logger.error(f"Error serving file: {e}")
         raise HTTPException(status_code=404, detail="File not found")
@@ -657,11 +658,26 @@ async def upload_avatar(
     
     pool = await Database.get_pool()
     
-    # Save file
+    # 1. Fetch current avatar for cleanup
+    async with pool.acquire() as conn:
+        old_avatar = await conn.fetchval('SELECT avatar_url FROM users WHERE id = $1', current_user['id'])
+        
+        # Cleanup old local file if it exists
+        if old_avatar and ('/uploads/avatars/' in old_avatar or '/api/uploads/avatars/' in old_avatar):
+            try:
+                old_filename = old_avatar.split('/avatars/')[-1]
+                old_file_path = ROOT_DIR / "uploads" / "avatars" / old_filename
+                if old_file_path.exists():
+                    old_file_path.unlink()
+                    logger.info(f"Cleaned up old avatar: {old_filename}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup old avatar: {e}")
+
+    # 2. Save new file
     ext = file.filename.split('.')[-1]
     filename = f"{current_user['id']}_{int(datetime.now().timestamp())}.{ext}"
     
-    # Ensure directory exists (uploads/avatars)
+    # Ensure directory exists
     AVATARS_DIR = ROOT_DIR / "uploads" / "avatars"
     AVATARS_DIR.mkdir(parents=True, exist_ok=True)
     
@@ -672,15 +688,14 @@ async def upload_avatar(
         with open(file_path, "wb") as f:
             f.write(contents)
             
-        # URL: use BACKEND_URL/api/uploads if BACKEND_URL is set, otherwise just /api/uploads
+        # URL Construction
         backend_url = os.environ.get('BACKEND_URL', '')
         if backend_url:
             avatar_url = f"{backend_url}/api/uploads/avatars/{filename}"
         else:
-            # Relative URL for same-origin
             avatar_url = f"/api/uploads/avatars/{filename}"
         
-        # Update user
+        # 3. Update database
         async with pool.acquire() as conn:
             await conn.execute('UPDATE users SET avatar_url = $1 WHERE id = $2', avatar_url, current_user['id'])
             

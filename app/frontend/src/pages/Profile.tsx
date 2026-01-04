@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { User, Mail, Trophy, Target, Calendar, Award, Edit3, X, Shield, Zap, LogOut, Camera, Github, Twitter, Linkedin, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea'; // Assuming Textarea exists or I use textarea
-import { motion } from 'framer-motion';
+import { Textarea } from '@/components/ui/textarea';
+import { motion, AnimatePresence } from 'framer-motion';
+import Cropper from 'react-easy-crop';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const Profile = ({ user, logout, setUser }) => {
   const [stats, setStats] = useState(null);
@@ -64,7 +66,12 @@ const Profile = ({ user, logout, setUser }) => {
     }
   };
 
-  const handleAvatarUpload = async (e) => {
+  const [cropImage, setCropImage] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -73,16 +80,63 @@ const Profile = ({ user, logout, setUser }) => {
       return;
     }
 
-    setUploadingAvatar(true);
-    const formData = new FormData();
-    formData.append('file', file);
+    const reader = new FileReader();
+    reader.addEventListener('load', () => setCropImage(reader.result));
+    reader.readAsDataURL(file);
+  };
 
+  const onCropComplete = (croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<Blob> => {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.addEventListener('load', () => resolve(img));
+      img.addEventListener('error', (err) => reject(err));
+      img.src = imageSrc;
+    });
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+
+    ctx.drawImage(
+      image as unknown as CanvasImageSource,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      pixelCrop.width,
+      pixelCrop.height
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob as Blob);
+      }, 'image/jpeg', 0.9);
+    });
+  };
+
+  const handleAvatarUpload = async () => {
+    if (!croppedAreaPixels || !cropImage) return;
+
+    setUploadingAvatar(true);
     try {
+      const croppedImageBlob = await getCroppedImg(cropImage, croppedAreaPixels);
+      const formData = new FormData();
+      formData.append('file', croppedImageBlob, 'avatar.jpg');
+
       const response = await axios.post(`${API}/auth/me/avatar`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setUser(prev => ({ ...prev, avatar_url: response.data.avatar_url }));
       toast.success('Avatar updated successfully');
+      setCropImage(null);
     } catch (error) {
       console.error(error);
       toast.error('Failed to upload avatar');
@@ -332,54 +386,64 @@ const Profile = ({ user, logout, setUser }) => {
                 <Calendar className="w-5 h-5 text-zinc-900" />
                 Activity Log
               </h3>
-              <div className="w-full overflow-x-auto pb-2">
-                <div className="flex gap-1 min-w-max">
-                  {Array.from({ length: 53 }).map((_, weekIndex) => {
-                    const today = new Date();
-                    const dates = [];
-                    for (let i = 364; i >= 0; i--) {
-                      const date = new Date(today);
-                      date.setDate(date.getDate() - i);
-                      dates.push(date.toISOString().split('T')[0]);
-                    }
+              <TooltipProvider delayDuration={100}>
+                <div className="w-full overflow-x-auto pb-2 border-t border-gray-50 pt-6">
+                  <div className="flex gap-1 min-w-max">
+                    {Array.from({ length: 53 }).map((_, weekIndex) => {
+                      const today = new Date();
+                      const dates = [];
+                      for (let i = 364; i >= 0; i--) {
+                        const date = new Date(today);
+                        date.setDate(date.getDate() - i);
+                        dates.push(date.toISOString().split('T')[0]);
+                      }
 
-                    const getColor = (count) => {
-                      if (!count) return 'bg-gray-100';
-                      if (count === 1) return 'bg-emerald-200';
-                      if (count <= 3) return 'bg-emerald-300';
-                      if (count <= 6) return 'bg-emerald-400';
-                      return 'bg-emerald-500';
-                    };
+                      const getColor = (count) => {
+                        if (!count) return 'bg-gray-100';
+                        if (count === 1) return 'bg-emerald-200';
+                        if (count <= 3) return 'bg-emerald-300';
+                        if (count <= 6) return 'bg-emerald-400';
+                        return 'bg-emerald-500';
+                      };
 
-                    return (
-                      <div key={weekIndex} className="grid grid-rows-7 gap-1">
-                        {Array.from({ length: 7 }).map((_, dayIndex) => {
-                          const dateIndex = weekIndex * 7 + dayIndex;
-                          if (dateIndex >= dates.length) return null;
-                          const date = dates[dateIndex];
-                          const count = stats.activity[date] || 0;
-                          return (
-                            <div
-                              key={date}
-                              className={`w-3 h-3 rounded-[2px] ${getColor(count)}`}
-                              title={`${date}: ${count} contributions`}
-                            />
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div key={weekIndex} className="grid grid-rows-7 gap-1">
+                          {Array.from({ length: 7 }).map((_, dayIndex) => {
+                            const dateIndex = weekIndex * 7 + dayIndex;
+                            if (dateIndex >= dates.length) return null;
+                            const date = dates[dateIndex];
+                            const count = stats.activity[date] || 0;
+                            return (
+                              <Tooltip key={date}>
+                                <TooltipTrigger asChild>
+                                  <div
+                                    className={`w-3.5 h-3.5 rounded-[2px] cursor-pointer transition-colors ${getColor(count)}`}
+                                  />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="bg-zinc-900 border-zinc-800 text-white font-medium">
+                                  <div>
+                                    <div className="text-[10px] font-mono opacity-50 mb-0.5">{date}</div>
+                                    <div>{count} {count === 1 ? 'completion' : 'completions'}</div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2 mt-4 text-[10px] text-gray-400 justify-end uppercase tracking-widest font-bold">
+                    <span>Less</span>
+                    <div className="w-3 h-3 bg-gray-100 rounded-[2px]" />
+                    <div className="w-3 h-3 bg-emerald-200 rounded-[2px]" />
+                    <div className="w-3 h-3 bg-emerald-300 rounded-[2px]" />
+                    <div className="w-3 h-3 bg-emerald-400 rounded-[2px]" />
+                    <div className="w-3 h-3 bg-emerald-500 rounded-[2px]" />
+                    <span>More</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 justify-end">
-                  <span>Less</span>
-                  <div className="w-3 h-3 bg-gray-100 rounded-[2px]" />
-                  <div className="w-3 h-3 bg-emerald-200 rounded-[2px]" />
-                  <div className="w-3 h-3 bg-emerald-300 rounded-[2px]" />
-                  <div className="w-3 h-3 bg-emerald-400 rounded-[2px]" />
-                  <div className="w-3 h-3 bg-emerald-500 rounded-[2px]" />
-                  <span>More</span>
-                </div>
-              </div>
+              </TooltipProvider>
             </div>
           )}
 
@@ -542,7 +606,7 @@ const Profile = ({ user, logout, setUser }) => {
                   </div>
                   <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-full cursor-pointer">
                     <Camera className="w-8 h-8 text-white" />
-                    <input type="file" className="hidden" accept="image/*" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
+                    <input type="file" className="hidden" accept="image/*" onChange={handleFileSelect} disabled={uploadingAvatar} />
                   </label>
                   {uploadingAvatar && <div className="absolute inset-0 flex items-center justify-center"><div className="w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin"></div></div>}
                 </div>
@@ -676,6 +740,87 @@ const Profile = ({ user, logout, setUser }) => {
           </motion.div>
         </div>
       )}
+      {/* Image Cropper Modal */}
+      <AnimatePresence>
+        {cropImage && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[100] p-4 md:p-8">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-zinc-900 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden border border-white/10"
+            >
+              <div className="p-6 border-b border-white/10 flex items-center justify-between bg-zinc-800/50">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">Crop Profile Image</h2>
+                  <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest font-semibold text-center">Drag to reposition, use slider to zoom</p>
+                </div>
+                <button
+                  onClick={() => setCropImage(null)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="relative h-[400px] w-full bg-black">
+                <Cropper
+                  image={cropImage}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  cropShape="round"
+                  showGrid={false}
+                  onCropChange={setCrop}
+                  onCropComplete={onCropComplete}
+                  onZoomChange={setZoom}
+                />
+              </div>
+
+              <div className="p-8 space-y-8 bg-zinc-900">
+                <div className="space-y-4">
+                  <div className="flex justify-between text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    <span>Zoom Level</span>
+                    <span>{Math.round(zoom * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    value={zoom}
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    aria-labelledby="Zoom"
+                    onChange={(e) => setZoom(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setCropImage(null)}
+                    className="text-white hover:bg-white/10 px-6"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleAvatarUpload}
+                    disabled={uploadingAvatar}
+                    className="bg-white text-black hover:bg-gray-200 px-8 font-black uppercase tracking-widest text-xs h-12 shadow-xl"
+                  >
+                    {uploadingAvatar ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                        Saving...
+                      </div>
+                    ) : 'Save Portrait'}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 };
