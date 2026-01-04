@@ -367,20 +367,38 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 # FASTAPI APP SETUP
 # ===========================================
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, File, UploadFile, Form
-from fastapi.responses import FileResponse, HTMLResponse, Response
-from fastapi.staticfiles import StaticFiles
-
-# ...
-
 app = FastAPI(
     title="ZecurX CTF Platform API",
     description="CTF Platform integrated with ZecurX LMS",
     version="2.0.0"
 )
 
-# Serve uploaded files (avatars, etc.)
-app.mount("/uploads", StaticFiles(directory=str(ROOT_DIR / "uploads")), name="uploads")
+import mimetypes
+
+@app.get("/uploads/{file_path:path}")
+async def serve_upload(file_path: str):
+    """Serve uploaded files manually to avoid aiofiles dependency"""
+    try:
+        upload_dir = (ROOT_DIR / "uploads").resolve()
+        file_location = (upload_dir / file_path).resolve()
+        
+        # Security check
+        if not str(file_location).startswith(str(upload_dir)):
+             raise HTTPException(status_code=403, detail="Access denied")
+        
+        if not file_location.exists() or not file_location.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+            
+        mime_type, _ = mimetypes.guess_type(file_location)
+        
+        with open(file_location, "rb") as f:
+            content = f.read()
+            
+        return Response(content=content, media_type=mime_type or "application/octet-stream")
+    except Exception as e:
+        logger.error(f"Error serving file: {e}")
+        raise HTTPException(status_code=404, detail="File not found")
+
 
 
 api_router = APIRouter(prefix="/api")
