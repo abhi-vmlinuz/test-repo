@@ -246,7 +246,7 @@ const Profile = ({ user, logout, setUser }) => {
                   {user.social_links.instagram && (
                     <a href={user.social_links.instagram} target="_blank" rel="noopener noreferrer"
                       className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">
-                      <img src="/instagram.svg" className="w-4 h-4 invert opacity-70" alt="Instagram" />
+                      <img src="/instagram-mono.svg" className="w-4 h-4 text-gray-400" style={{ filter: 'invert(0.7)' }} alt="Instagram" />
                     </a>
                   )}
                 </div>
@@ -643,7 +643,7 @@ const Profile = ({ user, logout, setUser }) => {
                     </div>
                     <div className="relative">
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
-                        <img src="/instagram.svg" className="w-4 h-4 opacity-70" alt="Instagram" />
+                        <img src="/instagram-mono.svg" className="w-4 h-4 opacity-70" alt="Instagram" />
                       </div>
                       <Input
                         value={editForm.social_links?.instagram || ''}

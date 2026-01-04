@@ -188,7 +188,7 @@ const PublicProfile = ({ user, logout }) => {
                             )}
                         </div>
 
-                        <div className="flex flex-col gap-3 items-start md:items-end">
+                        <div className="flex items-center gap-2 justify-end">
                             {profile.social_links && Object.entries(profile.social_links).map(([platform, url]) => {
                                 if (!url) return null;
                                 const Icon = socialIcons[platform];
@@ -198,16 +198,22 @@ const PublicProfile = ({ user, logout }) => {
                                         href={url as string}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-2 text-gray-600 hover:text-blue-600 font-medium transition-colors"
+                                        className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                                        title={platform.charAt(0).toUpperCase() + platform.slice(1)}
                                     >
                                         {platform === 'instagram' ? (
-                                            <img src="/instagram.svg" className="w-4 h-4 opacity-70" alt="Instagram" />
+                                            <img src="/instagram-mono.svg" className="w-5 h-5 opacity-70" alt="Instagram" />
+                                        ) : platform === 'github' ? (
+                                            <img src="/github-mark.svg" className="w-5 h-5 opacity-70" alt="GitHub" />
+                                        ) : platform === 'linkedin' ? (
+                                            <img src="/linkedin.svg" className="w-5 h-5 opacity-90" alt="LinkedIn" />
+                                        ) : platform === 'twitter' ? (
+                                            <img src="/x.svg" className="w-5 h-5 opacity-70" alt="X" />
                                         ) : Icon ? (
-                                            <Icon className="w-4 h-4" />
+                                            <Icon className="w-5 h-5 text-gray-600" />
                                         ) : (
-                                            <Globe className="w-4 h-4" />
+                                            <Globe className="w-5 h-5 text-gray-600" />
                                         )}
-                                        <span className="capitalize">{platform}</span>
                                     </a>
                                 );
                             })}

@@ -375,6 +375,8 @@ app = FastAPI(
 
 import mimetypes
 
+# Note: This will be accessible at /api/uploads/... since api_router has /api prefix
+# We'll add a direct app route too for backward compatibility
 @app.get("/uploads/{file_path:path}")
 async def serve_upload(file_path: str):
     """Serve uploaded files manually to avoid aiofiles dependency"""
@@ -404,6 +406,13 @@ async def serve_upload(file_path: str):
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
+
+
+# Also serve uploads via api_router for frontend compatibility
+@api_router.get("/uploads/{file_path:path}")
+async def serve_upload_via_api(file_path: str):
+    """Serve uploaded files via API path for frontend compatibility"""
+    return await serve_upload(file_path)
 
 
 # ===========================================
@@ -663,10 +672,13 @@ async def upload_avatar(
         with open(file_path, "wb") as f:
             f.write(contents)
             
-        # URL (Assuming web server serves /uploads from backend URL)
-        # Note: Frontend needs to prepend API root or similar if not relative
-        # Using relative path valid for this server
-        avatar_url = f"{os.environ.get('BACKEND_URL', '')}/uploads/avatars/{filename}"
+        # URL: use BACKEND_URL/api/uploads if BACKEND_URL is set, otherwise just /api/uploads
+        backend_url = os.environ.get('BACKEND_URL', '')
+        if backend_url:
+            avatar_url = f"{backend_url}/api/uploads/avatars/{filename}"
+        else:
+            # Relative URL for same-origin
+            avatar_url = f"/api/uploads/avatars/{filename}"
         
         # Update user
         async with pool.acquire() as conn:
