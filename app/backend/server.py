@@ -423,6 +423,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 SELECT u.id, u.name, u.email, u."ctfScore" as score,
                        u."isActive", u."isLocked" as is_banned,
                        u.avatar_url, u."createdAt" as created_at,
+                       u.google_id, u.github_id, u.bio, u.social_links,
                        r.type as role_type
                 FROM users u
                 JOIN "Role" r ON u."roleId" = r.id
@@ -433,6 +434,14 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 raise HTTPException(status_code=401, detail="User not found")
             if user['is_banned'] and user['role_type'] != 'SUPERADMIN':
                 raise HTTPException(status_code=403, detail="Account is banned")
+            
+            # Parse social_links JSON if it's a string
+            social_links = {}
+            if user.get('social_links'):
+                try:
+                    social_links = json.loads(user['social_links']) if isinstance(user['social_links'], str) else (user['social_links'] or {})
+                except:
+                    pass
             
             role_map = {
                 'SUPERADMIN': 'superadmin', 
@@ -451,7 +460,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                 'role_type': user['role_type'],  # Include for LMS integration
                 'is_active': user['isActive'],
                 'avatar_url': user['avatar_url'],
-                'created_at': user['created_at'].isoformat() if user['created_at'] else None
+                'created_at': user['created_at'].isoformat() if user['created_at'] else None,
+                'google_id': user.get('google_id'),
+                'github_id': user.get('github_id'),
+                'bio': user.get('bio') or '',
+                'social_links': social_links
             }
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -1998,13 +2011,13 @@ async def get_public_profile(user_id: str):
         # Count challenges solved per day
         activity = await conn.fetch('''
             SELECT 
-                DATE(solved_at) as date,
+                DATE("solvedAt") as date,
                 COUNT(*) as count
             FROM ctf_public_progress
             WHERE "userId" = $1 
                 AND solved = true 
-                AND solved_at >= NOW() - INTERVAL '365 days'
-            GROUP BY DATE(solved_at)
+                AND "solvedAt" >= NOW() - INTERVAL '365 days'
+            GROUP BY DATE("solvedAt")
             ORDER BY date
         ''', user_id)
         

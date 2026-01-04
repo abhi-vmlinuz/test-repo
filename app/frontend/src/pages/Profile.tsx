@@ -198,10 +198,43 @@ const Profile = ({ user, logout, setUser }) => {
               <h2 className="text-2xl font-bold text-white mb-1 tracking-tight" data-testid="profile-username">
                 {user.username || user.name}
               </h2>
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/10 mb-6">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-gray-300 text-xs font-mono">{user.role === 'superadmin' ? 'ROOT ACCESS' : 'OPERATIVE'}</p>
-              </div>
+
+              {/* Bio */}
+              {user.bio && (
+                <p className="text-gray-400 text-sm text-center mt-2 mb-4 max-w-xs leading-relaxed">
+                  {user.bio}
+                </p>
+              )}
+
+              {/* Social Links */}
+              {user.social_links && Object.values(user.social_links).some(v => v) && (
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  {user.social_links.github && (
+                    <a href={user.social_links.github} target="_blank" rel="noopener noreferrer"
+                      className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">
+                      <img src="/github-mark.svg" className="w-4 h-4 invert opacity-70" alt="GitHub" />
+                    </a>
+                  )}
+                  {user.social_links.linkedin && (
+                    <a href={user.social_links.linkedin} target="_blank" rel="noopener noreferrer"
+                      className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">
+                      <img src="/linkedin.svg" className="w-4 h-4 opacity-70" alt="LinkedIn" />
+                    </a>
+                  )}
+                  {user.social_links.twitter && (
+                    <a href={user.social_links.twitter} target="_blank" rel="noopener noreferrer"
+                      className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">
+                      <img src="/x.svg" className="w-4 h-4 invert opacity-70" alt="X" />
+                    </a>
+                  )}
+                  {user.social_links.website && (
+                    <a href={user.social_links.website} target="_blank" rel="noopener noreferrer"
+                      className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">
+                      <Globe className="w-4 h-4 text-gray-400" />
+                    </a>
+                  )}
+                </div>
+              )}
 
               <div className="w-full pt-8 border-t border-white/10">
                 <div className="flex items-center justify-center gap-3 mb-2">
@@ -332,6 +365,69 @@ const Profile = ({ user, logout, setUser }) => {
                     : 'Not available'
                   }
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Connected Accounts */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+            <h3 className="text-lg font-bold text-zinc-900 mb-6 uppercase tracking-wide flex items-center gap-2">
+              <Shield className="w-5 h-5 text-zinc-900" />
+              Connected Accounts
+            </h3>
+            <div className="space-y-4">
+              {/* Google */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center">
+                    <img src="/google-logo.svg" className="w-5 h-5" alt="Google" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">Google</p>
+                    <p className="text-xs text-gray-500">
+                      {user.google_id ? 'Connected' : 'Not connected'}
+                    </p>
+                  </div>
+                </div>
+                {user.google_id ? (
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
+                    Linked
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => window.location.href = `${API}/auth/google/login`}
+                    className="px-4 py-2 bg-zinc-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors"
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+
+              {/* GitHub */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center">
+                    <img src="/github-mark.svg" className="w-5 h-5" alt="GitHub" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-900">GitHub</p>
+                    <p className="text-xs text-gray-500">
+                      {user.github_id ? 'Connected' : 'Not connected'}
+                    </p>
+                  </div>
+                </div>
+                {user.github_id ? (
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
+                    Linked
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => window.location.href = `${API}/auth/github/login`}
+                    className="px-4 py-2 bg-zinc-900 text-white text-xs font-bold rounded-lg hover:bg-black transition-colors"
+                  >
+                    Connect
+                  </button>
+                )}
               </div>
             </div>
           </div>

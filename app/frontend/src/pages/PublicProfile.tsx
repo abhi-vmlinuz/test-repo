@@ -154,9 +154,6 @@ const PublicProfile = ({ user, logout }) => {
                                     {profile.username.substring(0, 2).toUpperCase()}
                                 </div>
                             )}
-                            <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-md border-2 border-white shadow-sm">
-                                Lvl {Math.floor(profile.score / 1000) + 1}
-                            </div>
                         </div>
 
                         {/* Info */}
@@ -236,8 +233,8 @@ const PublicProfile = ({ user, logout }) => {
                                     <div
                                         key={idx}
                                         className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${achievement.earned
-                                                ? 'bg-zinc-900 border-zinc-900 text-white'
-                                                : 'bg-gray-50 border-gray-100 text-gray-400 grayscale opacity-50'
+                                            ? 'bg-zinc-900 border-zinc-900 text-white'
+                                            : 'bg-gray-50 border-gray-100 text-gray-400 grayscale opacity-50'
                                             }`}
                                     >
                                         <div className={`p-2 rounded-lg ${achievement.earned ? 'bg-white/10' : 'bg-gray-200'}`}>
@@ -307,7 +304,7 @@ const PublicProfile = ({ user, logout }) => {
 
                 </div>
             </div>
-        </Layout>
+        </Layout >
     );
 };
 

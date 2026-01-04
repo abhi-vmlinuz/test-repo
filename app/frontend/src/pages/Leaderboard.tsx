@@ -235,7 +235,6 @@ const Leaderboard = ({ user, logout }) => {
                             {player.username}
                             {isCurrentUser && <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">YOU</span>}
                           </div>
-                          <div className="text-xs text-gray-400 hidden sm:block">Level 1 • Beginner</div>
                         </div>
                       </div>
                       <div className="col-span-3 text-right font-mono font-bold text-zinc-900">
