@@ -43,20 +43,28 @@ const ChallengeDetail = ({ user, logout }) => {
   useEffect(() => {
     if (!startingDocker) return;
 
+    let cancelled = false;
     const pollInterval = setInterval(async () => {
+      if (cancelled) return;
       try {
         const response = await axios.get(`${API}/docker/challenge-session/${id}`);
-        if (response.data && response.data.status === 'running') {
+        if (!cancelled && response.data && response.data.status === 'running') {
           setDockerInstance(response.data);
           setStartingDocker(false);
-          toast.success('Instance is ready!');
+          // Only show toast if we don't already have an instance displayed
+          if (!dockerInstance) {
+            toast.success('Instance is ready!');
+          }
         }
       } catch (error) {
-        // Keep polling
+        // Keep polling - don't show error yet
       }
     }, 3000);
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      cancelled = true;
+      clearInterval(pollInterval);
+    };
   }, [startingDocker, id]);
 
   // Timer to update remaining time with seconds
@@ -204,19 +212,22 @@ const ChallengeDetail = ({ user, logout }) => {
     setStartingDocker(true);
     try {
       const response = await axios.post(`${API}/docker/start/${id}`);
-      setDockerInstance(response.data);
-      setStartingDocker(false);
-      toast.success('Instance started!');
+      if (response.data && response.data.status === 'running') {
+        setDockerInstance(response.data);
+        setStartingDocker(false);
+        toast.success('Instance started!');
+      }
+      // If status is not 'running' yet, polling will catch it
     } catch (error) {
-      // Don't immediately show error - the polling will catch if it actually started
-      // Only show error after a delay if still no instance
+      // Don't show error immediately - polling may still find a running instance
+      // Set a timeout to check one final time before showing error
       setTimeout(async () => {
         try {
           const checkResponse = await axios.get(`${API}/docker/challenge-session/${id}`);
           if (checkResponse.data && checkResponse.data.status === 'running') {
             setDockerInstance(checkResponse.data);
             setStartingDocker(false);
-            toast.success('Instance is ready!');
+            // Don't show duplicate toast - polling will have shown it
           } else {
             setStartingDocker(false);
             toast.error(error.response?.data?.detail || 'Failed to start instance');
@@ -225,7 +236,7 @@ const ChallengeDetail = ({ user, logout }) => {
           setStartingDocker(false);
           toast.error(error.response?.data?.detail || 'Failed to start instance');
         }
-      }, 5000);
+      }, 8000); // Wait 8 seconds before giving up
     }
   };
 
