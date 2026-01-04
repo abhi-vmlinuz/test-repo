@@ -693,37 +693,50 @@ async def upload_avatar(
 
 @api_router.delete("/auth/me/avatar")
 async def reset_avatar(current_user: dict = Depends(get_current_user)):
-    """Delete custom avatar and revert to OAuth provider's avatar"""
+    """Delete custom avatar and revert to OAuth provider's avatar or LMS avatar"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        # Try to get user's OAuth avatar if available (columns may not exist)
+        # Try to get user's OAuth avatar or LMS avatar as fallback
+        # The `avatar` column is used by LMS, avatar_url by CTF
         try:
             user = await conn.fetchrow('''
-                SELECT google_avatar, github_avatar, avatar_url
+                SELECT avatar_url, avatar, google_avatar, github_avatar
                 FROM users WHERE id = $1
             ''', current_user['id'])
         except Exception:
-            # Columns don't exist yet, just get avatar_url
-            user = await conn.fetchrow('''
-                SELECT avatar_url FROM users WHERE id = $1
-            ''', current_user['id'])
+            # Some columns don't exist, try simpler query
+            try:
+                user = await conn.fetchrow('''
+                    SELECT avatar_url, avatar FROM users WHERE id = $1
+                ''', current_user['id'])
+            except Exception:
+                user = await conn.fetchrow('''
+                    SELECT avatar_url FROM users WHERE id = $1
+                ''', current_user['id'])
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
         # Delete the custom avatar file if it's a local upload
         current_avatar = user.get('avatar_url') or ''
-        if '/uploads/avatars/' in current_avatar:
+        if '/uploads/avatars/' in current_avatar or '/api/uploads/avatars/' in current_avatar:
             try:
-                filename = current_avatar.split('/uploads/avatars/')[-1]
+                filename = current_avatar.split('/avatars/')[-1]
                 file_path = ROOT_DIR / "uploads" / "avatars" / filename
                 if file_path.exists():
                     file_path.unlink()
+                    logger.info(f"Deleted avatar file: {filename}")
             except Exception as e:
                 logger.warning(f"Failed to delete avatar file: {e}")
         
-        # Determine the new avatar (prefer Google, then GitHub, then null)
-        new_avatar = user.get('google_avatar') or user.get('github_avatar') or None
+        # Determine the new avatar from various sources:
+        # Priority: google_avatar > github_avatar > avatar (LMS) > null
+        new_avatar = (
+            user.get('google_avatar') or 
+            user.get('github_avatar') or 
+            user.get('avatar') or  # LMS avatar field
+            None
+        )
         
         await conn.execute('UPDATE users SET avatar_url = $1 WHERE id = $2', new_avatar, current_user['id'])
         
@@ -1130,7 +1143,7 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                     user_id = existing_by_github['id']
                     # Update avatar in case it changed
                     await conn.execute(
-                        'UPDATE users SET avatar_url = $1, "updatedAt" = NOW() WHERE id = $2',
+                        'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), github_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
                         github_avatar, user_id
                     )
                 else:
@@ -1146,7 +1159,8 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                         await conn.execute('''
                             UPDATE users SET 
                                 github_id = $1, 
-                                avatar_url = $2,
+                                github_avatar = $2,
+                                avatar_url = COALESCE(avatar_url, $2),
                                 "updatedAt" = NOW()
                             WHERE id = $3
                         ''', github_id, github_avatar, user_id)
@@ -1173,9 +1187,9 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                             INSERT INTO users (
                                 id, name, email, password, "roleId",
                                 "isActive", "isVerified", "ctfScore",
-                                github_id, avatar_url,
+                                github_id, github_avatar, avatar_url,
                                 "createdAt", "updatedAt", "passwordChangedAt"
-                            ) VALUES ($1, $2, $3, $4, $5, true, true, 0, $6, $7, NOW(), NOW(), NOW())
+                            ) VALUES ($1, $2, $3, $4, $5, true, true, 0, $6, $7, $7, NOW(), NOW(), NOW())
                         ''', user_id, github_name, github_email, 
                              hash_password(random_password), role_id, github_id, github_avatar)
                         
@@ -1267,18 +1281,22 @@ def _github_error_html(message: str) -> str:
 
 
 async def _ensure_github_columns(conn):
-    """Ensure github_id and avatar_url columns exist in users table"""
+    """Ensure github_id, github_avatar and avatar_url columns exist in users table"""
     try:
         # Check if columns exist
         result = await conn.fetch('''
             SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'users' AND column_name IN ('github_id', 'avatar_url')
+            WHERE table_name = 'users' AND column_name IN ('github_id', 'github_avatar', 'avatar_url')
         ''')
         existing_columns = {row['column_name'] for row in result}
         
         if 'github_id' not in existing_columns:
             await conn.execute('ALTER TABLE users ADD COLUMN github_id VARCHAR(255) UNIQUE')
             logger.info("Added github_id column to users table")
+
+        if 'github_avatar' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN github_avatar TEXT')
+            logger.info("Added github_avatar column to users table")
         
         if 'avatar_url' not in existing_columns:
             await conn.execute('ALTER TABLE users ADD COLUMN avatar_url TEXT')
@@ -1288,11 +1306,11 @@ async def _ensure_github_columns(conn):
 
 
 async def _ensure_oauth_columns(conn):
-    """Ensure OAuth-related columns exist in users table (github_id, google_id, avatar_url)"""
+    """Ensure OAuth-related columns exist in users table (github_id, google_id, google_avatar, github_avatar, avatar_url)"""
     try:
         result = await conn.fetch('''
             SELECT column_name FROM information_schema.columns 
-            WHERE table_name = 'users' AND column_name IN ('github_id', 'google_id', 'avatar_url')
+            WHERE table_name = 'users' AND column_name IN ('github_id', 'google_id', 'google_avatar', 'github_avatar', 'avatar_url')
         ''')
         existing_columns = {row['column_name'] for row in result}
         
@@ -1303,6 +1321,14 @@ async def _ensure_oauth_columns(conn):
         if 'google_id' not in existing_columns:
             await conn.execute('ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE')
             logger.info("Added google_id column to users table")
+
+        if 'google_avatar' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN google_avatar TEXT')
+            logger.info("Added google_avatar column to users table")
+
+        if 'github_avatar' not in existing_columns:
+            await conn.execute('ALTER TABLE users ADD COLUMN github_avatar TEXT')
+            logger.info("Added github_avatar column to users table")
         
         if 'avatar_url' not in existing_columns:
             await conn.execute('ALTER TABLE users ADD COLUMN avatar_url TEXT')
@@ -1413,7 +1439,7 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                     user_id = existing_by_google['id']
                     # Update avatar in case it changed
                     await conn.execute(
-                        'UPDATE users SET avatar_url = $1, "updatedAt" = NOW() WHERE id = $2',
+                        'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), google_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
                         google_avatar, user_id
                     )
                 else:
@@ -1429,6 +1455,7 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                         await conn.execute('''
                             UPDATE users SET 
                                 google_id = $1, 
+                                google_avatar = $2,
                                 avatar_url = COALESCE(avatar_url, $2),
                                 "updatedAt" = NOW()
                             WHERE id = $3
@@ -1454,9 +1481,9 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                             INSERT INTO users (
                                 id, name, email, password, "roleId",
                                 "isActive", "isVerified", "ctfScore",
-                                google_id, avatar_url,
+                                google_id, google_avatar, avatar_url,
                                 "createdAt", "updatedAt", "passwordChangedAt"
-                            ) VALUES ($1, $2, $3, $4, $5, true, true, 0, $6, $7, NOW(), NOW(), NOW())
+                            ) VALUES ($1, $2, $3, $4, $5, true, true, 0, $6, $7, $7, NOW(), NOW(), NOW())
                         ''', user_id, google_name, google_email, 
                              hash_password(random_password), role_id, google_id, google_avatar)
                         

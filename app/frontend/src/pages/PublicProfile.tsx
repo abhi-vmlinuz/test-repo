@@ -206,7 +206,7 @@ const PublicProfile = ({ user, logout }) => {
                                         ) : platform === 'github' ? (
                                             <img src="/github-mark.svg" className="w-5 h-5 opacity-70" alt="GitHub" />
                                         ) : platform === 'linkedin' ? (
-                                            <img src="/linkedin.svg" className="w-5 h-5 opacity-90" alt="LinkedIn" />
+                                            <img src="/linkedin-mono.svg" className="w-5 h-5 opacity-70" alt="LinkedIn" />
                                         ) : platform === 'twitter' ? (
                                             <img src="/x.svg" className="w-5 h-5 opacity-70" alt="X" />
                                         ) : Icon ? (
