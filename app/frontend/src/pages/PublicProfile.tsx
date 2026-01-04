@@ -121,7 +121,8 @@ const PublicProfile = ({ user, logout }) => {
         github: Github,
         twitter: Twitter,
         linkedin: Linkedin,
-        website: Globe
+        website: Globe,
+        instagram: null  // Will use img tag instead
     };
 
     return (
@@ -190,7 +191,7 @@ const PublicProfile = ({ user, logout }) => {
                         <div className="flex flex-col gap-3 items-start md:items-end">
                             {profile.social_links && Object.entries(profile.social_links).map(([platform, url]) => {
                                 if (!url) return null;
-                                const Icon = socialIcons[platform] || Globe;
+                                const Icon = socialIcons[platform];
                                 return (
                                     <a
                                         key={platform}
@@ -199,7 +200,13 @@ const PublicProfile = ({ user, logout }) => {
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-2 text-gray-600 hover:text-blue-600 font-medium transition-colors"
                                     >
-                                        <Icon className="w-4 h-4" />
+                                        {platform === 'instagram' ? (
+                                            <img src="/instagram.svg" className="w-4 h-4 opacity-70" alt="Instagram" />
+                                        ) : Icon ? (
+                                            <Icon className="w-4 h-4" />
+                                        ) : (
+                                            <Globe className="w-4 h-4" />
+                                        )}
                                         <span className="capitalize">{platform}</span>
                                     </a>
                                 );

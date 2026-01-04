@@ -679,6 +679,43 @@ async def upload_avatar(
         raise HTTPException(status_code=500, detail="Failed to save avatar")
 
 
+@api_router.delete("/auth/me/avatar")
+async def reset_avatar(current_user: dict = Depends(get_current_user)):
+    """Delete custom avatar and revert to OAuth provider's avatar"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Try to get user's OAuth avatar if available (columns may not exist)
+        try:
+            user = await conn.fetchrow('''
+                SELECT google_avatar, github_avatar, avatar_url
+                FROM users WHERE id = $1
+            ''', current_user['id'])
+        except Exception:
+            # Columns don't exist yet, just get avatar_url
+            user = await conn.fetchrow('''
+                SELECT avatar_url FROM users WHERE id = $1
+            ''', current_user['id'])
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Delete the custom avatar file if it's a local upload
+        current_avatar = user.get('avatar_url') or ''
+        if '/uploads/avatars/' in current_avatar:
+            try:
+                filename = current_avatar.split('/uploads/avatars/')[-1]
+                file_path = ROOT_DIR / "uploads" / "avatars" / filename
+                if file_path.exists():
+                    file_path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to delete avatar file: {e}")
+        
+        # Determine the new avatar (prefer Google, then GitHub, then null)
+        new_avatar = user.get('google_avatar') or user.get('github_avatar') or None
+        
+        await conn.execute('UPDATE users SET avatar_url = $1 WHERE id = $2', new_avatar, current_user['id'])
+        
+        return {'avatar_url': new_avatar}
 
 
 # ===========================================
@@ -1946,6 +1983,25 @@ async def get_my_stats(current_user: dict = Depends(get_current_user)):
             for cat in categories
         ]
         
+        # Get activity data for the past year (365 days)
+        activity = await conn.fetch('''
+            SELECT 
+                DATE("solvedAt") as date,
+                COUNT(*) as count
+            FROM ctf_public_progress
+            WHERE "userId" = $1 
+                AND solved = true 
+                AND "solvedAt" >= NOW() - INTERVAL '365 days'
+            GROUP BY DATE("solvedAt")
+            ORDER BY date
+        ''', current_user['id'])
+        
+        # Format activity for calendar
+        activity_data = {}
+        for row in activity:
+            if row['date']:
+                activity_data[row['date'].strftime('%Y-%m-%d')] = row['count']
+        
         return {
             'solved': basic_stats['solved_count'] or 0,
             'points': basic_stats['total_points'] or 0,
@@ -1955,7 +2011,8 @@ async def get_my_stats(current_user: dict = Depends(get_current_user)):
             'challenges_solved': basic_stats['solved_count'] or 0,
             'total_points': basic_stats['total_points'] or 0,
             'total_score': basic_stats['total_points'] or 0,
-            'category_stats': category_stats
+            'category_stats': category_stats,
+            'activity': activity_data  # Add activity calendar data
         }
 
 
@@ -5275,6 +5332,17 @@ async def startup():
                 logger.info("User profile columns migration complete")
             except Exception as e:
                 logger.debug(f"User profile columns already exist or migration skipped: {e}")
+
+            # Migration: Add google_avatar and github_avatar columns for OAuth provider avatars
+            try:
+                await conn.execute('''
+                    ALTER TABLE users 
+                    ADD COLUMN IF NOT EXISTS google_avatar TEXT,
+                    ADD COLUMN IF NOT EXISTS github_avatar TEXT
+                ''')
+                logger.info("OAuth avatar columns migration complete")
+            except Exception as e:
+                logger.debug(f"OAuth avatar columns already exist or migration skipped: {e}")
 
     except Exception as e:
         logger.error(f"Database connection failed: {e}")

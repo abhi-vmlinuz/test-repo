@@ -23,7 +23,8 @@ const Profile = ({ user, logout, setUser }) => {
       github: '',
       twitter: '',
       linkedin: '',
-      website: ''
+      website: '',
+      instagram: ''
     }
   });
 
@@ -90,6 +91,18 @@ const Profile = ({ user, logout, setUser }) => {
     }
   };
 
+  const handleResetAvatar = async () => {
+    try {
+      // Call backend to reset avatar (delete custom and use OAuth provider's avatar)
+      const res = await axios.delete(`${API}/auth/me/avatar`);
+      setUser(prev => ({ ...prev, avatar_url: res.data.avatar_url }));
+      toast.success('Profile picture reset to default');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to reset profile picture');
+    }
+  };
+
   const handleUpdateProfile = async () => {
     setSaving(true);
     try {
@@ -110,10 +123,7 @@ const Profile = ({ user, logout, setUser }) => {
       const res = await axios.patch(`${API}/auth/me`, updateData);
       setUser(prev => ({ ...prev, ...res.data }));
 
-      // 2. Note about username/email
-      if (editForm.username !== user.username || editForm.email !== user.email) {
-        toast.info('Username and email changes are not fully supported yet in this update.');
-      }
+      // Note: Username/email updates not implemented yet - silently ignore
 
       toast.success('Profile updated successfully');
       setShowEditModal(false);
@@ -233,6 +243,12 @@ const Profile = ({ user, logout, setUser }) => {
                       <Globe className="w-4 h-4 text-gray-400" />
                     </a>
                   )}
+                  {user.social_links.instagram && (
+                    <a href={user.social_links.instagram} target="_blank" rel="noopener noreferrer"
+                      className="p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-colors">
+                      <img src="/instagram.svg" className="w-4 h-4 invert opacity-70" alt="Instagram" />
+                    </a>
+                  )}
                 </div>
               )}
 
@@ -308,6 +324,64 @@ const Profile = ({ user, logout, setUser }) => {
               })}
             </div>
           </div>
+
+          {/* Activity Calendar */}
+          {stats?.activity && (
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+              <h3 className="text-lg font-bold text-zinc-900 mb-6 uppercase tracking-wide flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-zinc-900" />
+                Activity Log
+              </h3>
+              <div className="w-full overflow-x-auto pb-2">
+                <div className="flex gap-1 min-w-max">
+                  {Array.from({ length: 53 }).map((_, weekIndex) => {
+                    const today = new Date();
+                    const dates = [];
+                    for (let i = 364; i >= 0; i--) {
+                      const date = new Date(today);
+                      date.setDate(date.getDate() - i);
+                      dates.push(date.toISOString().split('T')[0]);
+                    }
+
+                    const getColor = (count) => {
+                      if (!count) return 'bg-gray-100';
+                      if (count === 1) return 'bg-emerald-200';
+                      if (count <= 3) return 'bg-emerald-300';
+                      if (count <= 6) return 'bg-emerald-400';
+                      return 'bg-emerald-500';
+                    };
+
+                    return (
+                      <div key={weekIndex} className="grid grid-rows-7 gap-1">
+                        {Array.from({ length: 7 }).map((_, dayIndex) => {
+                          const dateIndex = weekIndex * 7 + dayIndex;
+                          if (dateIndex >= dates.length) return null;
+                          const date = dates[dateIndex];
+                          const count = stats.activity[date] || 0;
+                          return (
+                            <div
+                              key={date}
+                              className={`w-3 h-3 rounded-[2px] ${getColor(count)}`}
+                              title={`${date}: ${count} contributions`}
+                            />
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 justify-end">
+                  <span>Less</span>
+                  <div className="w-3 h-3 bg-gray-100 rounded-[2px]" />
+                  <div className="w-3 h-3 bg-emerald-200 rounded-[2px]" />
+                  <div className="w-3 h-3 bg-emerald-300 rounded-[2px]" />
+                  <div className="w-3 h-3 bg-emerald-400 rounded-[2px]" />
+                  <div className="w-3 h-3 bg-emerald-500 rounded-[2px]" />
+                  <span>More</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Achievements */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
@@ -473,7 +547,16 @@ const Profile = ({ user, logout, setUser }) => {
                   {uploadingAvatar && <div className="absolute inset-0 flex items-center justify-center"><div className="w-6 h-6 border-2 border-white/50 border-t-white rounded-full animate-spin"></div></div>}
                 </div>
                 <div className="text-center">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Profile Picture</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Profile Picture</p>
+                  {user.avatar_url && (
+                    <button
+                      type="button"
+                      onClick={handleResetAvatar}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors"
+                    >
+                      Remove & Reset to Default
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -556,6 +639,17 @@ const Profile = ({ user, logout, setUser }) => {
                         onChange={(e) => setEditForm({ ...editForm, social_links: { ...editForm.social_links, website: e.target.value } })}
                         className="pl-10 bg-gray-50 border-gray-200"
                         placeholder="Personal Website URL"
+                      />
+                    </div>
+                    <div className="relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center">
+                        <img src="/instagram.svg" className="w-4 h-4 opacity-70" alt="Instagram" />
+                      </div>
+                      <Input
+                        value={editForm.social_links?.instagram || ''}
+                        onChange={(e) => setEditForm({ ...editForm, social_links: { ...editForm.social_links, instagram: e.target.value } })}
+                        className="pl-10 bg-gray-50 border-gray-200"
+                        placeholder="Instagram URL"
                       />
                     </div>
                   </div>
