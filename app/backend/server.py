@@ -15,6 +15,10 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import os
 import logging
 from pathlib import Path
@@ -79,7 +83,9 @@ class Database:
     @classmethod
     async def get_pool(cls) -> asyncpg.Pool:
         if cls._pool is None:
-            cls._pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
+            min_size = int(os.environ.get('DB_POOL_MIN', 5))
+            max_size = int(os.environ.get('DB_POOL_MAX', 20))
+            cls._pool = await asyncpg.create_pool(DATABASE_URL, min_size=min_size, max_size=max_size)
         return cls._pool
     
     @classmethod
@@ -301,6 +307,53 @@ def time_ago(dt: datetime) -> str:
     else:
         days = int(seconds / 86400)
         return f"{days} day{'s' if days > 1 else ''} ago"
+
+
+# ===========================================
+# MIDDLEWARE CLASSES
+# ===========================================
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Permissions Policy for added security
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app):
+        super().__init__(app)
+        self.rate_limit_records = {}
+        self.limit = 300  # requests per window
+        self.window = 60  # seconds (1 minute)
+    
+    async def dispatch(self, request: Request, call_next):
+        # Exempt static files, documentation, or OPTIONS requests
+        if request.url.path.startswith(("/public", "/docs", "/openapi.json")) or request.method == "OPTIONS":
+            return await call_next(request)
+            
+        client_ip = request.client.host
+        current_time = int(asyncio.get_event_loop().time())
+        window_start = current_time // self.window
+        
+        key = (client_ip, window_start)
+        
+        # Simple cleanup to prevent internal memory growth
+        if len(self.rate_limit_records) > 10000:
+            self.rate_limit_records.clear()
+            
+        count = self.rate_limit_records.get(key, 0)
+        
+        if count >= self.limit:
+            return Response("Too Many Requests", status_code=429)
+            
+        self.rate_limit_records[key] = count + 1
+        return await call_next(request)
 
 
 # ===========================================
@@ -4885,6 +4938,15 @@ async def shutdown():
 
 # Include router and middleware
 app.include_router(api_router)
+
+# Security Middlewares (Note: Fast/Starlette executes middleware in reverse order of addition)
+# Execution Order: CORS -> TrustedHost -> SecurityHeaders -> RateLimit -> Router
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    TrustedHostMiddleware, 
+    allowed_hosts=os.environ.get('ALLOWED_HOSTS', '*').split(',')
+)
 
 app.add_middleware(
     CORSMiddleware,

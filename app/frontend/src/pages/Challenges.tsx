@@ -23,6 +23,7 @@ const Challenges = ({ user, logout }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [solvedChallenges, setSolvedChallenges] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'solved' | 'unsolved'>('all');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -55,12 +56,15 @@ const Challenges = ({ user, logout }) => {
     }
   };
 
-  // Filter by category and search
+  // Filter by category, search, and solved status
   const filteredChallenges = challenges.filter(c => {
     const matchesCategory = selectedCategory === 'all' || c.category_id === selectedCategory;
     const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    const matchesStatus = statusFilter === 'all' ||
+      (statusFilter === 'solved' && solvedChallenges.has(c.id)) ||
+      (statusFilter === 'unsolved' && !solvedChallenges.has(c.id));
+    return matchesCategory && matchesSearch && matchesStatus;
   });
 
   const getDifficultyStyle = (difficulty) => {
@@ -141,6 +145,47 @@ const Challenges = ({ user, logout }) => {
               );
             })}
           </div>
+        </div>
+
+        {/* Status Filter (Solved/Unsolved) */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Status:</span>
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${statusFilter === 'all'
+                ? 'bg-white text-zinc-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setStatusFilter('unsolved')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${statusFilter === 'unsolved'
+                ? 'bg-white text-amber-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-amber-400" />
+              Unsolved
+            </button>
+            <button
+              onClick={() => setStatusFilter('solved')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${statusFilter === 'solved'
+                ? 'bg-white text-emerald-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              Solved
+            </button>
+          </div>
+          {statusFilter !== 'all' && (
+            <span className="text-xs text-gray-400">
+              {filteredChallenges.length} result{filteredChallenges.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
 
         {/* Categories Header / Count */}
