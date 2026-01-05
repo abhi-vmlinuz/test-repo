@@ -5210,15 +5210,27 @@ async def admin_nexus_history(
             
             sessions = []
             for row in rows:
-                duration_mins = (row['pod_seconds'] or 0) // 60 if row['pod_seconds'] else None
-                if not duration_mins and row['started_at'] and row['status'] == 'running':
-                    # Calculate current duration for running sessions
-                    from datetime import datetime, timezone
-                    now = datetime.now(timezone.utc)
-                    started = row['started_at']
-                    if started.tzinfo is None:
-                        started = started.replace(tzinfo=timezone.utc)
-                    duration_mins = int((now - started).total_seconds() / 60)
+                # Calculate duration from actual timestamps, not pod_seconds (which includes extensions)
+                duration_mins = None
+                if row['started_at']:
+                    if row['status'] == 'running':
+                        # Currently running - calculate from now
+                        from datetime import datetime, timezone
+                        now = datetime.now(timezone.utc)
+                        started = row['started_at']
+                        if started.tzinfo is None:
+                            started = started.replace(tzinfo=timezone.utc)
+                        duration_mins = int((now - started).total_seconds() / 60)
+                    elif row['ended_at']:
+                        # Completed - calculate from ended_at - started_at
+                        from datetime import datetime, timezone
+                        started = row['started_at']
+                        ended = row['ended_at']
+                        if started.tzinfo is None:
+                            started = started.replace(tzinfo=timezone.utc)
+                        if ended.tzinfo is None:
+                            ended = ended.replace(tzinfo=timezone.utc)
+                        duration_mins = int((ended - started).total_seconds() / 60)
                 
                 sessions.append({
                     'session_id': row['session_id'],

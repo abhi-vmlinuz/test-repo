@@ -36,14 +36,9 @@ const ChallengeDetail = ({ user, logout }) => {
   useEffect(() => {
     fetchChallenge();
     fetchArtifacts();
-    // Check for existing docker session (also restores starting state from sessionStorage)
+    // Check for existing docker session - backend is the source of truth
+    // This works even after logout/login since state is in the database
     checkExistingSession();
-
-    // Restore starting state from sessionStorage (persists across navigation)
-    const storedStarting = sessionStorage.getItem(`nexus_starting_${id}`);
-    if (storedStarting === 'true') {
-      setStartingDocker(true);
-    }
   }, [id]);
 
   // Poll for session status while starting
@@ -51,18 +46,35 @@ const ChallengeDetail = ({ user, logout }) => {
     if (!startingDocker) return;
 
     let cancelled = false;
+    let pollCount = 0;
+    const maxPolls = 60; // 3 minutes max (60 * 3s)
+
     const pollInterval = setInterval(async () => {
       if (cancelled) return;
+      pollCount++;
+
       try {
         const response = await axios.get(`${API}/docker/challenge-session/${id}`);
-        if (!cancelled && response.data && response.data.status === 'running' && response.data.target_ip) {
-          setDockerInstance(response.data);
-          setStartingDocker(false);
-          sessionStorage.removeItem(`nexus_starting_${id}`);
-          toast.success('Instance is ready!');
+        if (!cancelled && response.data) {
+          if (response.data.status === 'running' && response.data.target_ip) {
+            // Instance is fully ready
+            setDockerInstance(response.data);
+            setStartingDocker(false);
+            toast.success('Instance is ready!');
+          } else if (response.data.status === 'pending') {
+            // Still starting - keep polling
+          } else if (pollCount >= maxPolls) {
+            // Timeout after 3 minutes
+            setStartingDocker(false);
+            toast.error('Instance startup timed out. Please try again.');
+          }
         }
       } catch (error) {
-        // Keep polling - don't show error yet
+        // Keep polling unless we've exceeded max attempts
+        if (pollCount >= maxPolls) {
+          setStartingDocker(false);
+          toast.error('Failed to verify instance status');
+        }
       }
     }, 3000);
 
@@ -203,27 +215,31 @@ const ChallengeDetail = ({ user, logout }) => {
     try {
       const response = await axios.get(`${API}/docker/challenge-session/${id}`);
       if (response.data && response.data.status === 'running') {
-        setDockerInstance(response.data);
-        // Clear any leftover starting state
-        sessionStorage.removeItem(`nexus_starting_${id}`);
-        setStartingDocker(false);
+        // Instance is running with IP
+        if (response.data.target_ip) {
+          setDockerInstance(response.data);
+          setStartingDocker(false);
+        } else {
+          // Running but no IP yet - continue polling
+          setStartingDocker(true);
+        }
       } else if (response.data && response.data.status === 'pending') {
-        // Container is still starting - restore the starting state
+        // Container is still starting
         setStartingDocker(true);
-        sessionStorage.setItem(`nexus_starting_${id}`, 'true');
       }
     } catch (error) {
-      // No existing session
+      // No existing session - that's fine
     }
   };
 
   const handleStartDocker = async () => {
     if (!challenge?.docker_image) return;
+    if (startingDocker) return; // Prevent double-clicks
 
     // First check if there's already a running instance
     try {
       const existingCheck = await axios.get(`${API}/docker/challenge-session/${id}`);
-      if (existingCheck.data && existingCheck.data.status === 'running') {
+      if (existingCheck.data && existingCheck.data.status === 'running' && existingCheck.data.target_ip) {
         setDockerInstance(existingCheck.data);
         toast.info('Instance already running!');
         return;
@@ -233,46 +249,27 @@ const ChallengeDetail = ({ user, logout }) => {
     }
 
     setStartingDocker(true);
-    sessionStorage.setItem(`nexus_starting_${id}`, 'true');
 
     try {
       const response = await axios.post(`${API}/docker/start/${id}`);
-      if (response.data && response.data.status === 'running') {
+      if (response.data && response.data.status === 'running' && response.data.target_ip) {
+        // Immediate success - instance started quickly
         setDockerInstance(response.data);
         setStartingDocker(false);
-        sessionStorage.removeItem(`nexus_starting_${id}`);
         toast.success('Instance started!');
       }
-      // If status is not 'running' yet, polling will catch it
+      // Otherwise, polling will handle it - don't show any error here
     } catch (error: any) {
-      // Handle rate limiting
+      // Handle specific error codes
       if (error.response?.status === 429) {
         setStartingDocker(false);
-        sessionStorage.removeItem(`nexus_starting_${id}`);
         toast.error(error.response?.data?.detail || 'Please wait before starting another instance');
-        return;
+      } else if (error.response?.status === 503) {
+        setStartingDocker(false);
+        toast.error('Container service unavailable. Please try again later.');
       }
-
-      // Don't show error immediately - polling may still find a running instance
-      // Set a timeout to check one final time before showing error
-      setTimeout(async () => {
-        try {
-          const checkResponse = await axios.get(`${API}/docker/challenge-session/${id}`);
-          if (checkResponse.data && checkResponse.data.status === 'running') {
-            setDockerInstance(checkResponse.data);
-            setStartingDocker(false);
-            sessionStorage.removeItem(`nexus_starting_${id}`);
-          } else {
-            setStartingDocker(false);
-            sessionStorage.removeItem(`nexus_starting_${id}`);
-            toast.error(error.response?.data?.detail || 'Failed to start instance');
-          }
-        } catch (e) {
-          setStartingDocker(false);
-          sessionStorage.removeItem(`nexus_starting_${id}`);
-          toast.error(error.response?.data?.detail || 'Failed to start instance');
-        }
-      }, 10000); // Wait 10 seconds before giving up
+      // For other errors, let polling continue - the container might still start
+      // Only timeout (handled in polling useEffect) will show error
     }
   };
 
@@ -283,13 +280,11 @@ const ChallengeDetail = ({ user, logout }) => {
     try {
       await axios.delete(`${API}/docker/stop/${dockerInstance.session_id}`);
       setDockerInstance(null);
-      sessionStorage.removeItem(`nexus_starting_${id}`);
       toast.success('Instance stopped');
     } catch (error: any) {
       // If 404, the instance is already gone
       if (error.response?.status === 404) {
         setDockerInstance(null);
-        sessionStorage.removeItem(`nexus_starting_${id}`);
         toast.info('Instance already terminated');
       } else {
         toast.error('Failed to stop instance');
