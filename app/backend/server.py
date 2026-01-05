@@ -4604,7 +4604,9 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
         if not challenge['docker_image']:
             raise HTTPException(status_code=400, detail="This challenge does not have a container")
         
-        user_id = current_user['id']
+        # Convert to strings for consistent storage/lookup
+        user_id = str(current_user['id'])
+        challenge_id = str(challenge_id)
         
         # Rate limiting: check cooldown
         last_start = nexus_start_cooldowns.get(user_id)
@@ -4686,9 +4688,10 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                 # Record the cooldown timestamp
                 nexus_start_cooldowns[user_id] = datetime.now(timezone.utc)
                 
-                if str(user_id) not in nexus_sessions:
-                    nexus_sessions[str(user_id)] = {}
-                nexus_sessions[str(user_id)][str(challenge_id)] = session_data['session_id']
+                # Cache session for fast lookup
+                if user_id not in nexus_sessions:
+                    nexus_sessions[user_id] = {}
+                nexus_sessions[user_id][challenge_id] = session_data['session_id']
                 
                 # Track usage for billing (insert into nexus_usage table)
                 try:
@@ -4712,7 +4715,7 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                             INSERT INTO nexus_usage (
                                 id, user_id, challenge_id, session_id, started_at, status
                             ) VALUES ($1, $2, $3, $4, NOW(), 'running')
-                        ''', generate_uuid(), str(user_id), str(challenge_id), session_data['session_id'])
+                        ''', generate_uuid(), user_id, challenge_id, session_data['session_id'])
                 except Exception as e:
                     logger.warning(f"Failed to record usage: {e}")  # Don't fail the request
                 

@@ -312,7 +312,7 @@ const ChallengeDetail = ({ user, logout }) => {
       }
     } catch (error: any) {
       if (error.response?.status === 403) {
-        toast.error('You can only extend after 30 minutes of runtime');
+        toast.error('Extension available when less than 30 minutes remain on timer');
       } else if (error.response?.status === 404) {
         toast.error('Session expired or not found. Please start a new instance.');
         setDockerInstance(null);
