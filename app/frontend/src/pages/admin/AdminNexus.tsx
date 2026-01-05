@@ -62,7 +62,7 @@ const AdminNexus = () => {
     const terminateSession = async (sessionId) => {
         if (!confirm('Terminate this session?')) return;
         try {
-            await axios.delete(`${API}/docker/stop/${sessionId}`);
+            await axios.delete(`${API}/admin/nexus/sessions/${sessionId}`);
             toast.success('Session terminated');
             fetchData();
         } catch (error) {
@@ -74,7 +74,7 @@ const AdminNexus = () => {
         if (!confirm('Terminate ALL active sessions? This will affect all users.')) return;
         try {
             for (const session of sessions) {
-                await axios.delete(`${API}/docker/stop/${session.session_id}`);
+                await axios.delete(`${API}/admin/nexus/sessions/${session.session_id}`);
             }
             toast.success('All sessions terminated');
             fetchData();

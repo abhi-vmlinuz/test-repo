@@ -57,10 +57,12 @@ const ChallengeDetail = ({ user, logout }) => {
         const response = await axios.get(`${API}/docker/challenge-session/${id}`);
         if (!cancelled && response.data) {
           if (response.data.status === 'running' && response.data.target_ip) {
-            // Instance is fully ready
+            // Instance is fully ready - only show toast if we didn't already have it
+            if (!dockerInstance?.target_ip) {
+              toast.success('Instance is ready!');
+            }
             setDockerInstance(response.data);
             setStartingDocker(false);
-            toast.success('Instance is ready!');
           } else if (response.data.status === 'pending') {
             // Still starting - keep polling
           } else if (pollCount >= maxPolls) {
@@ -256,7 +258,7 @@ const ChallengeDetail = ({ user, logout }) => {
         // Immediate success - instance started quickly
         setDockerInstance(response.data);
         setStartingDocker(false);
-        toast.success('Instance started!');
+        // Don't show toast here - let polling handle it to avoid duplicates
       }
       // Otherwise, polling will handle it - don't show any error here
     } catch (error: any) {
@@ -310,9 +312,12 @@ const ChallengeDetail = ({ user, logout }) => {
       }
     } catch (error: any) {
       if (error.response?.status === 403) {
-        toast.error('Extension not available yet - please wait a few more minutes');
+        toast.error('You can only extend after 30 minutes of runtime');
+      } else if (error.response?.status === 404) {
+        toast.error('Session expired or not found. Please start a new instance.');
+        setDockerInstance(null);
       } else {
-        toast.error(error.response?.data?.detail || 'Failed to extend');
+        toast.error(error.response?.data?.detail || 'Extension failed - try again later');
       }
     } finally {
       setExtendingDocker(false);

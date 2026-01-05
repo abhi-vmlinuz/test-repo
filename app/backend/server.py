@@ -5214,24 +5214,26 @@ async def admin_nexus_history(
                 # Calculate duration from actual timestamps, not pod_seconds (which includes extensions)
                 duration_mins = None
                 if row['started_at']:
+                    from datetime import datetime, timezone
+                    started = row['started_at']
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    
                     if row['status'] == 'running':
                         # Currently running - calculate from now
-                        from datetime import datetime, timezone
                         now = datetime.now(timezone.utc)
-                        started = row['started_at']
-                        if started.tzinfo is None:
-                            started = started.replace(tzinfo=timezone.utc)
                         duration_mins = int((now - started).total_seconds() / 60)
-                    elif row['ended_at']:
-                        # Completed - calculate from ended_at - started_at
-                        from datetime import datetime, timezone
-                        started = row['started_at']
-                        ended = row['ended_at']
-                        if started.tzinfo is None:
-                            started = started.replace(tzinfo=timezone.utc)
-                        if ended.tzinfo is None:
-                            ended = ended.replace(tzinfo=timezone.utc)
-                        duration_mins = int((ended - started).total_seconds() / 60)
+                    else:
+                        # Session ended - use ended_at if available, otherwise use NOW() as fallback
+                        if row['ended_at']:
+                            ended = row['ended_at']
+                            if ended.tzinfo is None:
+                                ended = ended.replace(tzinfo=timezone.utc)
+                            duration_mins = int((ended - started).total_seconds() / 60)
+                        else:
+                            # Fallback: ended_at was not set, calculate from now
+                            now = datetime.now(timezone.utc)
+                            duration_mins = int((now - started).total_seconds() / 60)
                 
                 sessions.append({
                     'session_id': row['session_id'],
