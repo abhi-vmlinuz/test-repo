@@ -566,8 +566,11 @@ const AdminNexus = () => {
                                                         variant="outline"
                                                         className={
                                                             session.status === 'running' ? 'border-green-200 text-green-700 bg-green-50' :
-                                                                session.status === 'terminated' ? 'border-red-200 text-red-700 bg-red-50' :
-                                                                    'border-gray-200 text-gray-700 bg-gray-50'
+                                                                session.status === 'stopped' ? 'border-blue-200 text-blue-700 bg-blue-50' :
+                                                                    session.status === 'expired' ? 'border-amber-200 text-amber-700 bg-amber-50' :
+                                                                        session.status === 'terminated' ? 'border-red-200 text-red-700 bg-red-50' :
+                                                                            session.status === 'completed' ? 'border-purple-200 text-purple-700 bg-purple-50' :
+                                                                                'border-gray-200 text-gray-700 bg-gray-50'
                                                         }
                                                     >
                                                         {session.status}

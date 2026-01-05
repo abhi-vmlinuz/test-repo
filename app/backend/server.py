@@ -4753,10 +4753,11 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
                     pool = await Database.get_pool()
                     async with pool.acquire() as conn:
                         # Calculate cost: ~$0.035/hour per instance
+                        # Status 'stopped' = user manually stopped
                         await conn.execute('''
                             UPDATE nexus_usage SET 
                                 ended_at = NOW(),
-                                status = 'completed',
+                                status = 'stopped',
                                 pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER),
                                 estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035)
                             WHERE session_id = $1 AND status = 'running'
@@ -5140,11 +5141,11 @@ async def nexus_cleanup_janitor_task():
                                 timeout=5.0
                             )
                             if resp.status_code == 404:
-                                # Session no longer exists in Nexus - mark terminated
-                                logger.info(f"🛡️ Janitor: Session {session_id} not found in Nexus, marking terminated")
+                                # Session no longer exists in Nexus - TTL expired
+                                logger.info(f"🛡️ Janitor: Session {session_id} not found in Nexus, marking as expired")
                                 await conn.execute("""
                                     UPDATE nexus_usage SET 
-                                        status = 'terminated', 
+                                        status = 'expired', 
                                         ended_at = COALESCE(ended_at, NOW())
                                     WHERE session_id = $1 AND status = 'running'
                                 """, session_id)
