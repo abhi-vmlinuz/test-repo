@@ -1149,18 +1149,20 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                 
                 # 1. Check if user exists with this github_id
                 existing_by_github = await conn.fetchrow(
-                    'SELECT id, name, email, "ctfScore" as score, "roleId" FROM users WHERE github_id = $1',
+                    'SELECT id, name, email, "ctfScore" as score, "roleId", avatar_url, github_avatar FROM users WHERE github_id = $1',
                     github_id
                 )
                 
                 if existing_by_github:
                     # User already linked to this GitHub - just login
                     user_id = existing_by_github['id']
-                    # Update avatar in case it changed
-                    await conn.execute(
-                        'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), github_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
-                        github_avatar, user_id
-                    )
+                    
+                    # Only update if something changed to avoid redundant writes
+                    if existing_by_github['github_avatar'] != github_avatar or existing_by_github['avatar_url'] is None:
+                        await conn.execute(
+                            'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), github_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
+                            github_avatar, user_id
+                        )
                 else:
                     # 2. Check if user exists with this email
                     existing_by_email = await conn.fetchrow(
@@ -1445,18 +1447,20 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                 
                 # 1. Check if user exists with this google_id
                 existing_by_google = await conn.fetchrow(
-                    'SELECT id, name, email, "ctfScore" as score FROM users WHERE google_id = $1',
+                    'SELECT id, name, email, "ctfScore" as score, avatar_url, google_avatar FROM users WHERE google_id = $1',
                     google_id
                 )
                 
                 if existing_by_google:
                     # User already linked to this Google - just login
                     user_id = existing_by_google['id']
-                    # Update avatar in case it changed
-                    await conn.execute(
-                        'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), google_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
-                        google_avatar, user_id
-                    )
+                    
+                    # Only update if something changed to avoid redundant writes
+                    if existing_by_google['google_avatar'] != google_avatar or existing_by_google['avatar_url'] is None:
+                        await conn.execute(
+                            'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), google_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
+                            google_avatar, user_id
+                        )
                 else:
                     # 2. Check if user exists with this email
                     existing_by_email = await conn.fetchrow(
