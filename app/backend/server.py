@@ -4579,6 +4579,10 @@ NEXUS_ENGINE_URL = os.environ.get('NEXUS_ENGINE_URL', 'http://172.235.15.209:808
 # Nexus session storage (user_id -> session_id mapping)
 nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}
 
+# Rate limiting: track last start request per user
+nexus_start_cooldowns: Dict[str, datetime] = {}  # {user_id: last_start_timestamp}
+NEXUS_START_COOLDOWN_SECONDS = 45  # Minimum seconds between start requests
+
 
 class NexusSessionRequest(BaseModel):
     challenge_id: str
@@ -4601,6 +4605,17 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
             raise HTTPException(status_code=400, detail="This challenge does not have a container")
         
         user_id = current_user['id']
+        
+        # Rate limiting: check cooldown
+        last_start = nexus_start_cooldowns.get(user_id)
+        if last_start:
+            elapsed = (datetime.now(timezone.utc) - last_start).total_seconds()
+            if elapsed < NEXUS_START_COOLDOWN_SECONDS:
+                remaining = int(NEXUS_START_COOLDOWN_SECONDS - elapsed)
+                raise HTTPException(
+                    status_code=429, 
+                    detail=f"Please wait {remaining} seconds before starting another instance"
+                )
         
         # Check for existing session
         if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
@@ -4667,6 +4682,9 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                     raise HTTPException(status_code=503, detail=f"Nexus error: {error_detail}")
                 
                 session_data = spawn_resp.json()
+                
+                # Record the cooldown timestamp
+                nexus_start_cooldowns[user_id] = datetime.now(timezone.utc)
                 
                 if str(user_id) not in nexus_sessions:
                     nexus_sessions[str(user_id)] = {}
@@ -4782,7 +4800,12 @@ async def extend_docker_instance(session_id: str, current_user: dict = Depends(g
                 except Exception as e:
                     logger.warning(f"Failed to record extension: {e}")
                 
-                return result
+                return {
+                    "session_id": id,
+                    "expires_at": result.get('new_expires_at') or result.get('expires_at'),
+                    "status": "running",
+                    "extended_by": 30
+                }
             else:
                 raise HTTPException(status_code=resp.status_code, detail="Failed to extend session")
     except httpx.RequestError as e:
