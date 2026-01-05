@@ -4836,6 +4836,7 @@ async def get_docker_status(session_id: str, current_user: dict = Depends(get_cu
 async def get_challenge_session(challenge_id: str, current_user: dict = Depends(get_current_user)):
     """Get user's existing session for a challenge (if any)"""
     user_id = str(current_user['id'])
+    logger.info(f"Checking session for user {user_id}, challenge {challenge_id}")
     
     # Check in-memory cache first
     if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
@@ -4895,16 +4896,28 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                                 "expires_at": data.get('expires_at'),
                                 "status": "running"
                             }
+                        elif resp.status_code == 404:
+                            logger.info(f"Session {session_id} found in DB but not in Nexus (404)")
+                            # Mark as expired in DB
+                            await conn.execute("UPDATE nexus_usage SET status = 'expired', ended_at = NOW() WHERE session_id = $1", session_id)
                         else:
-                            logger.info(f"Session {session_id} found in DB but not running in Nexus (status {resp.status_code})")
-                            # Mark as terminated in DB
-                            await conn.execute("UPDATE nexus_usage SET status = 'terminated', ended_at = NOW() WHERE session_id = $1", session_id)
+                            logger.warning(f"Session {session_id}: Nexus returned status {resp.status_code}")
+                except httpx.TimeoutException:
+                    logger.warning(f"Timeout verifying session {session_id} - returning DB data anyway")
+                    # Trust database if Nexus is slow
+                    return {
+                        "session_id": session_id,
+                        "target_ip": None,  # IP unknown
+                        "expires_at": None,
+                        "status": "running"
+                    }
                 except Exception as e:
                     logger.warning(f"Error verifying DB session {session_id} with Nexus: {e}")
     except Exception as e:
         logger.warning(f"Error checking persistence from DB: {e}")
     
     # No active session found
+    logger.info(f"No active session found for user {user_id}, challenge {challenge_id}")
     return {"status": "none"}
 
 
