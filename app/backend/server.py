@@ -4711,13 +4711,15 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                                 estimated_cost DECIMAL(10, 4)
                             )
                         ''')
+                        logger.info(f"[NEXUS-INSERT] Saving session: user_id='{user_id}', challenge_id='{challenge_id}', session_id='{session_data['session_id']}'")
                         await conn.execute('''
                             INSERT INTO nexus_usage (
                                 id, user_id, challenge_id, session_id, started_at, status
                             ) VALUES ($1, $2, $3, $4, NOW(), 'running')
                         ''', generate_uuid(), user_id, challenge_id, session_data['session_id'])
+                        logger.info(f"[NEXUS-INSERT] Session saved successfully")
                 except Exception as e:
-                    logger.warning(f"Failed to record usage: {e}")  # Don't fail the request
+                    logger.error(f"[NEXUS-INSERT] Failed to record usage: {e}")  # Don't fail the request
                 
                 return {
                     "session_id": session_data['session_id'],
@@ -4880,6 +4882,7 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
     try:
         pool = await Database.get_pool()
         async with pool.acquire() as conn:
+            logger.info(f"[NEXUS-SELECT] Looking for session: user_id='{user_id}', challenge_id='{challenge_id}'")
             row = await conn.fetchrow('''
                 SELECT session_id, started_at FROM nexus_usage
                 WHERE user_id = $1 AND challenge_id = $2 AND status = 'running'
@@ -4889,7 +4892,7 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
             
             if row:
                 session_id = row['session_id']
-                logger.info(f"Found running session {session_id} in DB for user {user_id}")
+                logger.info(f"[NEXUS-SELECT] Found running session {session_id} in DB for user {user_id}")
                 
                 # Try to get details from Nexus, but trust DB if Nexus fails
                 target_ip = None
@@ -4929,11 +4932,13 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                         "expires_at": expires_at,
                         "status": "running"
                     }
+            else:
+                logger.info(f"[NEXUS-SELECT] No running session found in DB for user {user_id}, challenge {challenge_id}")
     except Exception as e:
-        logger.error(f"Database error checking session: {e}")
+        logger.error(f"[NEXUS-SELECT] Database error: {e}")
     
     # No active session found
-    logger.info(f"No active session found for user {user_id}, challenge {challenge_id}")
+    logger.info(f"[NEXUS-SELECT] Returning status=none for user {user_id}, challenge {challenge_id}")
     return {"status": "none"}
 
 
