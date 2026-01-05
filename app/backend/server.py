@@ -4786,6 +4786,8 @@ async def extend_docker_instance(session_id: str, current_user: dict = Depends(g
                 json={"extra_minutes": 30},
                 timeout=10.0
             )
+            logger.info(f"Extend response for {session_id}: status={resp.status_code}")
+            
             if resp.status_code == 200:
                 result = resp.json()
                 
@@ -4805,14 +4807,22 @@ async def extend_docker_instance(session_id: str, current_user: dict = Depends(g
                     logger.warning(f"Failed to record extension: {e}")
                 
                 return {
-                    "session_id": id,
+                    "session_id": session_id,
                     "expires_at": result.get('new_expires_at') or result.get('expires_at'),
                     "status": "running",
                     "extended_by": 30
                 }
+            elif resp.status_code == 403:
+                raise HTTPException(status_code=403, detail="Extension not available yet")
+            elif resp.status_code == 404:
+                raise HTTPException(status_code=404, detail="Session not found")
             else:
-                raise HTTPException(status_code=resp.status_code, detail="Failed to extend session")
+                logger.warning(f"Extend failed: {resp.status_code} - {resp.text}")
+                raise HTTPException(status_code=resp.status_code, detail=f"Nexus error: {resp.status_code}")
+    except HTTPException:
+        raise
     except httpx.RequestError as e:
+        logger.error(f"Nexus connection error on extend: {e}")
         raise HTTPException(status_code=503, detail="Nexus Engine unavailable")
 
 

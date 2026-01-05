@@ -214,23 +214,30 @@ const ChallengeDetail = ({ user, logout }) => {
   };
 
   const checkExistingSession = async () => {
+    console.log('[Nexus] Checking existing session for challenge:', id);
     try {
       const response = await axios.get(`${API}/docker/challenge-session/${id}`);
+      console.log('[Nexus] Session check response:', response.data);
+
       if (response.data && response.data.status === 'running') {
+        console.log('[Nexus] Found running session with IP:', response.data.target_ip);
         // Instance is running with IP
         if (response.data.target_ip) {
           setDockerInstance(response.data);
           setStartingDocker(false);
         } else {
           // Running but no IP yet - continue polling
+          console.log('[Nexus] Session running but no IP yet - starting poll');
           setStartingDocker(true);
         }
       } else if (response.data && response.data.status === 'pending') {
-        // Container is still starting
+        console.log('[Nexus] Session pending - starting poll');
         setStartingDocker(true);
+      } else {
+        console.log('[Nexus] No active session found, status:', response.data?.status);
       }
-    } catch (error) {
-      // No existing session - that's fine
+    } catch (error: any) {
+      console.log('[Nexus] Session check error:', error.response?.status, error.message);
     }
   };
 
