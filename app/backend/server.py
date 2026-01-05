@@ -4863,7 +4863,7 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
         # Session no longer valid, remove from cache
         del nexus_sessions[user_id][challenge_id]
     
-    # Check database for running session
+    # Check database for running session - DATABASE IS SOURCE OF TRUTH
     try:
         pool = await Database.get_pool()
         async with pool.acquire() as conn:
@@ -4877,44 +4877,47 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
             if row:
                 session_id = row['session_id']
                 logger.info(f"Found running session {session_id} in DB for user {user_id}")
-                # Verify with Nexus
+                
+                # Try to get details from Nexus, but trust DB if Nexus fails
+                target_ip = None
+                expires_at = None
+                session_valid = True  # Assume valid unless Nexus explicitly says 404
+                
                 try:
                     async with httpx.AsyncClient() as client:
                         resp = await client.get(
                             f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
-                            timeout=10.0
+                            timeout=5.0  # Shorter timeout
                         )
                         if resp.status_code == 200:
                             data = resp.json()
+                            target_ip = data.get('target_ip')
+                            expires_at = data.get('expires_at')
                             # Cache it
                             if user_id not in nexus_sessions:
                                 nexus_sessions[user_id] = {}
                             nexus_sessions[user_id][challenge_id] = session_id
-                            return {
-                                "session_id": session_id,
-                                "target_ip": data.get('target_ip'),
-                                "expires_at": data.get('expires_at'),
-                                "status": "running"
-                            }
                         elif resp.status_code == 404:
-                            logger.info(f"Session {session_id} found in DB but not in Nexus (404)")
-                            # Mark as expired in DB
+                            # Nexus explicitly says session doesn't exist
+                            logger.info(f"Session {session_id} not in Nexus (404) - marking expired")
                             await conn.execute("UPDATE nexus_usage SET status = 'expired', ended_at = NOW() WHERE session_id = $1", session_id)
+                            session_valid = False
                         else:
-                            logger.warning(f"Session {session_id}: Nexus returned status {resp.status_code}")
-                except httpx.TimeoutException:
-                    logger.warning(f"Timeout verifying session {session_id} - returning DB data anyway")
-                    # Trust database if Nexus is slow
+                            # Other error - trust DB, session might still be running
+                            logger.warning(f"Nexus returned {resp.status_code} for {session_id} - trusting DB")
+                except Exception as e:
+                    # Any error (timeout, connection, etc) - trust database
+                    logger.warning(f"Nexus check failed for {session_id}: {e} - trusting DB")
+                
+                if session_valid:
                     return {
                         "session_id": session_id,
-                        "target_ip": None,  # IP unknown
-                        "expires_at": None,
+                        "target_ip": target_ip,
+                        "expires_at": expires_at,
                         "status": "running"
                     }
-                except Exception as e:
-                    logger.warning(f"Error verifying DB session {session_id} with Nexus: {e}")
     except Exception as e:
-        logger.warning(f"Error checking persistence from DB: {e}")
+        logger.error(f"Database error checking session: {e}")
     
     # No active session found
     logger.info(f"No active session found for user {user_id}, challenge {challenge_id}")
