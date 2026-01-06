@@ -33,6 +33,7 @@ const AdminChallenges = () => {
         docker_image: '',
         docker_source: 'image' as 'image' | 'upload' | 'github',
         docker_port: null as number | null,
+        ports: [] as number[],  // Ports to expose for container challenges
         uploadedFile: null as File | null,
         github_repo: '',
         github_path: '',
@@ -191,9 +192,9 @@ const AdminChallenges = () => {
             flag: '',
             has_docker: false,
             docker_image: '',
-
             docker_source: 'image',
             docker_port: null,
+            ports: [],
             uploadedFile: null,
             github_repo: '',
             github_path: '',
@@ -218,9 +219,9 @@ const AdminChallenges = () => {
             flag: challenge.flag || '',
             has_docker: !!(challenge.docker_image),
             docker_image: challenge.docker_image || '',
-
             docker_source: 'image',
             docker_port: challenge.docker_port || null,
+            ports: challenge.ports || [],
             uploadedFile: null,
             github_repo: challenge.github_repo || '',
             github_path: challenge.github_path || '',
@@ -292,8 +293,8 @@ const AdminChallenges = () => {
             ...formData,
             flag: formData.has_main_flag ? formData.flag : '',
             docker_image: formData.has_docker ? formData.docker_image : null,
-
             docker_port: formData.has_docker ? formData.docker_port : null,
+            ports: formData.has_docker ? formData.ports : [],
             github_repo: formData.has_docker && formData.docker_source === 'github' ? formData.github_repo : null,
             github_path: formData.has_docker && formData.docker_source === 'github' ? formData.github_path : null,
         };
@@ -1002,6 +1003,146 @@ const AdminChallenges = () => {
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* Port Selection */}
+                                        <div className="pt-4 border-t border-gray-200">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <label className="block text-sm font-medium text-gray-700">
+                                                    Container Ports
+                                                </label>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData(prev => ({
+                                                            ...prev,
+                                                            ports: [22, 80, 443, 3000, 8000, 8080]
+                                                        }))}
+                                                        className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                                                    >
+                                                        Select All
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFormData(prev => ({ ...prev, ports: [] }))}
+                                                        className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Common port checkboxes */}
+                                            <div className="grid grid-cols-3 gap-2 mb-3">
+                                                {[
+                                                    { port: 22, label: 'SSH' },
+                                                    { port: 80, label: 'HTTP' },
+                                                    { port: 443, label: 'HTTPS' },
+                                                    { port: 3000, label: 'Node.js' },
+                                                    { port: 8000, label: 'Python' },
+                                                    { port: 8080, label: 'Alt HTTP' }
+                                                ].map(({ port, label }) => (
+                                                    <label
+                                                        key={port}
+                                                        className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${formData.ports.includes(port)
+                                                                ? 'border-gray-900 bg-gray-900 text-white'
+                                                                : 'border-gray-200 hover:border-gray-400'
+                                                            }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.ports.includes(port)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        ports: [...prev.ports, port].sort((a, b) => a - b)
+                                                                    }));
+                                                                } else {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        ports: prev.ports.filter(p => p !== port)
+                                                                    }));
+                                                                }
+                                                            }}
+                                                            className="sr-only"
+                                                        />
+                                                        <span className="text-sm font-medium">{port}</span>
+                                                        <span className={`text-xs ${formData.ports.includes(port) ? 'text-gray-300' : 'text-gray-400'}`}>
+                                                            {label}
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                            </div>
+
+                                            {/* Custom port input */}
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="65535"
+                                                    placeholder="Custom port..."
+                                                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            const port = parseInt((e.target as HTMLInputElement).value);
+                                                            if (port >= 1 && port <= 65535 && !formData.ports.includes(port)) {
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    ports: [...prev.ports, port].sort((a, b) => a - b)
+                                                                }));
+                                                                (e.target as HTMLInputElement).value = '';
+                                                            }
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        const input = (e.target as HTMLElement).previousElementSibling as HTMLInputElement;
+                                                        const port = parseInt(input.value);
+                                                        if (port >= 1 && port <= 65535 && !formData.ports.includes(port)) {
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                ports: [...prev.ports, port].sort((a, b) => a - b)
+                                                            }));
+                                                            input.value = '';
+                                                        }
+                                                    }}
+                                                    className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                                >
+                                                    Add
+                                                </button>
+                                            </div>
+
+                                            {/* Selected ports display */}
+                                            {formData.ports.length > 0 && (
+                                                <div className="mt-3 flex flex-wrap gap-1">
+                                                    {formData.ports.map(port => (
+                                                        <span
+                                                            key={port}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                                                        >
+                                                            :{port}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setFormData(prev => ({
+                                                                    ...prev,
+                                                                    ports: prev.ports.filter(p => p !== port)
+                                                                }))}
+                                                                className="hover:text-red-500"
+                                                            >
+                                                                ×
+                                                            </button>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <p className="text-xs text-gray-400 mt-2">
+                                                Select which ports to expose when spawning this challenge
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
