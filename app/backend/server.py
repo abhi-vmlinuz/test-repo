@@ -3338,6 +3338,16 @@ async def build_docker_image(
         if not dockerfile_path:
             raise HTTPException(status_code=400, detail="Dockerfile not found in ZIP. Place it at the root.")
         
+        # Parse Dockerfile for EXPOSE ports
+        detected_ports = []
+        dockerfile_content = ""
+        try:
+            with open(dockerfile_path, 'r') as df:
+                dockerfile_content = df.read()
+                detected_ports = parse_expose_from_dockerfile(dockerfile_content)
+        except Exception as e:
+            logger.warning(f"Could not parse Dockerfile for ports: {e}")
+        
         # Build the image - Docker requires lowercase for image names!
         full_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}:latest"
         
@@ -3368,12 +3378,44 @@ async def build_docker_image(
             push_result = docker_client.images.push(full_image_name)
             logger.info(f"Push result: {push_result}")
             
+            # Store image metadata in database with detected ports
+            try:
+                pool = await Database.get_pool()
+                async with pool.acquire() as conn:
+                    # Check if docker_image_metadata table exists, create if not
+                    await conn.execute('''
+                        CREATE TABLE IF NOT EXISTS docker_image_metadata (
+                            id SERIAL PRIMARY KEY,
+                            image_url TEXT UNIQUE NOT NULL,
+                            image_name TEXT,
+                            ports JSONB DEFAULT '[]',
+                            dockerfile_content TEXT,
+                            created_at TIMESTAMP DEFAULT NOW(),
+                            updated_at TIMESTAMP DEFAULT NOW()
+                        )
+                    ''')
+                    
+                    # Insert or update image metadata
+                    await conn.execute('''
+                        INSERT INTO docker_image_metadata (image_url, image_name, ports, dockerfile_content)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (image_url) DO UPDATE SET
+                            ports = EXCLUDED.ports,
+                            dockerfile_content = EXCLUDED.dockerfile_content,
+                            updated_at = NOW()
+                    ''', full_image_name, clean_name, json.dumps(detected_ports), dockerfile_content)
+                    
+                    logger.info(f"Stored image metadata with ports: {detected_ports}")
+            except Exception as db_error:
+                logger.warning(f"Could not store image metadata: {db_error}")
+            
             # Clean up
             shutil.rmtree(build_dir, ignore_errors=True)
             
             return {
                 'status': 'success',
                 'image': full_image_name,
+                'ports': detected_ports,
                 'message': f'Image {clean_name} built and pushed to GHCR!'
             }
             
@@ -3399,6 +3441,62 @@ async def delete_docker_image(image_name: str, admin: dict = Depends(require_adm
         'success': False,
         'message': 'Images must be deleted from GitHub Packages page: https://github.com/settings/packages'
     }
+
+
+@api_router.post("/admin/images/metadata")
+async def get_image_metadata(
+    image_url: str = Form(...),
+    admin: dict = Depends(require_admin)
+):
+    """Get stored metadata for a Docker image, including detected ports"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Ensure table exists
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS docker_image_metadata (
+                    id SERIAL PRIMARY KEY,
+                    image_url TEXT UNIQUE NOT NULL,
+                    image_name TEXT,
+                    ports JSONB DEFAULT '[]',
+                    dockerfile_content TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            
+            row = await conn.fetchrow('''
+                SELECT image_url, image_name, ports, dockerfile_content
+                FROM docker_image_metadata
+                WHERE image_url = $1
+            ''', image_url)
+            
+            if row:
+                ports = row['ports']
+                if isinstance(ports, str):
+                    ports = json.loads(ports)
+                return {
+                    'found': True,
+                    'image_url': row['image_url'],
+                    'image_name': row['image_name'],
+                    'ports': ports or [],
+                    'dockerfile_content': row['dockerfile_content']
+                }
+            else:
+                return {
+                    'found': False,
+                    'image_url': image_url,
+                    'ports': [],
+                    'message': 'No metadata found for this image. Ports need to be set manually.'
+                }
+    except Exception as e:
+        logger.error(f"Error fetching image metadata: {e}")
+        return {
+            'found': False,
+            'image_url': image_url,
+            'ports': [],
+            'message': str(e)
+        }
 
 
 

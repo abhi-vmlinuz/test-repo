@@ -752,7 +752,22 @@ const AdminChallenges = () => {
                                                                     <button
                                                                         key={idx}
                                                                         type="button"
-                                                                        onClick={() => setFormData(prev => ({ ...prev, docker_image: img.image }))}
+                                                                        onClick={async () => {
+                                                                            setFormData(prev => ({ ...prev, docker_image: img.image }));
+
+                                                                            // Fetch stored ports for this image
+                                                                            try {
+                                                                                const formData = new FormData();
+                                                                                formData.append('image_url', img.image);
+                                                                                const res = await axios.post(`${API}/admin/images/metadata`, formData);
+                                                                                if (res.data.found && res.data.ports?.length > 0) {
+                                                                                    setFormData(prev => ({ ...prev, docker_image: img.image, ports: res.data.ports }));
+                                                                                    toast.info(`Auto-detected ${res.data.ports.length} ports from image`);
+                                                                                }
+                                                                            } catch (e) {
+                                                                                // Silent fail - ports can be set manually
+                                                                            }
+                                                                        }}
                                                                         className={`p-3 text-left text-sm rounded-lg border transition-all ${formData.docker_image === img.image
                                                                             ? 'border-gray-900 bg-gray-900 text-white'
                                                                             : 'border-gray-200 hover:border-gray-400 bg-white'
@@ -794,143 +809,47 @@ const AdminChallenges = () => {
                                         {/* File Upload Source */}
                                         {formData.docker_source === 'upload' && (
                                             <div className="space-y-4">
-                                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors cursor-pointer relative">
-                                                    <input
-                                                        type="file"
-                                                        accept=".zip"
-                                                        className="hidden"
-                                                        id="docker-upload"
-                                                        onChange={async (e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                if (file.size > 300 * 1024 * 1024) {
-                                                                    toast.error('File exceeds 300MB limit');
-                                                                    return;
-                                                                }
-                                                                setFormData(prev => ({ ...prev, uploadedFile: file }));
-                                                                toast.success(`Selected: ${file.name}`);
-
-                                                                // Fetch ZIP preview with port detection
-                                                                setLoadingZipPreview(true);
-                                                                try {
-                                                                    const zipData = new FormData();
-                                                                    zipData.append('file', file);
-                                                                    const zipRes = await axios.post(`${API}/admin/preview-zip`, zipData);
-                                                                    setZipPreview(zipRes.data);
-
-                                                                    // Auto-select detected ports from Dockerfile
-                                                                    if (zipRes.data.detected_ports && zipRes.data.detected_ports.length > 0) {
-                                                                        setFormData(prev => ({
-                                                                            ...prev,
-                                                                            ports: zipRes.data.detected_ports
-                                                                        }));
-                                                                        toast.info(`Detected ${zipRes.data.detected_ports.length} ports from Dockerfile`);
-                                                                    }
-                                                                } catch (err) {
-                                                                    console.error('ZIP preview failed', err);
-                                                                } finally {
-                                                                    setLoadingZipPreview(false);
-                                                                }
-                                                            }
-                                                        }}
-                                                    />
-                                                    <label htmlFor="docker-upload" className="cursor-pointer">
-                                                        {formData.uploadedFile ? (
-                                                            <>
-                                                                <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                                                                    <FileText className="w-8 h-8 text-blue-600" />
-                                                                </div>
-                                                                <p className="font-medium text-gray-900">{formData.uploadedFile.name}</p>
-                                                                <p className="text-xs text-gray-400 mt-1">
-                                                                    {formData.uploadedFile.size < 1024 * 1024
-                                                                        ? `${(formData.uploadedFile.size / 1024).toFixed(1)} KB`
-                                                                        : `${(formData.uploadedFile.size / 1024 / 1024).toFixed(1)} MB`
-                                                                    }
-                                                                </p>
-                                                                <p className="text-sm text-blue-600 mt-2 font-medium">Click to replace</p>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                                                                    <Upload className="w-8 h-8 text-gray-500" />
-                                                                </div>
-                                                                <p className="font-medium text-gray-900">Upload Challenge Files</p>
-                                                                <p className="text-sm text-gray-500 mt-1">ZIP file containing Dockerfile and resources</p>
-                                                                <p className="text-xs text-gray-400 mt-3 font-medium text-amber-600">Max 300MB • Requires Dockerfile in root</p>
-                                                            </>
-                                                        )}
-                                                    </label>
+                                                {/* Info card redirecting to Image Registry */}
+                                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 text-center">
+                                                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                                        <Upload className="w-8 h-8 text-blue-600" />
+                                                    </div>
+                                                    <h3 className="font-semibold text-gray-900 mb-2">Upload via Image Registry</h3>
+                                                    <p className="text-sm text-gray-600 max-w-md mx-auto mb-4">
+                                                        Docker images must be built and pushed to your GitHub Container Registry before use.
+                                                        Go to <strong>Image Registry</strong> to upload your ZIP file and build the image.
+                                                    </p>
+                                                    <a
+                                                        href="/admin/images"
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                                                    >
+                                                        <Upload className="w-4 h-4" />
+                                                        Open Image Registry
+                                                    </a>
+                                                    <p className="text-xs text-gray-400 mt-4">
+                                                        After building, return here and select your image from the "From Registry" tab
+                                                    </p>
                                                 </div>
 
-                                                {/* ZIP Preview Section */}
-                                                {loadingZipPreview && (
-                                                    <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center gap-2">
-                                                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                                        <span className="text-sm text-gray-500">Scanning ZIP contents...</span>
-                                                    </div>
-                                                )}
-
-                                                {zipPreview && formData.uploadedFile && (
-                                                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
-                                                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                                                            <div className="flex items-center gap-2">
-                                                                <FolderOpen className="w-4 h-4 text-gray-500" />
-                                                                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">ZIP Preview</span>
-                                                            </div>
-                                                            <Badge variant="outline" className="text-[10px] bg-white">
-                                                                {zipPreview.total_files} Files
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="p-3 max-h-48 overflow-y-auto font-mono text-[11px] space-y-1">
-                                                            {!zipPreview.has_dockerfile && (
-                                                                <div className="p-2 mb-2 bg-red-50 text-red-600 rounded flex items-center gap-2 border border-red-100">
-                                                                    <X className="w-3 h-3" />
-                                                                    <span>No Dockerfile found!</span>
-                                                                </div>
-                                                            )}
-                                                            {zipPreview.files.map((file, i) => (
-                                                                <div key={i} className="flex items-center gap-2 text-gray-600 hover:bg-gray-50 rounded px-1 transition-colors">
-                                                                    <span className="text-gray-300 w-4 font-mono">{i + 1}.</span>
-                                                                    {file.name.toLowerCase().includes('dockerfile') ? (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setShowDockerfileModal(true)}
-                                                                            className="text-blue-600 font-bold hover:underline cursor-pointer flex items-center gap-1"
-                                                                        >
-                                                                            {file.name} 🔨
-                                                                            <span className="text-blue-400 text-[9px]">(click to view)</span>
-                                                                        </button>
-                                                                    ) : (
-                                                                        <span className={file.is_dir ? 'text-gray-400 italic' : ''}>
-                                                                            {file.name}
-                                                                            {file.is_dir && ' /'}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        {/* Detected ports info */}
-                                                        {zipPreview.detected_ports && zipPreview.detected_ports.length > 0 && (
-                                                            <div className="px-4 py-2 bg-emerald-50 border-t border-emerald-100 flex items-center gap-2">
-                                                                <span className="text-xs text-emerald-700 font-medium">
-                                                                    ✓ Detected ports from Dockerfile:
-                                                                </span>
-                                                                <div className="flex gap-1">
-                                                                    {zipPreview.detected_ports.map(port => (
-                                                                        <Badge key={port} variant="secondary" className="text-[10px] bg-emerald-100 text-emerald-700">
-                                                                            {port}
-                                                                        </Badge>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                                                    <p className="text-xs text-blue-700">
-                                                        <strong>ZIP Structure:</strong> Your ZIP should contain a Dockerfile at the root level,
-                                                        along with any source files, config, or data the challenge needs.
-                                                    </p>
+                                                {/* How it works */}
+                                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                                                    <h4 className="font-medium text-gray-800 text-sm mb-3">How it works:</h4>
+                                                    <ol className="text-xs text-gray-600 space-y-2">
+                                                        <li className="flex items-start gap-2">
+                                                            <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center flex-shrink-0 text-[10px] font-bold">1</span>
+                                                            <span>Go to <strong>Image Registry</strong> and upload your ZIP file with Dockerfile</span>
+                                                        </li>
+                                                        <li className="flex items-start gap-2">
+                                                            <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center flex-shrink-0 text-[10px] font-bold">2</span>
+                                                            <span>The system builds the image and pushes it to GHCR</span>
+                                                        </li>
+                                                        <li className="flex items-start gap-2">
+                                                            <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center flex-shrink-0 text-[10px] font-bold">3</span>
+                                                            <span>Come back here and select image from "From Registry" — <strong>ports are auto-detected!</strong></span>
+                                                        </li>
+                                                    </ol>
                                                 </div>
                                             </div>
                                         )}
@@ -1477,28 +1396,32 @@ const AdminChallenges = () => {
             {/* Dockerfile Viewer Modal */}
             {showDockerfileModal && zipPreview?.dockerfile_content && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-8">
-                    <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
-                        <div className="bg-gray-900 px-6 py-4 flex items-center justify-between">
+                    <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+                        {/* Header */}
+                        <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b border-gray-200">
                             <div className="flex items-center gap-3">
-                                <div className="flex gap-1.5">
-                                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <FileText className="w-4 h-4 text-blue-600" />
                                 </div>
-                                <span className="text-white font-mono text-sm">Dockerfile</span>
+                                <div>
+                                    <h3 className="font-semibold text-gray-900">Dockerfile</h3>
+                                    <p className="text-xs text-gray-500">View contents for verification</p>
+                                </div>
                             </div>
                             <button
                                 onClick={() => setShowDockerfileModal(false)}
-                                className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+                                className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
                             >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-auto bg-gray-950 p-4">
-                            <pre className="font-mono text-sm text-gray-100 whitespace-pre-wrap">
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-auto bg-gray-900 p-4">
+                            <div className="font-mono text-sm">
                                 {zipPreview.dockerfile_content.split('\n').map((line, i) => (
-                                    <div key={i} className="flex">
-                                        <span className="w-8 text-gray-600 text-right mr-4 select-none">
+                                    <div key={i} className="flex hover:bg-gray-800/50 rounded px-2 -mx-2">
+                                        <span className="w-10 text-gray-500 text-right mr-4 select-none flex-shrink-0">
                                             {i + 1}
                                         </span>
                                         <span className={
@@ -1510,18 +1433,28 @@ const AdminChallenges = () => {
                                                                 line.startsWith('ENV') ? 'text-cyan-400' :
                                                                     line.startsWith('WORKDIR') ? 'text-pink-400' :
                                                                         line.startsWith('#') ? 'text-gray-500 italic' :
-                                                                            'text-gray-100'
+                                                                            line.startsWith('ARG') ? 'text-indigo-400' :
+                                                                                line.startsWith('LABEL') ? 'text-teal-400' :
+                                                                                    line.startsWith('USER') ? 'text-rose-400' :
+                                                                                        'text-gray-100'
                                         }>
-                                            {line || ' '}
+                                            {line || '\u00A0'}
                                         </span>
                                     </div>
                                 ))}
-                            </pre>
+                            </div>
                         </div>
-                        <div className="bg-gray-100 px-6 py-3 flex items-center justify-between border-t">
+
+                        {/* Footer */}
+                        <div className="bg-gray-100 px-6 py-3 flex items-center justify-between border-t border-gray-200">
                             <div className="text-xs text-gray-500">
-                                {zipPreview.detected_ports.length > 0 && (
-                                    <span>Detected exposed ports: <strong>{zipPreview.detected_ports.join(', ')}</strong></span>
+                                {zipPreview.detected_ports.length > 0 ? (
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                        Detected ports: <strong className="text-gray-700">{zipPreview.detected_ports.join(', ')}</strong>
+                                    </span>
+                                ) : (
+                                    <span className="text-amber-600">No EXPOSE statements found</span>
                                 )}
                             </div>
                             <button
