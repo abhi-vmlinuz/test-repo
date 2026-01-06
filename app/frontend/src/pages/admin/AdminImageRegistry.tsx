@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Package, Settings, RefreshCw, Upload, Trash2, Check, AlertCircle, Link2, Eye, EyeOff, Server, Box, Edit2, ExternalLink } from 'lucide-react';
+import { Package, Settings, RefreshCw, Upload, Trash2, Check, AlertCircle, Link2, Eye, EyeOff, Server, Box, Edit2, ExternalLink, X, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +36,20 @@ const AdminImageRegistry = () => {
     const [buildName, setBuildName] = useState('');
     const [buildProgress, setBuildProgress] = useState<'idle' | 'uploading' | 'building' | 'pushing' | 'done' | 'error'>('idle');
     const [buildLogs, setBuildLogs] = useState<string[]>([]);
+
+    // ZIP Preview state
+    const [zipPreview, setZipPreview] = useState<{
+        files: { name: string; size: number; is_dir: boolean }[];
+        total_files: number;
+        total_size: number;
+        has_dockerfile: boolean;
+        has_docker_compose: boolean;
+        dockerfile_content?: string;
+        docker_compose_content?: string;
+        detected_ports: number[];
+    } | null>(null);
+    const [loadingZipPreview, setLoadingZipPreview] = useState(false);
+    const [showFileModal, setShowFileModal] = useState<'dockerfile' | 'compose' | null>(null);
 
     useEffect(() => {
         fetchGHCRConfig();
@@ -169,6 +183,7 @@ const AdminImageRegistry = () => {
         setBuildLogs([]);
         setBuildFile(null);
         setBuildName('');
+        setZipPreview(null);
     };
 
     const deleteImage = async (imageName: string) => {
@@ -372,12 +387,106 @@ const AdminImageRegistry = () => {
                         <input
                             type="file"
                             accept=".zip"
-                            onChange={(e) => setBuildFile(e.target.files?.[0] || null)}
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0] || null;
+                                setBuildFile(file);
+
+                                if (file) {
+                                    // Fetch ZIP preview
+                                    setLoadingZipPreview(true);
+                                    try {
+                                        const formData = new FormData();
+                                        formData.append('file', file);
+                                        const res = await axios.post(`${API}/admin/preview-zip`, formData);
+                                        setZipPreview(res.data);
+                                    } catch (err) {
+                                        console.error('ZIP preview failed', err);
+                                        setZipPreview(null);
+                                    } finally {
+                                        setLoadingZipPreview(false);
+                                    }
+                                } else {
+                                    setZipPreview(null);
+                                }
+                            }}
                             disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
                             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
                         />
                     </div>
                 </div>
+
+                {/* ZIP Preview Section */}
+                {loadingZipPreview && (
+                    <div className="mt-4 text-center py-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center gap-2">
+                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span className="text-sm text-gray-500">Scanning ZIP contents...</span>
+                    </div>
+                )}
+
+                {zipPreview && buildFile && !loadingZipPreview && (
+                    <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Package className="w-4 h-4 text-gray-500" />
+                                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">ZIP Preview</span>
+                            </div>
+                            <span className="text-xs text-gray-400">
+                                {zipPreview.total_files} files • {zipPreview.total_size < 1024 * 1024
+                                    ? `${(zipPreview.total_size / 1024).toFixed(1)} KB`
+                                    : `${(zipPreview.total_size / 1024 / 1024).toFixed(1)} MB`
+                                }
+                            </span>
+                        </div>
+                        <div className="p-3 max-h-40 overflow-y-auto font-mono text-[11px] space-y-1">
+                            {!zipPreview.has_dockerfile && (
+                                <div className="p-2 mb-2 bg-red-50 text-red-600 rounded flex items-center gap-2 border border-red-100">
+                                    <AlertCircle className="w-3 h-3" />
+                                    <span>No Dockerfile found!</span>
+                                </div>
+                            )}
+                            {zipPreview.files.slice(0, 20).map((file, i) => (
+                                <div key={i} className="flex items-center gap-2 text-gray-600 hover:bg-gray-50 rounded px-1 transition-colors">
+                                    <span className="text-gray-300 w-4">{i + 1}.</span>
+                                    {file.name.toLowerCase().includes('dockerfile') ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowFileModal('dockerfile')}
+                                            className="text-blue-600 font-medium hover:underline cursor-pointer"
+                                        >
+                                            {file.name} 📄
+                                        </button>
+                                    ) : file.name.toLowerCase().includes('docker-compose') ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowFileModal('compose')}
+                                            className="text-purple-600 font-medium hover:underline cursor-pointer"
+                                        >
+                                            {file.name} 📦
+                                        </button>
+                                    ) : (
+                                        <span className={file.is_dir ? 'text-gray-400 italic' : ''}>
+                                            {file.name}{file.is_dir && ' /'}
+                                        </span>
+                                    )}
+                                </div>
+                            ))}
+                            {zipPreview.files.length > 20 && (
+                                <div className="text-gray-400 text-center pt-2">
+                                    ... and {zipPreview.files.length - 20} more files
+                                </div>
+                            )}
+                        </div>
+                        {/* Detected ports */}
+                        {zipPreview.detected_ports.length > 0 && (
+                            <div className="px-4 py-2 bg-emerald-50 border-t border-emerald-100 flex items-center gap-2">
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span className="text-xs text-emerald-700 font-medium">
+                                    Detected EXPOSE ports: <strong>{zipPreview.detected_ports.join(', ')}</strong>
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Build Log - White Background */}
                 {buildProgress !== 'idle' && (
@@ -493,6 +602,98 @@ const AdminImageRegistry = () => {
                     </div>
                 )}
             </div>
+
+            {/* Dockerfile/Compose Viewer Modal */}
+            {showFileModal && zipPreview && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
+                    <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+                        {/* Header */}
+                        <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b border-gray-200">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${showFileModal === 'dockerfile' ? 'bg-blue-100' : 'bg-purple-100'
+                                    }`}>
+                                    <Package className={`w-4 h-4 ${showFileModal === 'dockerfile' ? 'text-blue-600' : 'text-purple-600'
+                                        }`} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-gray-900">
+                                        {showFileModal === 'dockerfile' ? 'Dockerfile' : 'docker-compose.yml'}
+                                    </h3>
+                                    <p className="text-xs text-gray-500">View contents for verification</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowFileModal(null)}
+                                className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-auto bg-gray-900 p-4">
+                            <div className="font-mono text-sm">
+                                {(showFileModal === 'dockerfile'
+                                    ? zipPreview.dockerfile_content
+                                    : zipPreview.docker_compose_content
+                                )?.split('\n').map((line, i) => (
+                                    <div key={i} className="flex hover:bg-gray-800/50 rounded px-2 -mx-2">
+                                        <span className="w-10 text-gray-500 text-right mr-4 select-none flex-shrink-0">
+                                            {i + 1}
+                                        </span>
+                                        <span className={
+                                            showFileModal === 'dockerfile' ? (
+                                                line.startsWith('FROM') ? 'text-purple-400' :
+                                                    line.startsWith('RUN') ? 'text-green-400' :
+                                                        line.startsWith('COPY') || line.startsWith('ADD') ? 'text-blue-400' :
+                                                            line.startsWith('EXPOSE') ? 'text-yellow-400 font-bold' :
+                                                                line.startsWith('CMD') || line.startsWith('ENTRYPOINT') ? 'text-orange-400' :
+                                                                    line.startsWith('ENV') ? 'text-cyan-400' :
+                                                                        line.startsWith('WORKDIR') ? 'text-pink-400' :
+                                                                            line.startsWith('#') ? 'text-gray-500 italic' :
+                                                                                'text-gray-100'
+                                            ) : (
+                                                // YAML syntax highlighting for docker-compose
+                                                line.match(/^\s*#/) ? 'text-gray-500 italic' :
+                                                    line.match(/^\s*[a-z_]+:/) ? 'text-cyan-400' :
+                                                        line.match(/^\s*-\s/) ? 'text-yellow-400' :
+                                                            line.match(/:\s*$/) ? 'text-purple-400' :
+                                                                'text-gray-100'
+                                            )
+                                        }>
+                                            {line || '\u00A0'}
+                                        </span>
+                                    </div>
+                                )) || (
+                                        <div className="text-center text-gray-500 py-8">
+                                            No content available
+                                        </div>
+                                    )}
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-gray-100 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                            <div className="text-xs text-gray-500">
+                                {showFileModal === 'dockerfile' && zipPreview.detected_ports.length > 0 ? (
+                                    <span className="flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                        Detected ports: <strong className="text-gray-700">{zipPreview.detected_ports.join(', ')}</strong>
+                                    </span>
+                                ) : showFileModal === 'dockerfile' ? (
+                                    <span className="text-amber-600">No EXPOSE statements found</span>
+                                ) : null}
+                            </div>
+                            <button
+                                onClick={() => setShowFileModal(null)}
+                                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

@@ -2871,6 +2871,7 @@ async def preview_zip_contents(
                 "has_dockerfile": dockerfile_content is not None,
                 "has_docker_compose": docker_compose_content is not None,
                 "dockerfile_content": dockerfile_content,  # Include for frontend viewing
+                "docker_compose_content": docker_compose_content,  # Include for frontend viewing
                 "detected_ports": detected_ports,
                 "truncated": len(file_list) > 100
             }
