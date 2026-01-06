@@ -151,7 +151,8 @@ class PublicChallengeCreate(BaseModel):
     points: int = 100
     flag: str
     docker_image: Optional[str] = None
-    docker_port: Optional[int] = None  # Port to expose for players
+    docker_port: Optional[int] = None  # Deprecated - use ports instead
+    ports: List[int] = []  # Ports to expose for players (e.g., [22, 80, 3000])
     github_repo: Optional[str] = None
     github_path: Optional[str] = None
     hints: List[Hint] = []
@@ -2633,6 +2634,9 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
             tags = c.get('tags') or []
             if isinstance(tags, str):
                 tags = json.loads(tags)
+            ports = c.get('ports') or []
+            if isinstance(ports, str):
+                ports = json.loads(ports)
             
             result.append({
                 'id': c['id'],
@@ -2646,6 +2650,7 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
                 'hints': hints or [],
                 'questions': questions or [],
                 'tags': tags or [],
+                'ports': ports or [],
                 'is_published': c['isPublished'],
                 'solves': c['solves']
             })
@@ -2664,17 +2669,18 @@ async def admin_create_challenge(data: PublicChallengeCreate, admin: dict = Depe
         hints = [{'text': h.text, 'cost': h.cost} for h in data.hints]
         questions = [{'question': q.question, 'flag': q.flag, 'points': q.points} for q in data.questions]
         tags = data.tags if data.tags else []
+        ports = data.ports if data.ports else []
         
         await conn.execute('''
             INSERT INTO ctf_public_challenges (
                 id, "categoryId", title, description, difficulty, points,
                 flag, "dockerImage", "dockerCommand", hints, questions,
-                tags, "isPublished", solves, "createdAt", "updatedAt"
-            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, 0, NOW(), NOW())
+                tags, ports, "isPublished", solves, "createdAt", "updatedAt"
+            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, $14, 0, NOW(), NOW())
         ''', challenge_id, data.category_id, data.title, data.description,
              data.difficulty.upper(), data.points, data.flag,
              data.docker_image, None,  # dockerCommand deprecated
-             json.dumps(hints), json.dumps(questions), json.dumps(tags), data.is_published)
+             json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published)
         
         return {'id': challenge_id}
 
@@ -2687,16 +2693,17 @@ async def admin_update_challenge(challenge_id: str, data: PublicChallengeCreate,
         hints = [{'text': h.text, 'cost': h.cost} for h in data.hints]
         questions = [{'question': q.question, 'flag': q.flag, 'points': q.points} for q in data.questions]
         tags = data.tags if data.tags else []
+        ports = data.ports if data.ports else []
         
         await conn.execute('''
             UPDATE ctf_public_challenges SET
                 "categoryId" = $1, title = $2, description = $3, difficulty = $4::"CtfDifficulty",
                 points = $5, flag = $6, "dockerImage" = $7, "dockerCommand" = $8,
-                hints = $9, questions = $10, tags = $11, "isPublished" = $12, "updatedAt" = NOW()
-            WHERE id = $13
+                hints = $9, questions = $10, tags = $11, ports = $12, "isPublished" = $13, "updatedAt" = NOW()
+            WHERE id = $14
         ''', data.category_id, data.title, data.description, data.difficulty.upper(),
              data.points, data.flag, data.docker_image, None,  # dockerCommand deprecated
-             json.dumps(hints), json.dumps(questions), json.dumps(tags), data.is_published, challenge_id)
+             json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published, challenge_id)
         
         return {'success': True}
 
@@ -2708,6 +2715,170 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
     async with pool.acquire() as conn:
         await conn.execute('DELETE FROM ctf_public_challenges WHERE id = $1', challenge_id)
         return {'success': True}
+
+
+# ===========================================
+# DOCKERFILE PORT ANALYSIS
+# ===========================================
+
+def parse_expose_from_dockerfile(dockerfile_content: str) -> List[int]:
+    """Parse EXPOSE statements from a Dockerfile"""
+    import re
+    ports = []
+    # Match EXPOSE 22 80 443 or EXPOSE 22/tcp 80/udp patterns
+    expose_pattern = r'EXPOSE\s+([\d\s/tcp/udp]+)'
+    for match in re.finditer(expose_pattern, dockerfile_content, re.IGNORECASE):
+        port_str = match.group(1)
+        # Extract just the port numbers
+        for port_match in re.findall(r'(\d+)', port_str):
+            port = int(port_match)
+            if 1 <= port <= 65535 and port not in ports:
+                ports.append(port)
+    return ports
+
+
+@api_router.post("/admin/analyze-ports")
+async def analyze_dockerfile_ports(
+    dockerfile_content: Optional[str] = None,
+    image_url: Optional[str] = None,
+    admin: dict = Depends(require_admin)
+):
+    """
+    Analyze a Dockerfile or image to extract EXPOSE ports.
+    Returns list of detected ports for admin to select from.
+    """
+    ports = []
+    source = "none"
+    
+    # Method 1: Parse Dockerfile content if provided
+    if dockerfile_content:
+        ports = parse_expose_from_dockerfile(dockerfile_content)
+        source = "dockerfile"
+    
+    # Method 2: Try common port defaults if no ports found
+    if not ports and image_url:
+        # Common port presets based on image name
+        image_lower = image_url.lower() if image_url else ""
+        if 'nginx' in image_lower or 'apache' in image_lower or 'httpd' in image_lower:
+            ports = [80, 443]
+        elif 'ssh' in image_lower or 'ubuntu' in image_lower or 'debian' in image_lower:
+            ports = [22]
+        elif 'node' in image_lower or 'express' in image_lower:
+            ports = [3000]
+        elif 'python' in image_lower or 'flask' in image_lower or 'django' in image_lower:
+            ports = [8000]
+        elif 'mysql' in image_lower or 'mariadb' in image_lower:
+            ports = [3306]
+        elif 'postgres' in image_lower:
+            ports = [5432]
+        elif 'redis' in image_lower:
+            ports = [6379]
+        elif 'mongo' in image_lower:
+            ports = [27017]
+        source = "image_heuristic" if ports else "none"
+    
+    # Fallback: Common CTF ports
+    if not ports:
+        ports = [22, 80, 443, 3000, 8080]
+        source = "defaults"
+    
+    return {
+        "ports": ports,
+        "source": source,
+        "common_ports": {
+            22: "SSH",
+            80: "HTTP",
+            443: "HTTPS",
+            3000: "Node.js/React",
+            3306: "MySQL",
+            5432: "PostgreSQL",
+            6379: "Redis",
+            8000: "Python/Django",
+            8080: "Alt HTTP",
+            8443: "Alt HTTPS",
+            27017: "MongoDB"
+        }
+    }
+
+
+# ===========================================
+# ZIP FILE PREVIEW
+# ===========================================
+
+@api_router.post("/admin/preview-zip")
+async def preview_zip_contents(
+    file: UploadFile = File(...),
+    admin: dict = Depends(require_admin)
+):
+    """
+    Preview the contents of a ZIP file without extracting.
+    Returns list of files with their paths and sizes.
+    """
+    import io
+    
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+    
+    try:
+        # Read file into memory
+        content = await file.read()
+        
+        # Check size (max 100MB for preview)
+        if len(content) > 100 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="ZIP file too large (max 100MB)")
+        
+        # Parse ZIP
+        zip_buffer = io.BytesIO(content)
+        with zipfile.ZipFile(zip_buffer, 'r') as zf:
+            # Get file list
+            file_list = []
+            dockerfile_content = None
+            docker_compose_content = None
+            
+            for info in zf.infolist():
+                file_entry = {
+                    "name": info.filename,
+                    "size": info.file_size,
+                    "compressed_size": info.compress_size,
+                    "is_dir": info.is_dir()
+                }
+                file_list.append(file_entry)
+                
+                # Check for Dockerfile to extract ports
+                if info.filename.lower().endswith('dockerfile') or info.filename.lower() == 'dockerfile':
+                    try:
+                        dockerfile_content = zf.read(info.filename).decode('utf-8')
+                    except:
+                        pass
+                
+                # Check for docker-compose.yml
+                if 'docker-compose' in info.filename.lower() and info.filename.endswith(('.yml', '.yaml')):
+                    try:
+                        docker_compose_content = zf.read(info.filename).decode('utf-8')
+                    except:
+                        pass
+            
+            # Extract ports from Dockerfile if found
+            detected_ports = []
+            if dockerfile_content:
+                detected_ports = parse_expose_from_dockerfile(dockerfile_content)
+            
+            return {
+                "filename": file.filename,
+                "total_files": len(file_list),
+                "total_size": sum(f["size"] for f in file_list),
+                "files": file_list[:100],  # Limit to first 100 files in preview
+                "has_dockerfile": dockerfile_content is not None,
+                "has_docker_compose": docker_compose_content is not None,
+                "detected_ports": detected_ports,
+                "truncated": len(file_list) > 100
+            }
+    
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file")
+    except Exception as e:
+        logger.error(f"Error previewing ZIP: {e}")
+        raise HTTPException(status_code=500, detail="Failed to preview ZIP file")
 
 
 # ===========================================
@@ -4594,7 +4765,7 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow('''
-            SELECT id, title, "dockerImage" as docker_image
+            SELECT id, title, "dockerImage" as docker_image, ports
             FROM ctf_public_challenges WHERE id = $1
         ''', challenge_id)
         
@@ -4641,6 +4812,19 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
             except:
                 pass
         
+        # Get challenge-specific ports or use defaults
+        challenge_ports = []
+        if challenge.get('ports'):
+            port_data = challenge['ports']
+            if isinstance(port_data, str):
+                challenge_ports = json.loads(port_data)
+            elif isinstance(port_data, list):
+                challenge_ports = port_data
+        
+        # Fallback to default ports if none configured
+        if not challenge_ports:
+            challenge_ports = [22, 80, 443, 3000, 8000, 8080]
+        
         # Spawn new session via Nexus
         try:
             async with httpx.AsyncClient() as client:
@@ -4653,7 +4837,7 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                     "max_score": 100,
                     "flag": "PLACEHOLDER",
                     "ttl_minutes": 60,
-                    "ports": [22, 80, 443, 3000, 8000, 8080],
+                    "ports": challenge_ports,
                     "image_url": challenge['docker_image']
                 }
                 
@@ -5473,6 +5657,16 @@ async def startup():
                 logger.info("OAuth avatar columns migration complete")
             except Exception as e:
                 logger.debug(f"OAuth avatar columns already exist or migration skipped: {e}")
+
+            # Migration: Add ports column to challenges table for container port configuration
+            try:
+                await conn.execute('''
+                    ALTER TABLE ctf_public_challenges 
+                    ADD COLUMN IF NOT EXISTS ports JSONB DEFAULT '[]'::jsonb
+                ''')
+                logger.info("Ports column migration complete")
+            except Exception as e:
+                logger.debug(f"Ports column already exists or migration skipped: {e}")
 
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
