@@ -55,6 +55,7 @@ const AdminChallenges = () => {
     } | null>(null);
     const [loadingZipPreview, setLoadingZipPreview] = useState(false);
     const [showDockerfileModal, setShowDockerfileModal] = useState(false);
+    const [imageNotFoundWarning, setImageNotFoundWarning] = useState(false);
 
     // GitHub OAuth state
     const [githubConnected, setGithubConnected] = useState(false);
