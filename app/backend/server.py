@@ -3403,6 +3403,29 @@ async def build_docker_image(
             push_result = docker_client.images.push(full_image_name)
             logger.info(f"Push result: {push_result}")
             
+            # Make the package public so K8s can pull without auth
+            try:
+                async with httpx.AsyncClient() as client:
+                    # GitHub API to change package visibility
+                    # Note: This requires the token to have write:packages scope
+                    visibility_resp = await client.patch(
+                        f"https://api.github.com/user/packages/container/{clean_name}",
+                        headers={
+                            "Authorization": f"Bearer {ghcr_token}",
+                            "Accept": "application/vnd.github+json",
+                            "X-GitHub-Api-Version": "2022-11-28"
+                        },
+                        json={"visibility": "public"},
+                        timeout=10.0
+                    )
+                    if visibility_resp.status_code == 200:
+                        logger.info(f"Package {clean_name} made public successfully")
+                    else:
+                        logger.warning(f"Could not make package public: {visibility_resp.status_code} - {visibility_resp.text[:200]}")
+            except Exception as vis_error:
+                logger.warning(f"Failed to make package public: {vis_error}")
+                # Don't fail the entire operation - package is pushed but private
+            
             # Store image metadata in database with detected ports
             try:
                 pool = await Database.get_pool()

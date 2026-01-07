@@ -751,56 +751,36 @@ const ChallengeDetail = ({ user, logout }) => {
               {challenge.hints && challenge.hints.length > 0 ? (
                 <div className="divide-y divide-gray-100">
                   {challenge.hints.map((hint, index) => {
-                    const isUnlocked = unlockedHints.includes(index);
+                    const isVisible = visibleHints.includes(index);
                     return (
                       <div key={index} className="p-4">
-                        <div className="flex items-center justify-between">
+                        <div
+                          className="flex items-center justify-between cursor-pointer group"
+                          onClick={() => {
+                            if (isVisible) {
+                              setVisibleHints(prev => prev.filter(i => i !== index));
+                            } else {
+                              setVisibleHints(prev => [...prev, index]);
+                            }
+                          }}
+                        >
                           <span className="font-bold text-sm text-gray-700">Hint #{index + 1}</span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-[10px]">Free</Badge>
-                            {isUnlocked && (
-                              <button
-                                onClick={() => {
-                                  if (visibleHints.includes(index)) {
-                                    setVisibleHints(prev => prev.filter(i => i !== index));
-                                  } else {
-                                    setVisibleHints(prev => [...prev, index]);
-                                  }
-                                }}
-                                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
-                                title={visibleHints.includes(index) ? 'Hide hint' : 'Show hint'}
-                              >
-                                {visibleHints.includes(index) ? (
-                                  <EyeOff className="w-4 h-4" />
-                                ) : (
-                                  <Eye className="w-4 h-4" />
-                                )}
-                              </button>
+                          <button
+                            className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-400 group-hover:text-gray-600"
+                            title={isVisible ? 'Hide hint' : 'Show hint'}
+                          >
+                            {isVisible ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
                             )}
-                          </div>
+                          </button>
                         </div>
 
-                        {isUnlocked ? (
-                          visibleHints.includes(index) ? (
-                            <div className="mt-3 bg-amber-50/50 p-3 rounded-lg border border-amber-100 text-sm text-gray-700 animate-in fade-in slide-in-from-top-1 duration-200">
-                              {hint.text}
-                            </div>
-                          ) : (
-                            <p className="mt-2 text-xs text-gray-400 italic">Click the eye icon to reveal this hint</p>
-                          )
-                        ) : (
-                          <Button
-                            variant="outline"
-                            className="w-full mt-3 border-dashed border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50"
-                            onClick={() => {
-                              handleUnlockHint(index);
-                              // Automatically show the hint when first unlocked
-                              setVisibleHints(prev => [...prev, index]);
-                            }}
-                          >
-                            <Lightbulb className="w-4 h-4 mr-2" />
-                            Unlock Hint
-                          </Button>
+                        {isVisible && (
+                          <div className="mt-3 bg-amber-50/50 p-3 rounded-lg border border-amber-100 text-sm text-gray-700 animate-in fade-in slide-in-from-top-1 duration-200">
+                            {hint.text}
+                          </div>
                         )}
                       </div>
                     );
