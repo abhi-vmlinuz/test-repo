@@ -5446,7 +5446,79 @@ async def admin_nexus_stats(current_user: dict = Depends(require_admin)):
     return stats
 
 
+@api_router.get("/admin/nexus/sessions")
+async def admin_list_sessions(current_user: dict = Depends(require_admin)):
+    """Admin-only: List all active sessions/pods with details"""
+    sessions = []
+    
+    # 1. Get sessions from Nexus Engine
+    nexus_sessions = {}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions", timeout=10.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                for sess in data.get('sessions', []):
+                    nexus_sessions[sess.get('id') or sess.get('session_id')] = sess
+    except Exception as e:
+        logger.warning(f"Failed to fetch Nexus sessions: {e}")
+    
+    # 2. Get sessions from database (source of truth)
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('''
+                SELECT 
+                    nu.session_id, nu.challenge_id, nu.user_id, nu.status, 
+                    nu.target_ip, nu.started_at, nu.ended_at,
+                    COALESCE(nu.pod_seconds, 0) as pod_seconds,
+                    COALESCE(nu.estimated_cost, 0) as estimated_cost,
+                    c.title as challenge_title,
+                    u.username
+                FROM nexus_usage nu
+                LEFT JOIN ctf_public_challenges c ON nu.challenge_id::text = c.id::text
+                LEFT JOIN users u ON nu.user_id::text = u.id::text
+                WHERE nu.status = 'running'
+                OR nu.started_at > NOW() - INTERVAL '24 hours'
+                ORDER BY nu.started_at DESC
+                LIMIT 100
+            ''')
+            
+            for row in rows:
+                session_id = row['session_id']
+                nexus_data = nexus_sessions.get(session_id, {})
+                
+                # Check if session is orphaned (in DB as running but not in Nexus)
+                is_orphaned = row['status'] == 'running' and session_id not in nexus_sessions and len(nexus_sessions) > 0
+                
+                sessions.append({
+                    'session_id': session_id,
+                    'challenge_id': str(row['challenge_id']),
+                    'challenge_title': row['challenge_title'] or 'Unknown',
+                    'user_id': str(row['user_id']),
+                    'username': row['username'] or 'Unknown',
+                    'status': row['status'],
+                    'target_ip': row['target_ip'] or nexus_data.get('target_ip'),
+                    'started_at': row['started_at'].isoformat() if row['started_at'] else None,
+                    'ended_at': row['ended_at'].isoformat() if row['ended_at'] else None,
+                    'pod_seconds': int(row['pod_seconds']),
+                    'estimated_cost': float(row['estimated_cost']),
+                    'is_orphaned': is_orphaned,
+                    'in_nexus': session_id in nexus_sessions
+                })
+    except Exception as e:
+        logger.error(f"Failed to fetch sessions from DB: {e}")
+    
+    return {
+        'sessions': sessions,
+        'nexus_connected': len(nexus_sessions) > 0 or len(sessions) == 0,
+        'total_active': sum(1 for s in sessions if s['status'] == 'running'),
+        'total_orphaned': sum(1 for s in sessions if s.get('is_orphaned'))
+    }
+
+
 @api_router.delete("/admin/nexus/sessions/{session_id}")
+
 async def admin_terminate_session(session_id: str, current_user: dict = Depends(require_admin)):
     """Admin-only: Terminate any session by ID"""
     try:

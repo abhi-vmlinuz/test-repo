@@ -83,6 +83,25 @@ const AdminNexus = () => {
         }
     };
 
+    const cleanupOrphans = async () => {
+        const orphanedSessions = sessions.filter((s: any) => s.is_orphaned);
+        if (orphanedSessions.length === 0) {
+            toast.error('No orphaned sessions to clean up');
+            return;
+        }
+        if (!confirm(`Clean up ${orphanedSessions.length} orphaned session(s)? This removes stale database records.`)) return;
+        try {
+            for (const session of orphanedSessions) {
+                await axios.delete(`${API}/admin/nexus/sessions/${session.session_id}`);
+            }
+            toast.success(`Cleaned up ${orphanedSessions.length} orphaned session(s)`);
+            fetchData();
+        } catch (error) {
+            toast.error('Failed to clean up orphaned sessions');
+        }
+    };
+
+    const orphanCount = sessions.filter((s: any) => s.is_orphaned).length;
     const totalBillingCost = history.summary?.total_cost || 0;
     const totalSessions = history.summary?.total_sessions || 0;
     const maxCost = Math.max(...(history.daily_breakdown || []).map(d => d.cost), 0.01);
@@ -425,12 +444,25 @@ const AdminNexus = () => {
                 <div className="space-y-6">
                     {/* Session Controls */}
                     <div className="flex items-center justify-between">
-                        <h2 className="text-xl font-semibold text-zinc-900">Active Sessions</h2>
+                        <div>
+                            <h2 className="text-xl font-semibold text-zinc-900">Active Sessions</h2>
+                            {orphanCount > 0 && (
+                                <p className="text-sm text-amber-600 mt-0.5">
+                                    ⚠️ {orphanCount} orphaned session(s) detected
+                                </p>
+                            )}
+                        </div>
                         <div className="flex gap-3">
                             <Button variant="outline" size="sm" onClick={fetchData}>
                                 <RefreshCw className="w-4 h-4 mr-2" />
                                 Refresh
                             </Button>
+                            {orphanCount > 0 && (
+                                <Button variant="outline" size="sm" onClick={cleanupOrphans} className="border-amber-300 text-amber-700 hover:bg-amber-50">
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Clean {orphanCount} Orphan{orphanCount > 1 ? 's' : ''}
+                                </Button>
+                            )}
                             {sessions.length > 0 && (
                                 <Button variant="destructive" size="sm" onClick={terminateAllSessions}>
                                     <XCircle className="w-4 h-4 mr-2" />
@@ -439,6 +471,7 @@ const AdminNexus = () => {
                             )}
                         </div>
                     </div>
+
 
                     {sessions.length === 0 ? (
                         <Card className="border border-gray-200 bg-white">
@@ -450,27 +483,72 @@ const AdminNexus = () => {
                         </Card>
                     ) : (
                         <div className="grid gap-4">
-                            {sessions.map((session) => (
-                                <Card key={session.session_id} className="border border-gray-200 bg-white">
+                            {sessions.map((session: any) => (
+                                <Card key={session.session_id} className={`border bg-white ${session.is_orphaned ? 'border-amber-300 bg-amber-50' :
+                                    session.status === 'running' ? 'border-gray-200' :
+                                        'border-gray-100 bg-gray-50'
+                                    }`}>
                                     <CardContent className="py-4">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                                                <div className={`w-3 h-3 rounded-full ${session.is_orphaned ? 'bg-amber-500' :
+                                                    session.status === 'running' ? 'bg-green-500 animate-pulse' :
+                                                        'bg-gray-400'
+                                                    }`} />
                                                 <div>
-                                                    <p className="font-mono text-lg font-semibold text-zinc-900">{session.target_ip}</p>
-                                                    <p className="text-sm text-gray-500">Session: {session.session_id}</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-mono text-lg font-semibold text-zinc-900">
+                                                            {session.target_ip || 'N/A'}
+                                                        </p>
+                                                        {session.is_orphaned && (
+                                                            <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-[10px]">
+                                                                ⚠️ Orphaned
+                                                            </Badge>
+                                                        )}
+                                                        {!session.in_nexus && session.status === 'running' && !session.is_orphaned && (
+                                                            <Badge variant="outline" className="border-gray-300 text-gray-600 text-[10px]">
+                                                                DB Only
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <p className="text-sm text-gray-600">
+                                                            <span className="text-gray-400">User:</span> {session.username || 'Unknown'}
+                                                        </p>
+                                                        <p className="text-sm text-gray-600">
+                                                            <span className="text-gray-400">Challenge:</span> {session.challenge_title || 'Unknown'}
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-xs text-gray-400 font-mono mt-1">
+                                                        {session.session_id}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-6">
                                                 <div className="text-right">
-                                                    <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">
-                                                        {session.status || 'running'}
+                                                    <Badge variant="outline" className={
+                                                        session.status === 'running' ? 'border-green-200 text-green-700 bg-green-50' :
+                                                            session.status === 'terminated' ? 'border-red-200 text-red-700 bg-red-50' :
+                                                                session.status === 'expired' ? 'border-amber-200 text-amber-700 bg-amber-50' :
+                                                                    'border-gray-200 text-gray-700 bg-gray-50'
+                                                    }>
+                                                        {session.status || 'unknown'}
                                                     </Badge>
                                                     <p className="text-xs text-gray-500 mt-1">
-                                                        Expires: {session.expires_at ? new Date(session.expires_at).toLocaleTimeString() : 'N/A'}
+                                                        Started: {session.started_at ? new Date(session.started_at).toLocaleString() : 'N/A'}
                                                     </p>
+                                                    {session.estimated_cost > 0 && (
+                                                        <p className="text-xs text-emerald-600 mt-0.5">
+                                                            ${session.estimated_cost.toFixed(4)}
+                                                        </p>
+                                                    )}
                                                 </div>
-                                                <Button variant="destructive" size="sm" onClick={() => terminateSession(session.session_id)}>
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() => terminateSession(session.session_id)}
+                                                    title={session.is_orphaned ? 'Clean up orphaned record' : 'Terminate session'}
+                                                >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </div>
@@ -479,6 +557,7 @@ const AdminNexus = () => {
                                 </Card>
                             ))}
                         </div>
+
                     )}
                 </div>
             )}

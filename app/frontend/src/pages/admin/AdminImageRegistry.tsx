@@ -13,7 +13,11 @@ interface DockerImage {
     created_at?: string;
     size?: string;
     tags?: string[];
+    in_use?: boolean;
+    used_by?: string;
+    warning?: string;
 }
+
 
 interface GHCRConfig {
     username: string;
@@ -572,13 +576,41 @@ const AdminImageRegistry = () => {
                 ) : (
                     <div className="space-y-3">
                         {images.map((img, idx) => (
-                            <div key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                            <div key={idx} className={`flex items-center justify-between p-4 rounded-xl transition-colors ${img.warning ? 'bg-amber-50 border border-amber-200' :
+                                img.in_use ? 'bg-emerald-50 border border-emerald-200' :
+                                    'bg-gray-50 hover:bg-gray-100'
+                                }`}>
                                 <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center">
-                                        <Box className="w-5 h-5 text-gray-600" />
+                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${img.warning ? 'bg-amber-100' :
+                                        img.in_use ? 'bg-emerald-100' :
+                                            'bg-gray-200'
+                                        }`}>
+                                        <Box className={`w-5 h-5 ${img.warning ? 'text-amber-600' :
+                                            img.in_use ? 'text-emerald-600' :
+                                                'text-gray-600'
+                                            }`} />
                                     </div>
                                     <div>
-                                        <p className="font-medium text-gray-900">{img.label}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="font-medium text-gray-900">
+                                                {img.in_use && img.used_by ? img.used_by : img.label}
+                                            </p>
+                                            {img.in_use && (
+                                                <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
+                                                    In Use
+                                                </Badge>
+                                            )}
+                                            {img.source === 'ghcr' && (
+                                                <Badge variant="outline" className="text-[10px]">
+                                                    GHCR
+                                                </Badge>
+                                            )}
+                                            {img.warning && (
+                                                <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 text-[10px]">
+                                                    ⚠️ {img.warning}
+                                                </Badge>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-gray-400 font-mono">{img.image}</p>
                                     </div>
                                 </div>
@@ -598,6 +630,7 @@ const AdminImageRegistry = () => {
                                     </Button>
                                 </div>
                             </div>
+
                         ))}
                     </div>
                 )}
