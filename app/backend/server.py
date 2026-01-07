@@ -3079,6 +3079,8 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
         except Exception as e:
             logger.warning(f"Could not fetch GHCR settings from DB: {e}")
 
+    ghcr_api_success = False  # Track if we successfully queried GHCR API
+    
     if ghcr_token and ghcr_username:
         logger.info(f"Fetching GHCR images for user: {ghcr_username}")
         try:
@@ -3096,6 +3098,7 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                 logger.info(f"GHCR API response status: {resp.status_code}")
                 
                 if resp.status_code == 200:
+                    ghcr_api_success = True  # API call succeeded!
                     packages = resp.json()
                     logger.info(f"Found {len(packages)} GHCR packages")
                     
@@ -3132,19 +3135,26 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                     img['in_use'] = True
                     img['used_by'] = db_img['label']
                     break
-        elif not ghcr_images:
-            # GHCR not connected - show all DB images with warning
+        elif not ghcr_api_success:
+            # GHCR API call failed - show all DB images with warning
             db_img['warning'] = 'Cannot verify - GHCR not connected'
             if not any(img['image'].lower() == image_lower for img in images):
                 images.append(db_img)
-        # If image NOT in GHCR but GHCR is connected, skip it (deleted)
+        else:
+            # GHCR API succeeded but image not found - it was deleted
+            # Add it with orphan warning so admin can clean it up
+            db_img['warning'] = 'Deleted from GHCR - Orphaned'
+            db_img['is_orphaned'] = True
+            if not any(img['image'].lower() == image_lower for img in images):
+                images.append(db_img)
     
-    logger.info(f"Returning {len(images)} total images (validated against GHCR)")
+    logger.info(f"Returning {len(images)} total images (GHCR API success: {ghcr_api_success})")
     return {
         'images': images,
-        'ghcr_connected': bool(ghcr_token),
+        'ghcr_connected': ghcr_api_success,
         'ghcr_username': ghcr_username
     }
+
 
 
 # =============================================================================
@@ -3482,12 +3492,119 @@ async def build_docker_image(
 
 @api_router.delete("/admin/images/{image_name:path}")
 async def delete_docker_image(image_name: str, admin: dict = Depends(require_admin)):
-    """Delete a Docker image from GHCR (requires manual deletion via GitHub)"""
-    # Note: GHCR doesn't have a simple delete API
-    # Images need to be deleted manually from GitHub Packages page
+    """Remove an image reference from the database (does not delete from GHCR)"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Remove from docker_image_metadata table
+            await conn.execute('''
+                DELETE FROM docker_image_metadata WHERE image_url ILIKE $1
+            ''', f'%{image_name}%')
+            
+            # Count challenges still using this image
+            count = await conn.fetchval('''
+                SELECT COUNT(*) FROM ctf_public_challenges 
+                WHERE docker_image ILIKE $1
+            ''', f'%{image_name}%')
+            
+            return {
+                'success': True,
+                'message': f'Image reference removed from metadata.',
+                'challenges_affected': count,
+                'note': 'To delete from GHCR, visit: https://github.com/settings/packages'
+            }
+    except Exception as e:
+        logger.error(f"Failed to delete image reference: {e}")
+        return {'success': False, 'message': str(e)}
+
+
+@api_router.post("/admin/images/cleanup-orphans")
+async def cleanup_orphaned_images(admin: dict = Depends(require_admin)):
+    """Remove all orphaned image references from database that no longer exist in GHCR"""
+    cleaned = []
+    
+    # Get GHCR credentials
+    ghcr_username = os.environ.get('GHCR_USERNAME', '')
+    ghcr_token = os.environ.get('GHCR_TOKEN', '')
+    
+    if not ghcr_username or not ghcr_token:
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                username_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_username'"
+                )
+                token_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_token'"
+                )
+                if username_row:
+                    ghcr_username = username_row['value']
+                if token_row:
+                    ghcr_token = token_row['value']
+        except:
+            pass
+    
+    if not ghcr_token or not ghcr_username:
+        return {'success': False, 'message': 'GHCR not configured. Cannot determine orphaned images.'}
+    
+    # Get GHCR images
+    ghcr_images = set()
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.github.com/user/packages?package_type=container",
+                headers={
+                    "Authorization": f"Bearer {ghcr_token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=10.0
+            )
+            if resp.status_code == 200:
+                for pkg in resp.json():
+                    owner = pkg.get('owner', {}).get('login', ghcr_username)
+                    image_url = f"ghcr.io/{owner.lower()}/{pkg['name'].lower()}:latest"
+                    ghcr_images.add(image_url.lower())
+            else:
+                return {'success': False, 'message': f'GHCR API error: {resp.status_code}'}
+    except Exception as e:
+        return {'success': False, 'message': f'Failed to fetch GHCR images: {e}'}
+    
+    # Get database images and clean orphans
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Get all DB images
+            rows = await conn.fetch('''
+                SELECT DISTINCT docker_image FROM ctf_public_challenges 
+                WHERE docker_image IS NOT NULL AND docker_image != ''
+            ''')
+            
+            for row in rows:
+                img = row['docker_image'].lower()
+                if img not in ghcr_images:
+                    # This is an orphan - clear it from challenges
+                    await conn.execute('''
+                        UPDATE ctf_public_challenges 
+                        SET docker_image = NULL, has_docker = FALSE
+                        WHERE LOWER(docker_image) = $1
+                    ''', img)
+                    cleaned.append(row['docker_image'])
+            
+            # Also clean metadata table
+            await conn.execute('''
+                DELETE FROM docker_image_metadata 
+                WHERE LOWER(image_url) NOT IN (SELECT unnest($1::text[]))
+            ''', list(ghcr_images) if ghcr_images else [''])
+            
+    except Exception as e:
+        logger.error(f"Cleanup error: {e}")
+        return {'success': False, 'message': str(e)}
+    
     return {
-        'success': False,
-        'message': 'Images must be deleted from GitHub Packages page: https://github.com/settings/packages'
+        'success': True,
+        'cleaned_count': len(cleaned),
+        'cleaned_images': cleaned,
+        'ghcr_image_count': len(ghcr_images)
     }
 
 

@@ -16,7 +16,9 @@ interface DockerImage {
     in_use?: boolean;
     used_by?: string;
     warning?: string;
+    is_orphaned?: boolean;
 }
+
 
 
 interface GHCRConfig {
@@ -191,11 +193,16 @@ const AdminImageRegistry = () => {
     };
 
     const deleteImage = async (imageName: string) => {
-        if (!confirm(`Delete image ${imageName}? This cannot be undone.`)) return;
+        if (!confirm(`Delete image reference for ${imageName}? This removes it from the database but not from GHCR.`)) return;
 
         try {
             const res = await axios.delete(`${API}/admin/images/${encodeURIComponent(imageName)}`);
-            if (res.data.message) {
+            if (res.data.success) {
+                toast.success('Image reference removed');
+                if (res.data.challenges_affected > 0) {
+                    toast.info(`Note: ${res.data.challenges_affected} challenge(s) still use this image`);
+                }
+            } else {
                 toast.info(res.data.message);
             }
             fetchImages();
@@ -203,6 +210,32 @@ const AdminImageRegistry = () => {
             toast.error('Failed to delete image');
         }
     };
+
+    const cleanupOrphans = async () => {
+        const orphanCount = images.filter(img => img.is_orphaned).length;
+        if (orphanCount === 0) {
+            toast.error('No orphaned images to clean up');
+            return;
+        }
+        if (!confirm(`Clean up ${orphanCount} orphaned image(s)? This will remove references to images deleted from GHCR.`)) return;
+
+        try {
+            setLoading(true);
+            const res = await axios.post(`${API}/admin/images/cleanup-orphans`);
+            if (res.data.success) {
+                toast.success(`Cleaned up ${res.data.cleaned_count} orphaned image(s)`);
+                fetchImages();
+            } else {
+                toast.error(res.data.message);
+            }
+        } catch (err) {
+            toast.error('Failed to cleanup orphaned images');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const orphanCount = images.filter(img => img.is_orphaned).length;
 
     if (loadingConfig) {
         return (
@@ -553,14 +586,36 @@ const AdminImageRegistry = () => {
                         </div>
                         <div>
                             <h2 className="font-semibold text-gray-900">Your Images</h2>
-                            <p className="text-sm text-gray-500">{images.length} images in GHCR</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-sm text-gray-500">{images.length} images</p>
+                                {orphanCount > 0 && (
+                                    <span className="text-xs text-amber-600 font-medium">
+                                        ({orphanCount} orphaned)
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
-                    <Button variant="outline" size="sm" onClick={fetchImages} disabled={loading}>
-                        <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
+                    <div className="flex gap-2">
+                        {orphanCount > 0 && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={cleanupOrphans}
+                                disabled={loading}
+                                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Clean {orphanCount} Orphan{orphanCount > 1 ? 's' : ''}
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" onClick={fetchImages} disabled={loading}>
+                            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                            Refresh
+                        </Button>
+                    </div>
                 </div>
+
 
                 {loading ? (
                     <div className="text-center py-12 text-gray-500">
