@@ -20,7 +20,11 @@ const ChallengeDetail = ({ user, logout }) => {
   const [submitting, setSubmitting] = useState(false);
   const [unlockedHints, setUnlockedHints] = useState([]);
   const [dockerInstance, setDockerInstance] = useState(null);
-  const [startingDocker, setStartingDocker] = useState(false);
+  // Check sessionStorage for pending start state - persists across navigation
+  const [startingDocker, setStartingDocker] = useState(() => {
+    const storedStarting = sessionStorage.getItem(`docker-starting-${id}`);
+    return storedStarting === 'true';
+  });
   const [stoppingDocker, setStoppingDocker] = useState(false);
   const [extendingDocker, setExtendingDocker] = useState(false);
   const [remainingTime, setRemainingTime] = useState({ mins: 60, secs: 0 });
@@ -32,6 +36,15 @@ const ChallengeDetail = ({ user, logout }) => {
   const [submittingQuestion, setSubmittingQuestion] = useState(null);
   const [artifacts, setArtifacts] = useState([]);
   const [visibleHints, setVisibleHints] = useState<number[]>([]); // Track which unlocked hints are currently visible
+
+  // Persist startingDocker state to sessionStorage
+  useEffect(() => {
+    if (startingDocker) {
+      sessionStorage.setItem(`docker-starting-${id}`, 'true');
+    } else {
+      sessionStorage.removeItem(`docker-starting-${id}`);
+    }
+  }, [startingDocker, id]);
 
   useEffect(() => {
     fetchChallenge();

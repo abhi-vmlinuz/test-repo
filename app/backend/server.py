@@ -5066,7 +5066,52 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
 async def extend_docker_instance(session_id: str, current_user: dict = Depends(get_current_user)):
     """Extend container TTL by 30 minutes"""
     try:
+        # First, check remaining time from Nexus to enforce 30-minute rule
         async with httpx.AsyncClient() as client:
+            # Get current session status first
+            status_resp = await client.get(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                timeout=10.0
+            )
+            
+            if status_resp.status_code == 404:
+                raise HTTPException(status_code=404, detail="Session not found")
+            
+            if status_resp.status_code == 200:
+                session_data = status_resp.json()
+                expires_at_str = session_data.get('expires_at')
+                
+                if expires_at_str:
+                    # Parse expires_at and check remaining time
+                    try:
+                        # Handle ISO format with or without Z
+                        if expires_at_str.endswith('Z'):
+                            expires_at = datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
+                        else:
+                            expires_at = datetime.fromisoformat(expires_at_str)
+                        
+                        # Ensure timezone aware
+                        if expires_at.tzinfo is None:
+                            expires_at = expires_at.replace(tzinfo=timezone.utc)
+                        
+                        remaining_seconds = (expires_at - datetime.now(timezone.utc)).total_seconds()
+                        remaining_minutes = remaining_seconds / 60
+                        
+                        logger.info(f"Extension check for {session_id}: {remaining_minutes:.1f} minutes remaining")
+                        
+                        # Only allow extension if less than 30 minutes remaining
+                        if remaining_minutes > 30:
+                            raise HTTPException(
+                                status_code=403, 
+                                detail=f"Extension available when less than 30 minutes remain. Currently {int(remaining_minutes)} minutes left."
+                            )
+                    except HTTPException:
+                        raise
+                    except Exception as e:
+                        logger.warning(f"Could not parse expires_at '{expires_at_str}': {e}")
+                        # Continue anyway if parsing fails
+            
+            # Now request extension from Nexus
             resp = await client.post(
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/extend",
                 json={"extra_minutes": 30},
