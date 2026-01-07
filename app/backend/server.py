@@ -4975,7 +4975,8 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
         # Spawn new session via Nexus
         try:
             async with httpx.AsyncClient() as client:
-                # Create challenge in Nexus if needed
+                # ALWAYS create/update challenge in Nexus to ensure latest config (including ports!)
+                # This fixes the bug where cached challenges had old port config
                 nexus_challenge = {
                     "name": challenge['title'],
                     "category": "CTF",
@@ -4988,20 +4989,29 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                     "image_url": challenge['docker_image']
                 }
                 
-                check_resp = await client.get(
-                    f"{NEXUS_ENGINE_URL}/api/v1/challenges/{challenge_id}",
+                # Try to delete existing challenge to force fresh config
+                try:
+                    await client.delete(
+                        f"{NEXUS_ENGINE_URL}/api/v1/challenges/{challenge_id}",
+                        timeout=5.0
+                    )
+                except:
+                    pass  # Ignore if doesn't exist
+                
+                # Create challenge with current config
+                create_resp = await client.post(
+                    f"{NEXUS_ENGINE_URL}/api/v1/challenges",
+                    json=nexus_challenge,
                     timeout=10.0
                 )
                 
-                if check_resp.status_code != 200:
-                    create_resp = await client.post(
-                        f"{NEXUS_ENGINE_URL}/api/v1/challenges",
-                        json=nexus_challenge,
-                        timeout=10.0
-                    )
+                if create_resp.status_code == 201:
                     nexus_chal_id = create_resp.json().get('id', challenge_id)
+                    logger.info(f"Created/updated Nexus challenge {nexus_chal_id} with ports: {challenge_ports}")
                 else:
+                    # Fallback to using the challenge_id directly
                     nexus_chal_id = challenge_id
+                    logger.warning(f"Could not create Nexus challenge: {create_resp.status_code}")
                 
                 spawn_resp = await client.post(
                     f"{NEXUS_ENGINE_URL}/api/v1/sessions",
