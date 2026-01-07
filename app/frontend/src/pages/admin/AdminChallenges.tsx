@@ -213,6 +213,7 @@ const AdminChallenges = () => {
             is_published: true
         });
         setArtifacts([]);
+        setImageNotFoundWarning(false);
         setShowModal(true);
     };
 
@@ -239,6 +240,17 @@ const AdminChallenges = () => {
             tags: challenge.tags || [],
             is_published: challenge.is_published !== false
         });
+
+        // Check if docker image exists in registry
+        if (challenge.docker_image && challenge.docker_image.trim()) {
+            const imageExists = dockerImages.some(
+                img => img.image.toLowerCase() === challenge.docker_image.toLowerCase()
+            );
+            setImageNotFoundWarning(!imageExists);
+        } else {
+            setImageNotFoundWarning(false);
+        }
+
         setShowModal(true);
         fetchArtifacts(challenge.id);
     };
@@ -672,6 +684,44 @@ const AdminChallenges = () => {
                                 {/* Docker fields - only show if toggle is on */}
                                 {formData.has_docker && (
                                     <div className="pt-4 border-t border-gray-200 space-y-4">
+
+                                        {/* Image Not Found Warning */}
+                                        {imageNotFoundWarning && formData.docker_image && (
+                                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                        <span className="text-xl">⚠️</span>
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h4 className="font-semibold text-amber-800 mb-1">Docker Image Not Found</h4>
+                                                        <p className="text-sm text-amber-700 mb-2">
+                                                            The configured image <code className="bg-amber-100 px-1 rounded text-xs font-mono">{formData.docker_image}</code> was not found in the registry.
+                                                            It may have been deleted.
+                                                        </p>
+                                                        <div className="flex gap-2 mt-3">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setFormData(prev => ({ ...prev, docker_image: '', docker_source: 'image' }))}
+                                                                className="px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition-colors"
+                                                            >
+                                                                Select New Image
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setFormData(prev => ({ ...prev, has_docker: false, docker_image: '' }));
+                                                                    setImageNotFoundWarning(false);
+                                                                }}
+                                                                className="px-3 py-1.5 bg-white border border-amber-300 text-amber-700 text-sm rounded-lg hover:bg-amber-50 transition-colors"
+                                                            >
+                                                                Disable Docker
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Source Type Tabs */}
                                         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
                                             <button
@@ -755,6 +805,7 @@ const AdminChallenges = () => {
                                                                         type="button"
                                                                         onClick={async () => {
                                                                             setFormData(prev => ({ ...prev, docker_image: img.image }));
+                                                                            setImageNotFoundWarning(false); // Clear warning when selecting valid image
 
                                                                             // Fetch stored ports for this image
                                                                             try {
