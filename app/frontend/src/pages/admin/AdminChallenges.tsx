@@ -674,7 +674,20 @@ const AdminChallenges = () => {
                                         <input
                                             type="checkbox"
                                             checked={formData.has_docker}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, has_docker: e.target.checked }))}
+                                            onChange={(e) => {
+                                                const isChecked = e.target.checked;
+                                                setFormData(prev => ({ ...prev, has_docker: isChecked }));
+
+                                                // Re-check image warning when enabling Docker
+                                                if (isChecked && formData.docker_image && formData.docker_image.trim()) {
+                                                    const imageExists = dockerImages.some(
+                                                        img => img.image.toLowerCase() === formData.docker_image.toLowerCase()
+                                                    );
+                                                    setImageNotFoundWarning(!imageExists);
+                                                } else if (!isChecked) {
+                                                    setImageNotFoundWarning(false);
+                                                }
+                                            }}
                                             className="sr-only peer"
                                         />
                                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>

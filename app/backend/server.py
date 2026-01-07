@@ -3027,8 +3027,11 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
     """
     List available Docker images from GHCR and challenge database.
     Returns images that can be used for challenges.
+    Only shows database images if they still exist in GHCR.
     """
     images = []
+    ghcr_images = set()  # Track GHCR images for validation
+    db_images = []  # Store DB images to validate later
     
     # 1. Get images from existing challenges (already built/uploaded)
     try:
@@ -3045,7 +3048,7 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                 LIMIT 50
             ''')
             for row in rows:
-                images.append({
+                db_images.append({
                     'image': row['image'],
                     'source': 'database',
                     'label': f"Used in: {row['title'][:30]}...",
@@ -3100,14 +3103,16 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                         owner = pkg.get('owner', {}).get('login', ghcr_username)
                         image_url = f"ghcr.io/{owner.lower()}/{pkg['name'].lower()}:latest"
                         
-                        # Add if not duplicate
-                        if not any(img['image'].lower() == image_url.lower() for img in images):
-                            images.append({
-                                'image': image_url,
-                                'source': 'ghcr',
-                                'label': pkg['name'],
-                                'created_at': pkg.get('created_at')
-                            })
+                        # Track this image as existing in GHCR
+                        ghcr_images.add(image_url.lower())
+                        
+                        # Add to images list
+                        images.append({
+                            'image': image_url,
+                            'source': 'ghcr',
+                            'label': pkg['name'],
+                            'created_at': pkg.get('created_at')
+                        })
                 else:
                     logger.warning(f"GHCR API returned: {resp.status_code} - {resp.text[:200]}")
         except Exception as e:
@@ -3115,7 +3120,26 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
     else:
         logger.info(f"GHCR not configured - token: {bool(ghcr_token)}, username: {bool(ghcr_username)}")
     
-    logger.info(f"Returning {len(images)} total images")
+    # 3. Only add database images if they exist in GHCR (prevents showing deleted images)
+    for db_img in db_images:
+        image_lower = db_img['image'].lower()
+        # Check if this image exists in GHCR
+        if image_lower in ghcr_images:
+            # Don't add duplicate - it's already in the list from GHCR
+            # But mark the GHCR entry as "In Use" if a challenge uses it
+            for img in images:
+                if img['image'].lower() == image_lower and img['source'] == 'ghcr':
+                    img['in_use'] = True
+                    img['used_by'] = db_img['label']
+                    break
+        elif not ghcr_images:
+            # GHCR not connected - show all DB images with warning
+            db_img['warning'] = 'Cannot verify - GHCR not connected'
+            if not any(img['image'].lower() == image_lower for img in images):
+                images.append(db_img)
+        # If image NOT in GHCR but GHCR is connected, skip it (deleted)
+    
+    logger.info(f"Returning {len(images)} total images (validated against GHCR)")
     return {
         'images': images,
         'ghcr_connected': bool(ghcr_token),
