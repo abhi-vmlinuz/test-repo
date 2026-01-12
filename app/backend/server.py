@@ -3944,7 +3944,7 @@ async def delete_docker_image(image_name: str, admin: dict = Depends(require_adm
             # Count challenges still using this image
             count = await conn.fetchval('''
                 SELECT COUNT(*) FROM ctf_public_challenges 
-                WHERE docker_image ILIKE $1
+                WHERE "dockerImage" ILIKE $1
             ''', f'%{image_name}%')
             
             return {
@@ -4015,8 +4015,8 @@ async def cleanup_orphaned_images(admin: dict = Depends(require_admin)):
         async with pool.acquire() as conn:
             # Get all DB images
             rows = await conn.fetch('''
-                SELECT DISTINCT docker_image FROM ctf_public_challenges 
-                WHERE docker_image IS NOT NULL AND docker_image != ''
+                SELECT DISTINCT "dockerImage" as docker_image FROM ctf_public_challenges 
+                WHERE "dockerImage" IS NOT NULL AND "dockerImage" != ''
             ''')
             
             for row in rows:
@@ -4025,8 +4025,8 @@ async def cleanup_orphaned_images(admin: dict = Depends(require_admin)):
                     # This is an orphan - clear it from challenges
                     await conn.execute('''
                         UPDATE ctf_public_challenges 
-                        SET docker_image = NULL, has_docker = FALSE
-                        WHERE LOWER(docker_image) = $1
+                        SET "dockerImage" = NULL, "hasDocker" = FALSE
+                        WHERE LOWER("dockerImage") = $1
                     ''', img)
                     cleaned.append(row['docker_image'])
             
