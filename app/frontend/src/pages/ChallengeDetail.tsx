@@ -282,16 +282,16 @@ const ChallengeDetail = ({ user, logout }) => {
       }
       // Otherwise, polling will handle it - don't show any error here
     } catch (error: any) {
-      // Handle specific error codes
+      console.error('[Nexus] Start error:', error);
+      setStartingDocker(false);
+
       if (error.response?.status === 429) {
-        setStartingDocker(false);
         toast.error(error.response?.data?.detail || 'Please wait before starting another instance');
-      } else if (error.response?.status === 503) {
-        setStartingDocker(false);
-        toast.error('Container service unavailable. Please try again later.');
+      } else if (error.response?.status === 503 || error.response?.status === 504) {
+        toast.error(error.response?.data?.detail || 'Container service unavailable. Please try again later.');
+      } else {
+        toast.error('Failed to start lab instance. Please check your connection.');
       }
-      // For other errors, let polling continue - the container might still start
-      // Only timeout (handled in polling useEffect) will show error
     }
   };
 
