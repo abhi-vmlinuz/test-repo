@@ -938,13 +938,21 @@ const AdminImageRegistry = () => {
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
-                            <Box className="w-5 h-5 text-white" />
+                            {imagesTab === 'images' ? (
+                                <Box className="w-5 h-5 text-white" />
+                            ) : (
+                                <Layers className="w-5 h-5 text-white" />
+                            )}
                         </div>
                         <div>
-                            <h2 className="font-semibold text-gray-900">Your Images</h2>
+                            <h2 className="font-semibold text-gray-900">
+                                {imagesTab === 'images' ? 'Your Images' : 'Your Challenge Packs'}
+                            </h2>
                             <div className="flex items-center gap-2">
-                                <p className="text-sm text-gray-500">{images.length} images</p>
-                                {orphanCount > 0 && (
+                                <p className="text-sm text-gray-500">
+                                    {imagesTab === 'images' ? `${images.length} images` : `${challengePacks.length} packs`}
+                                </p>
+                                {imagesTab === 'images' && orphanCount > 0 && (
                                     <span className="text-xs text-amber-600 font-medium">
                                         ({orphanCount} orphaned)
                                     </span>
@@ -952,8 +960,27 @@ const AdminImageRegistry = () => {
                             </div>
                         </div>
                     </div>
-                    <div className="flex gap-2">
-                        {orphanCount > 0 && (
+                    <div className="flex gap-2 items-center">
+                        {/* Tab Switcher */}
+                        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg mr-2">
+                            <button
+                                onClick={() => setImagesTab('images')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${imagesTab === 'images' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                <Box className="w-3.5 h-3.5" />
+                                Images
+                            </button>
+                            <button
+                                onClick={() => setImagesTab('packs')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${imagesTab === 'packs' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                    }`}
+                            >
+                                <Layers className="w-3.5 h-3.5" />
+                                Packs ({challengePacks.length})
+                            </button>
+                        </div>
+                        {imagesTab === 'images' && orphanCount > 0 && (
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -973,77 +1000,143 @@ const AdminImageRegistry = () => {
                 </div>
 
 
-                {loading ? (
-                    <div className="text-center py-12 text-gray-500">
-                        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
-                        Loading images...
-                    </div>
-                ) : images.length === 0 ? (
-                    <div className="text-center py-12">
-                        <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500">No images in your registry yet</p>
-                        <p className="text-sm text-gray-400 mt-1">Build your first image above</p>
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        {images.map((img, idx) => (
-                            <div key={idx} className={`flex items-center justify-between p-4 rounded-xl transition-colors ${img.warning ? 'bg-amber-50 border border-amber-200' :
-                                img.in_use ? 'bg-emerald-50 border border-emerald-200' :
-                                    'bg-gray-50 hover:bg-gray-100'
-                                }`}>
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${img.warning ? 'bg-amber-100' :
-                                        img.in_use ? 'bg-emerald-100' :
-                                            'bg-gray-200'
-                                        }`}>
-                                        <Box className={`w-5 h-5 ${img.warning ? 'text-amber-600' :
-                                            img.in_use ? 'text-emerald-600' :
-                                                'text-gray-600'
-                                            }`} />
-                                    </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-medium text-gray-900">
-                                                {img.in_use && img.used_by ? img.used_by : img.label}
-                                            </p>
-                                            {img.in_use && (
-                                                <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
-                                                    In Use
-                                                </Badge>
-                                            )}
-                                            {img.source === 'ghcr' && (
-                                                <Badge variant="outline" className="text-[10px]">
-                                                    GHCR
-                                                </Badge>
-                                            )}
-                                            {img.warning && (
-                                                <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 text-[10px]">
-                                                    ⚠️ {img.warning}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <p className="text-xs text-gray-400 font-mono">{img.image}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    {img.created_at && (
-                                        <span className="text-xs text-gray-400">
-                                            {new Date(img.created_at).toLocaleDateString()}
-                                        </span>
-                                    )}
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => deleteImage(img.image)}
-                                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
+                {/* Images Tab Content */}
+                {imagesTab === 'images' && (
+                    <>
+                        {loading ? (
+                            <div className="text-center py-12 text-gray-500">
+                                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
+                                Loading images...
                             </div>
+                        ) : images.length === 0 ? (
+                            <div className="text-center py-12">
+                                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-500">No images in your registry yet</p>
+                                <p className="text-sm text-gray-400 mt-1">Build your first image above</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {images.map((img, idx) => (
+                                    <div key={idx} className={`flex items-center justify-between p-4 rounded-xl transition-colors ${img.warning ? 'bg-amber-50 border border-amber-200' :
+                                        img.in_use ? 'bg-emerald-50 border border-emerald-200' :
+                                            'bg-gray-50 hover:bg-gray-100'
+                                        }`}>
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${img.warning ? 'bg-amber-100' :
+                                                img.in_use ? 'bg-emerald-100' :
+                                                    'bg-gray-200'
+                                                }`}>
+                                                <Box className={`w-5 h-5 ${img.warning ? 'text-amber-600' :
+                                                    img.in_use ? 'text-emerald-600' :
+                                                        'text-gray-600'
+                                                    }`} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium text-gray-900">
+                                                        {img.in_use && img.used_by ? img.used_by : img.label}
+                                                    </p>
+                                                    {img.in_use && (
+                                                        <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
+                                                            In Use
+                                                        </Badge>
+                                                    )}
+                                                    {img.source === 'ghcr' && (
+                                                        <Badge variant="outline" className="text-[10px]">
+                                                            GHCR
+                                                        </Badge>
+                                                    )}
+                                                    {img.warning && (
+                                                        <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 text-[10px]">
+                                                            ⚠️ {img.warning}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-gray-400 font-mono">{img.image}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            {img.created_at && (
+                                                <span className="text-xs text-gray-400">
+                                                    {new Date(img.created_at).toLocaleDateString()}
+                                                </span>
+                                            )}
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => deleteImage(img.image)}
+                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
 
-                        ))}
-                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Packs Tab Content */}
+                {imagesTab === 'packs' && (
+                    <>
+                        {loading ? (
+                            <div className="text-center py-12 text-gray-500">
+                                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
+                                Loading packs...
+                            </div>
+                        ) : challengePacks.length === 0 ? (
+                            <div className="text-center py-12">
+                                <Layers className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-500">No challenge packs yet</p>
+                                <p className="text-sm text-gray-400 mt-1">Build a docker-compose.yml based challenge above</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {challengePacks.map((pack) => (
+                                    <div key={pack.id} className="p-4 bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl">
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-lg">🧩</span>
+                                                    <h4 className="font-semibold text-gray-900">{pack.display_name}</h4>
+                                                    <Badge className="bg-purple-100 text-purple-700" variant={undefined}>
+                                                        {pack.images.length} container{pack.images.length !== 1 ? 's' : ''}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-xs text-gray-500 font-mono mb-3">{pack.pack_name}</p>
+
+                                                {/* Container list */}
+                                                <div className="flex flex-wrap gap-2">
+                                                    {pack.images.map((img, i) => (
+                                                        <div key={i} className="bg-white/70 border border-purple-100 rounded-lg px-3 py-1.5 text-xs">
+                                                            <span className="font-medium text-gray-700">{img.name}</span>
+                                                            {img.ports.length > 0 && (
+                                                                <span className="text-gray-400 ml-2">
+                                                                    :{img.ports.join(', :')}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                                                    <span>{pack.combined_ports.length} port{pack.combined_ports.length !== 1 ? 's' : ''}</span>
+                                                </div>
+                                                {pack.created_at && (
+                                                    <span className="text-xs text-gray-400">
+                                                        {new Date(pack.created_at).toLocaleDateString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
