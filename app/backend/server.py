@@ -1706,11 +1706,14 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
                    points, "dockerImage", hints, questions, solves, flag, tags,
                    "hasDocker", "challengePackId", "isMultiContainer"
             FROM ctf_public_challenges
-            WHERE id = $1 AND "isPublished" = true
+            WHERE (id::text = $1 OR slug = $1) AND "isPublished" = true
         ''', challenge_id)
         
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
+            
+        # Use the actual UUID for subsequent queries
+        challenge_id = str(challenge['id'])
         
         # Get user progress
         progress = await conn.fetchrow('''
@@ -1780,20 +1783,25 @@ async def submit_flag(submission: FlagSubmit, current_user: dict = Depends(get_c
     """Submit a flag for a public CTF challenge"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        # Get challenge
-        challenge = await conn.fetchrow(
-            'SELECT id, flag, points, hints FROM ctf_public_challenges WHERE id = $1',
-            submission.challenge_id
-        )
+        # Get challenge (slug support)
+        challenge = await conn.fetchrow('''
+            SELECT id, flag, points, hints 
+            FROM ctf_public_challenges 
+            WHERE id::text = $1 OR slug = $1
+        ''', submission.challenge_id)
+        
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
+            
+        # Use canonical UUID
+        challenge_id = str(challenge['id'])
         
         # Get current progress
         progress = await conn.fetchrow('''
             SELECT id, solved, "hintsUsed", "scoreEarned"
             FROM ctf_public_progress
             WHERE "userId" = $1 AND "challengeId" = $2
-        ''', current_user['id'], submission.challenge_id)
+        ''', current_user['id'], challenge_id)
         
         # Already solved?
         if progress and progress['solved']:
@@ -1844,14 +1852,17 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
     """Submit a question answer for multi-question challenge"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        # Get challenge
-        challenge = await conn.fetchrow(
-            'SELECT id, questions FROM ctf_public_challenges WHERE id = $1',
-            submission.challenge_id
-        )
+        # Get challenge (slug support)
+        challenge = await conn.fetchrow('''
+            SELECT id, questions, points 
+            FROM ctf_public_challenges 
+            WHERE id::text = $1 OR slug = $1
+        ''', submission.challenge_id)
+        
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
-        
+            
+        challenge_id = str(challenge['id'])
         questions = json.loads(challenge['questions']) if isinstance(challenge['questions'], str) else (challenge['questions'] or [])
         if submission.question_index >= len(questions):
             raise HTTPException(status_code=400, detail="Invalid question index")
@@ -1863,7 +1874,7 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
             SELECT id, "solvedQuestions", "scoreEarned"
             FROM ctf_public_progress
             WHERE "userId" = $1 AND "challengeId" = $2
-        ''', current_user['id'], submission.challenge_id)
+        ''', current_user['id'], challenge_id)
         
         solved_questions = list(progress['solvedQuestions']) if progress else []
         
@@ -1891,7 +1902,7 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
                     id, "userId", "challengeId", solved, "hintsUsed",
                     "solvedQuestions", "scoreEarned", "createdAt", "updatedAt"
                 ) VALUES ($1, $2, $3, false, '{}', $4, $5, NOW(), NOW())
-            ''', generate_uuid(), current_user['id'], submission.challenge_id, 
+            ''', generate_uuid(), current_user['id'], challenge_id, 
                  solved_questions, total_earned)
         
         # Update user score
@@ -1912,14 +1923,17 @@ async def unlock_hint(hint_request: HintRequest, current_user: dict = Depends(ge
     """Unlock a hint for a public challenge"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        # Get challenge
-        challenge = await conn.fetchrow(
-            'SELECT hints FROM ctf_public_challenges WHERE id = $1',
-            hint_request.challenge_id
-        )
+        # Get challenge (slug support)
+        challenge = await conn.fetchrow('''
+            SELECT id, hints 
+            FROM ctf_public_challenges 
+            WHERE id::text = $1 OR slug = $1
+        ''', hint_request.challenge_id)
+        
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
-        
+            
+        challenge_id = str(challenge['id'])
         hints = json.loads(challenge['hints']) if isinstance(challenge['hints'], str) else (challenge['hints'] or [])
         if hint_request.hint_index >= len(hints):
             raise HTTPException(status_code=404, detail="Hint not found")
@@ -1930,7 +1944,7 @@ async def unlock_hint(hint_request: HintRequest, current_user: dict = Depends(ge
         progress = await conn.fetchrow('''
             SELECT id, "hintsUsed" FROM ctf_public_progress
             WHERE "userId" = $1 AND "challengeId" = $2
-        ''', current_user['id'], hint_request.challenge_id)
+        ''', current_user['id'], challenge_id)
         
         hints_used = list(progress['hintsUsed']) if progress else []
         
@@ -3140,10 +3154,11 @@ async def get_challenge_artifacts(challenge_id: str):
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch('''
-            SELECT id, filename, file_size, mime_type, created_at 
-            FROM ctf_challenge_artifacts 
-            WHERE challenge_id = $1
-            ORDER BY created_at DESC
+            SELECT a.id, a.filename, a.file_size, a.mime_type, a.created_at 
+            FROM ctf_challenge_artifacts a
+            JOIN ctf_public_challenges c ON a.challenge_id = c.id
+            WHERE c.id::text = $1 OR c.slug = $1
+            ORDER BY a.created_at DESC
         ''', challenge_id)
         
         return [dict(r) for r in rows]
