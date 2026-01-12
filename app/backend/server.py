@@ -5987,11 +5987,15 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
         challenge = await conn.fetchrow('''
             SELECT id, title, "dockerImage" as docker_image, ports, 
                    "hasDocker", "challengePackId", "isMultiContainer"
-            FROM ctf_public_challenges WHERE id = $1
+            FROM ctf_public_challenges 
+            WHERE id::text = $1 OR slug = $1
         ''', challenge_id)
         
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
+        
+        # Use the actual UUID for all subsequent operations
+        challenge_id = str(challenge['id'])
         
         # Check if it has any docker configuration (single or multi)
         if not challenge['docker_image'] and not challenge['challengePackId']:
@@ -6347,6 +6351,20 @@ async def get_docker_status(session_id: str, current_user: dict = Depends(get_cu
 async def get_challenge_session(challenge_id: str, current_user: dict = Depends(get_current_user)):
     """Get user's existing session for a challenge (if any)"""
     user_id = str(current_user['id'])
+    
+    # Resolve challenge_id (slug support)
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            chal_row = await conn.fetchrow('''
+                SELECT id FROM ctf_public_challenges 
+                WHERE id::text = $1 OR slug = $1
+            ''', challenge_id)
+            if chal_row:
+                challenge_id = str(chal_row['id'])
+    except Exception as e:
+        logger.error(f"Error resolving challenge ID: {e}")
+        
     logger.info(f"Checking session for user {user_id}, challenge {challenge_id}")
     
     # Check in-memory cache first
@@ -6483,6 +6501,21 @@ async def admin_nexus_sessions(current_user: dict = Depends(require_admin)):
                     'status': row['status'],
                     'source': 'database'
                 }
+                
+                # Enrich with user and challenge info
+                try:
+                    pool = await Database.get_pool()
+                    async with pool.acquire() as conn_inner:
+                        user_info = await conn_inner.fetchrow("SELECT username, email FROM users WHERE id = $1", row['user_id'])
+                        if user_info:
+                            session_data['username'] = user_info['username']
+                            session_data['email'] = user_info['email']
+                        
+                        chal_info = await conn_inner.fetchrow("SELECT title FROM ctf_public_challenges WHERE id = $1", row['challenge_id'])
+                        if chal_info:
+                            session_data['challenge_title'] = chal_info['title']
+                except:
+                    pass
                 
                 # Fetch target_ip from Nexus
                 try:
