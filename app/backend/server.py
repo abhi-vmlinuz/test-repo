@@ -260,6 +260,15 @@ class NotificationCreate(BaseModel):
 def generate_uuid() -> str:
     return str(uuid.uuid4())
 
+def slugify(text: str) -> str:
+    """Generate a URL-friendly slug from text."""
+    import re
+    text = text.lower()
+    text = re.sub(r'[^\w\s-]', '', text)
+    text = re.sub(r'[\s_-]+', '-', text)
+    text = text.strip('-')
+    return text
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -2272,11 +2281,11 @@ async def admin_create_public_challenge(data: PublicChallengeCreate, admin: dict
         
         await conn.execute('''
             INSERT INTO ctf_public_challenges (
-                id, "categoryId", title, description, difficulty, points,
+                id, "categoryId", title, slug, description, difficulty, points,
                 flag, "dockerImage", "dockerCommand", hints, questions,
                 "isPublished", solves, "createdAt", "updatedAt"
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, NOW(), NOW())
-        ''', challenge_id, data.category_id, data.title, data.description,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, NOW(), NOW())
+        ''', challenge_id, data.category_id, data.title, slugify(data.title), data.description,
              data.difficulty, data.points, data.flag,
              data.docker_image, None,  # dockerCommand is deprecated
              json.dumps(hints), json.dumps(questions), data.is_published)
