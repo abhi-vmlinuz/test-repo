@@ -531,9 +531,10 @@ const AdminChallenges = () => {
                                     {challenge.total_points ?? (challenge.points + (challenge.questions?.reduce((sum: number, q: { points?: number }) => sum + (q.points || 0), 0) || 0))}
                                 </td>
                                 <td className="px-6 py-4">
-                                    {challenge.docker_image ? (
+                                    {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container || challenge.challenge_pack_id) ? (
                                         <span className="flex items-center gap-1 text-indigo-600 text-sm">
-                                            <Container className="w-4 h-4" /> Yes
+                                            <Container className="w-4 h-4" />
+                                            {challenge.is_multi_container ? 'Pack' : 'Yes'}
                                         </span>
                                     ) : (
                                         <span className="text-gray-400 text-sm">No</span>
