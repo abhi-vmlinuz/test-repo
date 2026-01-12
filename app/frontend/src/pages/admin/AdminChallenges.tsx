@@ -1020,121 +1020,29 @@ const AdminChallenges = () => {
                                             </div>
                                         )}
 
-                                        {/* GitHub Source */}
+                                        {/* GitHub Source - Redirects to Image Registry */}
                                         {formData.docker_source === 'github' && (
-                                            <div className="space-y-4">
-                                                {/* GitHub Connect Status */}
-                                                <div className="bg-white border border-gray-200 rounded-xl p-4">
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-200">
-                                                                <img src="/github-mark.svg" alt="GitHub" className="w-6 h-6" />
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-medium text-gray-900">GitHub Integration</p>
-                                                                {githubConnected ? (
-                                                                    <p className="text-sm text-emerald-600">Connected as @{githubUsername}</p>
-                                                                ) : (
-                                                                    <p className="text-sm text-gray-500">Connect to import challenges from repos</p>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {githubConnected ? (
-                                                            <button
-                                                                type="button"
-                                                                onClick={disconnectGithub}
-                                                                className="px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
-                                                            >
-                                                                Disconnect
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                onClick={connectGithub}
-                                                                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition-colors"
-                                                            >
-                                                                Connect GitHub
-                                                            </button>
-                                                        )}
-                                                    </div>
+                                            <div className="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-xl p-6 text-center">
+                                                <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-gray-200 shadow-sm">
+                                                    <img src="/github-mark.svg" alt="GitHub" className="w-8 h-8" />
                                                 </div>
-
-                                                {/* Repo Browser */}
-                                                {githubConnected ? (
-                                                    <div className="border border-gray-200 rounded-xl overflow-hidden">
-                                                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                                                            <span className="text-sm font-medium text-gray-700">Your Repositories</span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={fetchGithubRepos}
-                                                                disabled={loadingGithub}
-                                                                className="text-xs text-blue-600 hover:text-blue-700"
-                                                            >
-                                                                {loadingGithub ? 'Loading...' : 'Refresh'}
-                                                            </button>
-                                                        </div>
-                                                        <div className="max-h-48 overflow-y-auto">
-                                                            {githubRepos.length > 0 ? (
-                                                                githubRepos.map((repo, idx) => (
-                                                                    <div
-                                                                        key={idx}
-                                                                        onClick={() => setFormData(prev => ({ ...prev, github_repo: repo.html_url }))}
-                                                                        className={`px-4 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${formData.github_repo === repo.html_url ? 'bg-blue-50 border-blue-100' : ''
-                                                                            }`}
-                                                                    >
-                                                                        <div className="flex items-center justify-between">
-                                                                            <div>
-                                                                                <p className="font-medium text-gray-900 text-sm">{repo.name}</p>
-                                                                                <p className="text-xs text-gray-500 truncate max-w-xs">{repo.description || 'No description'}</p>
-                                                                            </div>
-                                                                            {repo.private && (
-                                                                                <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Private</span>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                ))
-                                                            ) : (
-                                                                <div className="p-6 text-center text-gray-400 text-sm">
-                                                                    {loadingGithub ? 'Loading repositories...' : 'No repositories found'}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="border border-gray-200 rounded-xl p-6 text-center">
-                                                        <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                                                            <img src="/github-mark.svg" alt="GitHub" className="w-8 h-8 opacity-30" />
-                                                        </div>
-                                                        <p className="text-gray-500">Connect your GitHub account to browse repos</p>
-                                                        <p className="text-xs text-gray-400 mt-2">
-                                                            Once connected, you can select any repo and folder containing a Dockerfile
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {/* Manual GitHub URL fallback */}
-                                                <div className="pt-4 border-t border-gray-200">
-                                                    <p className="text-sm text-gray-600 mb-2 font-medium">Or enter GitHub repo URL directly:</p>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div>
-                                                            <Input
-                                                                type="text"
-                                                                value={formData.github_repo || ''}
-                                                                onChange={(e) => setFormData(prev => ({ ...prev, github_repo: e.target.value }))}
-                                                                placeholder="https://github.com/user/repo"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <Input
-                                                                type="text"
-                                                                value={formData.github_path || ''}
-                                                                onChange={(e) => setFormData(prev => ({ ...prev, github_path: e.target.value }))}
-                                                                placeholder="challenges/sqli (optional)"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <p className="text-xs text-gray-400 mt-2">Public repos only. For private repos, connect GitHub above.</p>
-                                                </div>
+                                                <h4 className="font-semibold text-gray-900 mb-2">Build from GitHub Repository</h4>
+                                                <p className="text-sm text-gray-500 mb-4 max-w-sm mx-auto">
+                                                    To build images from GitHub repositories, use the Image Registry.
+                                                    Once built, your images will appear in the "Single Container" tab above.
+                                                </p>
+                                                <a
+                                                    href="/admin/image-registry"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition-colors"
+                                                >
+                                                    <img src="/github-mark.svg" alt="" className="w-4 h-4 invert" />
+                                                    Open Image Registry
+                                                </a>
+                                                <p className="text-xs text-gray-400 mt-3">
+                                                    Switch to the "From GitHub" tab to browse repositories
+                                                </p>
                                             </div>
                                         )}
 
