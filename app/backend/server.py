@@ -3382,10 +3382,9 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                     'pack_name': row['pack_name'],
                     'display_name': row['display_name'],
                     'images': row['images'] if isinstance(row['images'], list) else json.loads(row['images']),
-                    'ports': row['combined_ports'] if isinstance(row['combined_ports'], list) else json.loads(row['combined_ports']),
-                    'container_count': len(row['images'] if isinstance(row['images'], list) else json.loads(row['images'])),
-                    'created_at': row['created_at'].isoformat() if row['created_at'] else None,
-                    'is_pack': True
+                    'combined_ports': row['combined_ports'] if isinstance(row['combined_ports'], list) else json.loads(row['combined_ports']),
+                    'is_multi_container': True,
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None
                 })
     except Exception as e:
         logger.warning(f"Could not fetch challenge packs: {e}")
