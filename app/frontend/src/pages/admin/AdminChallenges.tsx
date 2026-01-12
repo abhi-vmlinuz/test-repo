@@ -226,7 +226,9 @@ const AdminChallenges = () => {
             hints: [],
             questions: [],
             tags: [],
-            is_published: true
+            is_published: true,
+            challenge_pack_id: '',
+            is_multi_container: false
         });
         setArtifacts([]);
         setImageNotFoundWarning(false);
@@ -235,6 +237,15 @@ const AdminChallenges = () => {
 
     const openEditModal = (challenge) => {
         setEditingChallenge(challenge);
+
+        // Determine docker_source based on stored data
+        let dockerSource: 'image' | 'pack' | 'github' | 'upload' = 'image';
+        if (challenge.is_multi_container || challenge.challenge_pack_id) {
+            dockerSource = 'pack';
+        } else if (challenge.github_repo) {
+            dockerSource = 'github';
+        }
+
         setFormData({
             title: challenge.title,
             description: challenge.description,
@@ -243,9 +254,9 @@ const AdminChallenges = () => {
             points: challenge.points,
             has_main_flag: !!(challenge.flag && challenge.flag.trim()),
             flag: challenge.flag || '',
-            has_docker: !!(challenge.docker_image),
+            has_docker: challenge.has_docker || !!(challenge.docker_image) || !!(challenge.challenge_pack_id),
             docker_image: challenge.docker_image || '',
-            docker_source: 'image',
+            docker_source: dockerSource,
             docker_port: challenge.docker_port || null,
             ports: challenge.ports || [],
             uploadedFile: null,
@@ -254,7 +265,10 @@ const AdminChallenges = () => {
             hints: challenge.hints || [],
             questions: challenge.questions || [],
             tags: challenge.tags || [],
-            is_published: challenge.is_published !== false
+            is_published: challenge.is_published !== false,
+            // Pack support
+            challenge_pack_id: challenge.challenge_pack_id || '',
+            is_multi_container: challenge.is_multi_container || false
         });
 
         // Check if docker image exists in registry
@@ -329,13 +343,16 @@ const AdminChallenges = () => {
         const submitData = {
             ...formData,
             flag: formData.has_main_flag ? formData.flag : '',
-            docker_image: formData.has_docker ? formData.docker_image : null,
+            // For packs, docker_image stays empty but we use challenge_pack_id
+            docker_image: formData.has_docker && formData.docker_source !== 'pack' ? formData.docker_image : null,
             docker_port: formData.has_docker ? formData.docker_port : null,
             ports: formData.has_docker ? formData.ports : [],
             github_repo: formData.has_docker && formData.docker_source === 'github' ? formData.github_repo : null,
             github_path: formData.has_docker && formData.docker_source === 'github' ? formData.github_path : null,
+            // Include pack data if selecting a pack
+            challenge_pack_id: formData.has_docker && formData.docker_source === 'pack' ? formData.challenge_pack_id : null,
+            is_multi_container: formData.has_docker && formData.docker_source === 'pack' ? formData.is_multi_container : false,
         };
-        delete submitData.has_docker;
         delete submitData.has_main_flag;
         delete submitData.docker_source;
         delete submitData.uploadedFile;
@@ -927,8 +944,8 @@ const AdminChallenges = () => {
                                                                     toast.info(`Selected pack with ${pack.images.length} containers, ${pack.combined_ports.length} ports auto-filled`);
                                                                 }}
                                                                 className={`p-4 text-left rounded-xl border-2 transition-all ${formData.challenge_pack_id === pack.id
-                                                                        ? 'border-indigo-500 bg-indigo-50'
-                                                                        : 'border-gray-200 hover:border-gray-400 bg-white'
+                                                                    ? 'border-indigo-500 bg-indigo-50'
+                                                                    : 'border-gray-200 hover:border-gray-400 bg-white'
                                                                     }`}
                                                             >
                                                                 <div className="flex items-start justify-between mb-2">

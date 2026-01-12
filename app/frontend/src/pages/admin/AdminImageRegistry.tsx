@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Package, Settings, RefreshCw, Upload, Trash2, Check, AlertCircle, Link2, Eye, EyeOff, Server, Box, Edit2, ExternalLink, X, FileText } from 'lucide-react';
+import { Package, Settings, RefreshCw, Upload, Trash2, Check, AlertCircle, Link2, Eye, EyeOff, Server, Box, Edit2, ExternalLink, X, FileText, FolderOpen, GitBranch, Layers } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +19,16 @@ interface DockerImage {
     is_orphaned?: boolean;
 }
 
-
+// Multi-container challenge pack
+interface ChallengePack {
+    id: string;
+    pack_name: string;
+    display_name: string;
+    images: { name: string; image: string; ports: number[] }[];
+    combined_ports: number[];
+    is_multi_container: boolean;
+    created_at: string;
+}
 
 interface GHCRConfig {
     username: string;
@@ -27,8 +36,25 @@ interface GHCRConfig {
     connected: boolean;
 }
 
+interface GitHubRepo {
+    name: string;
+    full_name: string;
+    html_url: string;
+    description?: string;
+    private: boolean;
+}
+
+interface GitHubFolder {
+    name: string;
+    path: string;
+    type: 'dir' | 'file';
+    has_dockerfile?: boolean;
+    has_compose?: boolean;
+}
+
 const AdminImageRegistry = () => {
     const [images, setImages] = useState<DockerImage[]>([]);
+    const [challengePacks, setChallengePacks] = useState<ChallengePack[]>([]);
     const [loading, setLoading] = useState(false);
     const [ghcrConfig, setGhcrConfig] = useState<GHCRConfig>({ username: '', token: '', connected: false });
     const [showToken, setShowToken] = useState(false);
@@ -38,10 +64,26 @@ const AdminImageRegistry = () => {
     const [isEditing, setIsEditing] = useState(false); // Start as false to prevent flash
 
     // Build section
+    const [buildSource, setBuildSource] = useState<'zip' | 'github'>('zip');
     const [buildFile, setBuildFile] = useState<File | null>(null);
     const [buildName, setBuildName] = useState('');
     const [buildProgress, setBuildProgress] = useState<'idle' | 'uploading' | 'building' | 'pushing' | 'done' | 'error'>('idle');
     const [buildLogs, setBuildLogs] = useState<string[]>([]);
+
+    // GitHub integration state
+    const [githubConnected, setGithubConnected] = useState(false);
+    const [githubUsername, setGithubUsername] = useState('');
+    const [githubRepos, setGithubRepos] = useState<GitHubRepo[]>([]);
+    const [loadingGithub, setLoadingGithub] = useState(false);
+    const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+    const [repoFolders, setRepoFolders] = useState<GitHubFolder[]>([]);
+    const [selectedFolder, setSelectedFolder] = useState<string>('');
+    const [loadingFolders, setLoadingFolders] = useState(false);
+    const [folderPreview, setFolderPreview] = useState<{
+        has_dockerfile: boolean;
+        has_compose: boolean;
+        files: string[];
+    } | null>(null);
 
     // ZIP Preview state
     const [zipPreview, setZipPreview] = useState<{
@@ -65,9 +107,13 @@ const AdminImageRegistry = () => {
     const [loadingZipPreview, setLoadingZipPreview] = useState(false);
     const [showFileModal, setShowFileModal] = useState<'dockerfile' | 'compose' | null>(null);
 
+    // Active tab for viewing images vs packs
+    const [imagesTab, setImagesTab] = useState<'images' | 'packs'>('images');
+
     useEffect(() => {
         fetchGHCRConfig();
         fetchImages();
+        checkGithubStatus();
     }, []);
 
     const fetchGHCRConfig = async () => {
@@ -92,11 +138,120 @@ const AdminImageRegistry = () => {
         try {
             const res = await axios.get(`${API}/admin/docker-images`);
             // Show all images (GHCR + Database)
-            setImages(res.data.images);
+            setImages(res.data.images || []);
+            setChallengePacks(res.data.packs || []);
         } catch (err) {
             toast.error('Failed to fetch images');
         }
         setLoading(false);
+    };
+
+    // GitHub integration functions
+    const checkGithubStatus = async () => {
+        try {
+            const res = await axios.get(`${API}/admin/github/status`);
+            setGithubConnected(res.data.connected);
+            setGithubUsername(res.data.username || '');
+        } catch (e) {
+            setGithubConnected(false);
+        }
+    };
+
+    const connectGithub = () => {
+        const popup = window.open(
+            `${API}/oauth/github/authorize/admin`,
+            'github-auth',
+            'width=600,height=700'
+        );
+        // Listen for OAuth completion
+        const handleMessage = (event: MessageEvent) => {
+            if (event.data?.type === 'github-oauth-success') {
+                checkGithubStatus();
+                fetchGithubRepos();
+            }
+        };
+        window.addEventListener('message', handleMessage);
+    };
+
+    const disconnectGithub = async () => {
+        try {
+            await axios.post(`${API}/admin/github/disconnect`);
+            setGithubConnected(false);
+            setGithubUsername('');
+            setGithubRepos([]);
+            toast.success('GitHub disconnected');
+        } catch (e) {
+            toast.error('Failed to disconnect GitHub');
+        }
+    };
+
+    const fetchGithubRepos = async () => {
+        setLoadingGithub(true);
+        try {
+            const res = await axios.get(`${API}/admin/github/repos`);
+            setGithubRepos(res.data.repos || []);
+        } catch (e) {
+            toast.error('Failed to fetch repos');
+        } finally {
+            setLoadingGithub(false);
+        }
+    };
+
+    const fetchRepoFolders = async (repo: GitHubRepo, path: string = '') => {
+        setLoadingFolders(true);
+        try {
+            const res = await axios.get(`${API}/admin/github/repo-contents`, {
+                params: { repo: repo.full_name, path }
+            });
+            setRepoFolders(res.data.contents || []);
+        } catch (e) {
+            toast.error('Failed to fetch folder contents');
+        } finally {
+            setLoadingFolders(false);
+        }
+    };
+
+    const previewGithubFolder = async (repo: GitHubRepo, folderPath: string) => {
+        try {
+            const res = await axios.get(`${API}/admin/github/preview-folder`, {
+                params: { repo: repo.full_name, path: folderPath }
+            });
+            setFolderPreview(res.data);
+            setSelectedFolder(folderPath);
+        } catch (e) {
+            toast.error('Failed to preview folder');
+        }
+    };
+
+    const buildFromGithub = async () => {
+        if (!selectedRepo || !selectedFolder || !buildName.trim()) {
+            toast.error('Please select a repo, folder, and enter a name');
+            return;
+        }
+
+        setBuildProgress('building');
+        setBuildLogs(['Starting build from GitHub...']);
+
+        try {
+            const res = await axios.post(`${API}/admin/images/build-from-github`, {
+                repo: selectedRepo.full_name,
+                path: selectedFolder,
+                image_name: buildName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
+            });
+
+            if (res.data.status === 'success') {
+                setBuildProgress('done');
+                setBuildLogs(prev => [...prev, '✅ Build complete!', `Image: ${res.data.image_url}`]);
+                toast.success('Image built and pushed successfully!');
+                fetchImages();
+            } else {
+                throw new Error(res.data.message || 'Build failed');
+            }
+        } catch (e: any) {
+            setBuildProgress('error');
+            setBuildLogs(prev => [...prev, `❌ Error: ${e.message}`]);
+            toast.error(e.response?.data?.detail || 'Build failed');
+        }
     };
 
     const saveGHCRConfig = async () => {

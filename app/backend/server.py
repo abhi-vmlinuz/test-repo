@@ -159,6 +159,10 @@ class PublicChallengeCreate(BaseModel):
     questions: List[Question] = []
     tags: List[str] = []  # Tags for filtering/display (e.g., "web", "crypto", "forensics")
     is_published: bool = True
+    # Multi-container pack support
+    challenge_pack_id: Optional[str] = None  # ID of the challenge pack (for docker-compose based challenges)
+    is_multi_container: bool = False  # True if using a multi-container pack
+    has_docker: bool = False  # True if this challenge has a lab environment
 
 
 class FlagSubmit(BaseModel):
@@ -2657,7 +2661,11 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
                 'tags': tags or [],
                 'ports': ports or [],
                 'is_published': c['isPublished'],
-                'solves': c['solves']
+                'solves': c['solves'],
+                # Multi-container pack support
+                'has_docker': c.get('hasDocker', bool(c['dockerImage'])),
+                'challenge_pack_id': c.get('challengePackId'),
+                'is_multi_container': c.get('isMultiContainer', False)
             })
 
         
@@ -2676,16 +2684,21 @@ async def admin_create_challenge(data: PublicChallengeCreate, admin: dict = Depe
         tags = data.tags if data.tags else []
         ports = data.ports if data.ports else []
         
+        # Determine if this has a docker/lab environment
+        has_docker = bool(data.docker_image or data.challenge_pack_id or data.has_docker)
+        
         await conn.execute('''
             INSERT INTO ctf_public_challenges (
                 id, "categoryId", title, description, difficulty, points,
                 flag, "dockerImage", "dockerCommand", hints, questions,
-                tags, ports, "isPublished", solves, "createdAt", "updatedAt"
-            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, $14, 0, NOW(), NOW())
+                tags, ports, "isPublished", solves, "createdAt", "updatedAt",
+                "hasDocker", "challengePackId", "isMultiContainer"
+            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, $14, 0, NOW(), NOW(), $15, $16, $17)
         ''', challenge_id, data.category_id, data.title, data.description,
              data.difficulty.upper(), data.points, data.flag,
              data.docker_image, None,  # dockerCommand deprecated
-             json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published)
+             json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published,
+             has_docker, data.challenge_pack_id, data.is_multi_container)
         
         return {'id': challenge_id}
 
@@ -2699,16 +2712,21 @@ async def admin_update_challenge(challenge_id: str, data: PublicChallengeCreate,
         questions = [{'question': q.question, 'flag': q.flag, 'points': q.points} for q in data.questions]
         tags = data.tags if data.tags else []
         ports = data.ports if data.ports else []
+        # Determine if this has a docker/lab environment
+        has_docker = bool(data.docker_image or data.challenge_pack_id or data.has_docker)
         
         await conn.execute('''
             UPDATE ctf_public_challenges SET
                 "categoryId" = $1, title = $2, description = $3, difficulty = $4::"CtfDifficulty",
                 points = $5, flag = $6, "dockerImage" = $7, "dockerCommand" = $8,
-                hints = $9, questions = $10, tags = $11, ports = $12, "isPublished" = $13, "updatedAt" = NOW()
-            WHERE id = $14
+                hints = $9, questions = $10, tags = $11, ports = $12, "isPublished" = $13,
+                "hasDocker" = $14, "challengePackId" = $15, "isMultiContainer" = $16,
+                "updatedAt" = NOW()
+            WHERE id = $17
         ''', data.category_id, data.title, data.description, data.difficulty.upper(),
              data.points, data.flag, data.docker_image, None,  # dockerCommand deprecated
-             json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published, challenge_id)
+             json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published,
+             has_docker, data.challenge_pack_id, data.is_multi_container, challenge_id)
         
         return {'success': True}
 
@@ -3730,7 +3748,7 @@ async def build_docker_image(
                             pass
                         
                         built_images.append({
-                            'service': service_name,
+                            'name': service_name,  # Changed from 'service' to 'name'
                             'image': service_image_name,
                             'ports': service_ports
                         })
@@ -3762,7 +3780,7 @@ async def build_docker_image(
                             pass
                     
                     built_images.append({
-                        'service': service_name,
+                        'name': service_name,  # Changed from 'service' to 'name'
                         'image': service_image,
                         'ports': service_ports,
                         'prebuild': True
@@ -6502,6 +6520,18 @@ async def startup():
                 logger.info("Ports column migration complete")
             except Exception as e:
                 logger.debug(f"Ports column already exists or migration skipped: {e}")
+
+            # Migration: Add multi-container pack support columns
+            try:
+                await conn.execute('''
+                    ALTER TABLE ctf_public_challenges 
+                    ADD COLUMN IF NOT EXISTS "hasDocker" BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS "challengePackId" TEXT,
+                    ADD COLUMN IF NOT EXISTS "isMultiContainer" BOOLEAN DEFAULT FALSE
+                ''')
+                logger.info("Multi-container pack columns migration complete")
+            except Exception as e:
+                logger.debug(f"Multi-container pack columns already exist or migration skipped: {e}")
 
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
