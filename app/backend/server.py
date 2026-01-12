@@ -6061,43 +6061,43 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
         # Spawn new session via Nexus
         try:
             async with httpx.AsyncClient() as client:
-        # Prepare nexus challenge config
-        nexus_challenge = {
-            "name": challenge['title'],
-            "category": "CTF",
-            "difficulty": "Medium",
-            "description": f"Challenge: {challenge['title']}",
-            "max_score": 100,
-            "flag": "PLACEHOLDER",
-            "ttl_minutes": 60,
-            "ports": challenge_ports,
-        }
-
-        if challenge_pack:
-            nexus_challenge["is_multi_container"] = True
-            # Images in challenge_pack is a JSON list of objects with {name, image, ports}
-            pack_images = challenge_pack['images']
-            if isinstance(pack_images, str):
-                pack_images = json.loads(pack_images)
-            
-            nexus_challenge["containers"] = [
-                {
-                    "name": img.get('name', f"container-{i}"),
-                    "image": img.get('image'),
-                    "ports": img.get('ports', [])
+                # Prepare nexus challenge config
+                nexus_challenge = {
+                    "name": challenge['title'],
+                    "category": "CTF",
+                    "difficulty": "Medium",
+                    "description": f"Challenge: {challenge['title']}",
+                    "max_score": 100,
+                    "flag": "PLACEHOLDER",
+                    "ttl_minutes": 60,
+                    "ports": challenge_ports,
                 }
-                for i, img in enumerate(pack_images)
-            ]
-            
-            # Ensure we use combined ports from the pack for service reachability
-            if challenge_pack.get('combined_ports'):
-                pack_ports = challenge_pack['combined_ports']
-                if isinstance(pack_ports, str):
-                    pack_ports = json.loads(pack_ports)
-                nexus_challenge["ports"] = pack_ports
-        else:
-            nexus_challenge["image_url"] = challenge['docker_image']
-            nexus_challenge["is_multi_container"] = False
+
+                if challenge_pack:
+                    nexus_challenge["is_multi_container"] = True
+                    # Images in challenge_pack is a JSON list of objects with {name, image, ports}
+                    pack_images = challenge_pack['images']
+                    if isinstance(pack_images, str):
+                        pack_images = json.loads(pack_images)
+                    
+                    nexus_challenge["containers"] = [
+                        {
+                            "name": img.get('name', f"container-{i}"),
+                            "image": img.get('image'),
+                            "ports": img.get('ports', [])
+                        }
+                        for i, img in enumerate(pack_images)
+                    ]
+                    
+                    # Ensure we use combined ports from the pack for service reachability
+                    if challenge_pack.get('combined_ports'):
+                        pack_ports = challenge_pack['combined_ports']
+                        if isinstance(pack_ports, str):
+                            pack_ports = json.loads(pack_ports)
+                        nexus_challenge["ports"] = pack_ports
+                else:
+                    nexus_challenge["image_url"] = challenge['docker_image']
+                    nexus_challenge["is_multi_container"] = False
                 
                 # Try to delete existing challenge to force fresh config
                 try:
