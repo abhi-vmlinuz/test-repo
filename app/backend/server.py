@@ -3532,6 +3532,496 @@ async def test_ghcr_connection(config: GHCRConfig, admin: dict = Depends(require
 
 
 # =============================================================================
+# GitHub Admin API - Browse repos and build from folders
+# =============================================================================
+
+@api_router.get("/admin/github/status")
+async def admin_github_status(admin: dict = Depends(require_admin)):
+    """Check if admin has GitHub connected via GHCR token"""
+    # Use GHCR token to check GitHub access
+    ghcr_token = os.environ.get('GHCR_TOKEN', '')
+    ghcr_username = os.environ.get('GHCR_USERNAME', '')
+    
+    # Also try to get from database
+    if not ghcr_token or not ghcr_username:
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                username_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_username'"
+                )
+                token_row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_token'"
+                )
+                if username_row:
+                    ghcr_username = username_row['value']
+                if token_row:
+                    ghcr_token = token_row['value']
+        except:
+            pass
+    
+    if not ghcr_token:
+        return {'connected': False, 'username': None}
+    
+    # Verify token works with GitHub API
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {ghcr_token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=10.0
+            )
+            if resp.status_code == 200:
+                user_data = resp.json()
+                return {
+                    'connected': True,
+                    'username': user_data.get('login', ghcr_username)
+                }
+    except:
+        pass
+    
+    return {'connected': bool(ghcr_token), 'username': ghcr_username}
+
+
+@api_router.get("/admin/github/repos")
+async def admin_github_repos(admin: dict = Depends(require_admin)):
+    """List admin's GitHub repositories"""
+    ghcr_token = await get_ghcr_token()
+    
+    if not ghcr_token:
+        raise HTTPException(status_code=400, detail="GitHub not connected. Configure GHCR first.")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            # Get all repos the user has access to
+            resp = await client.get(
+                "https://api.github.com/user/repos",
+                params={
+                    'sort': 'updated',
+                    'direction': 'desc',
+                    'per_page': 50,
+                    'type': 'all'  # Include private repos
+                },
+                headers={
+                    "Authorization": f"Bearer {ghcr_token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=15.0
+            )
+            
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail="Failed to fetch repos")
+            
+            repos = resp.json()
+            return {
+                'repos': [
+                    {
+                        'name': r['name'],
+                        'full_name': r['full_name'],
+                        'html_url': r['html_url'],
+                        'description': r.get('description'),
+                        'private': r['private'],
+                        'updated_at': r.get('updated_at')
+                    }
+                    for r in repos
+                ]
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/admin/github/repo-contents")
+async def admin_github_repo_contents(
+    repo: str,
+    path: str = '',
+    admin: dict = Depends(require_admin)
+):
+    """Browse folder contents of a GitHub repository"""
+    ghcr_token = await get_ghcr_token()
+    
+    if not ghcr_token:
+        raise HTTPException(status_code=400, detail="GitHub not connected")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"https://api.github.com/repos/{repo}/contents/{path}"
+            resp = await client.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {ghcr_token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=15.0
+            )
+            
+            if resp.status_code == 404:
+                raise HTTPException(status_code=404, detail="Repository or path not found")
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail="Failed to fetch contents")
+            
+            contents = resp.json()
+            
+            # Handle single file response
+            if isinstance(contents, dict):
+                contents = [contents]
+            
+            # Format for frontend - show directories first, then files
+            formatted = []
+            for item in contents:
+                formatted.append({
+                    'name': item['name'],
+                    'path': item['path'],
+                    'type': item['type'],  # 'dir' or 'file'
+                    'size': item.get('size', 0)
+                })
+            
+            # Sort: directories first, then files
+            formatted.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
+            
+            return {'contents': formatted, 'path': path}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/admin/github/preview-folder")
+async def admin_github_preview_folder(
+    repo: str,
+    path: str,
+    admin: dict = Depends(require_admin)
+):
+    """Preview a folder to see if it has Dockerfile or docker-compose.yml"""
+    ghcr_token = await get_ghcr_token()
+    
+    if not ghcr_token:
+        raise HTTPException(status_code=400, detail="GitHub not connected")
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"https://api.github.com/repos/{repo}/contents/{path}"
+            resp = await client.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {ghcr_token}",
+                    "Accept": "application/vnd.github+json"
+                },
+                timeout=15.0
+            )
+            
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail="Failed to fetch folder")
+            
+            contents = resp.json()
+            if isinstance(contents, dict):
+                contents = [contents]
+            
+            # Check for Dockerfile and docker-compose.yml
+            files = [item['name'] for item in contents]
+            has_dockerfile = 'Dockerfile' in files or 'dockerfile' in files
+            has_compose = any(f.lower() in ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml'] 
+                            for f in files)
+            
+            # Get subdirectories (potential multi-service setup)
+            subdirs = [item['name'] for item in contents if item['type'] == 'dir']
+            
+            return {
+                'has_dockerfile': has_dockerfile,
+                'has_compose': has_compose,
+                'files': files,
+                'subdirectories': subdirs,
+                'can_build': has_dockerfile or has_compose
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def get_ghcr_token():
+    """Helper to get GHCR token from env or database"""
+    token = os.environ.get('GHCR_TOKEN', '')
+    if token:
+        return token
+    
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT value FROM admin_settings WHERE key = 'ghcr_token'"
+            )
+            if row:
+                return row['value']
+    except:
+        pass
+    return None
+
+
+@api_router.post("/admin/images/build-from-github")
+async def build_image_from_github(
+    data: dict,
+    admin: dict = Depends(require_admin)
+):
+    """Clone a GitHub folder and build Docker image from it"""
+    repo = data.get('repo')  # e.g., 'username/repo-name'
+    path = data.get('path', '')  # folder path in repo
+    image_name = data.get('image_name', '')
+    
+    if not repo or not image_name:
+        raise HTTPException(status_code=400, detail="Repository and image name required")
+    
+    ghcr_token = await get_ghcr_token()
+    ghcr_username = os.environ.get('GHCR_USERNAME', '')
+    
+    # Get username from database if not in env
+    if not ghcr_username:
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'ghcr_username'"
+                )
+                if row:
+                    ghcr_username = row['value']
+        except:
+            pass
+    
+    if not ghcr_token or not ghcr_username:
+        raise HTTPException(status_code=400, detail="GHCR not configured")
+    
+    # Clean image name
+    clean_name = re.sub(r'[^a-z0-9-]', '-', image_name.lower().strip())[:50]
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Invalid image name")
+    
+    # Create build directory
+    build_dir = Path(f"/tmp/github-builds/{clean_name}-{uuid.uuid4().hex[:8]}")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        # Clone the repository using git sparse checkout for efficiency
+        clone_url = f"https://x-access-token:{ghcr_token}@github.com/{repo}.git"
+        
+        # Clone with depth 1 for speed
+        clone_process = await asyncio.create_subprocess_exec(
+            'git', 'clone', '--depth', '1', clone_url, str(build_dir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await asyncio.wait_for(clone_process.communicate(), timeout=120)
+        
+        if clone_process.returncode != 0:
+            logger.error(f"Git clone failed: {stderr.decode()}")
+            raise HTTPException(status_code=500, detail="Failed to clone repository")
+        
+        # Navigate to the specific folder
+        context_dir = build_dir / path if path else build_dir
+        
+        if not context_dir.exists():
+            raise HTTPException(status_code=404, detail=f"Path '{path}' not found in repository")
+        
+        # Check what build files we have
+        has_docker_compose = (
+            (context_dir / 'docker-compose.yml').exists() or
+            (context_dir / 'docker-compose.yaml').exists() or
+            (context_dir / 'compose.yml').exists() or
+            (context_dir / 'compose.yaml').exists()
+        )
+        has_dockerfile = (context_dir / 'Dockerfile').exists()
+        
+        if not has_dockerfile and not has_docker_compose:
+            raise HTTPException(status_code=400, detail="No Dockerfile or docker-compose.yml found in folder")
+        
+        # Login to GHCR
+        login_process = await asyncio.create_subprocess_exec(
+            'docker', 'login', 'ghcr.io', '-u', ghcr_username, '--password-stdin',
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await login_process.communicate(input=ghcr_token.encode())
+        
+        if has_docker_compose:
+            # Build multi-container pack - similar to ZIP build
+            # Read compose file
+            compose_file = None
+            for cf in ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']:
+                if (context_dir / cf).exists():
+                    compose_file = context_dir / cf
+                    break
+            
+            compose_content = compose_file.read_text()
+            compose_data = yaml.safe_load(compose_content)
+            services = compose_data.get('services', {})
+            
+            built_images = []
+            all_ports = []
+            
+            for service_name, service_config in services.items():
+                service_build = service_config.get('build')
+                service_image = service_config.get('image')
+                
+                if service_build:
+                    # Build this service
+                    if isinstance(service_build, str):
+                        build_context = context_dir / service_build
+                    else:
+                        build_context = context_dir / service_build.get('context', '.')
+                    
+                    service_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}-{service_name}:latest"
+                    
+                    # Build
+                    build_process = await asyncio.create_subprocess_exec(
+                        'docker', 'build', '-t', service_image_name, str(build_context),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await asyncio.wait_for(build_process.communicate(), timeout=600)
+                    
+                    if build_process.returncode != 0:
+                        logger.error(f"Build failed for {service_name}: {stderr.decode()}")
+                        continue
+                    
+                    # Push
+                    push_process = await asyncio.create_subprocess_exec(
+                        'docker', 'push', service_image_name,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await asyncio.wait_for(push_process.communicate(), timeout=300)
+                    
+                    # Get ports
+                    service_ports = []
+                    for port_spec in service_config.get('ports', []):
+                        try:
+                            if isinstance(port_spec, int):
+                                service_ports.append(port_spec)
+                            elif isinstance(port_spec, str):
+                                parts = port_spec.split(':')
+                                container_port = int(parts[-1].split('/')[0])
+                                service_ports.append(container_port)
+                        except:
+                            pass
+                    
+                    built_images.append({
+                        'name': service_name,
+                        'image': service_image_name,
+                        'ports': service_ports
+                    })
+                    all_ports.extend(service_ports)
+            
+            if not built_images:
+                raise HTTPException(status_code=500, detail="No services could be built")
+            
+            # Store as challenge pack
+            try:
+                pool = await Database.get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute('''
+                        CREATE TABLE IF NOT EXISTS challenge_packs (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            pack_name TEXT UNIQUE NOT NULL,
+                            display_name TEXT NOT NULL,
+                            images JSONB NOT NULL,
+                            combined_ports JSONB NOT NULL,
+                            compose_content TEXT,
+                            is_multi_container BOOLEAN DEFAULT TRUE,
+                            created_at TIMESTAMP DEFAULT NOW(),
+                            updated_at TIMESTAMP DEFAULT NOW()
+                        )
+                    ''')
+                    
+                    pack_id = uuid.uuid4()
+                    await conn.execute('''
+                        INSERT INTO challenge_packs (id, pack_name, display_name, images, combined_ports, compose_content)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (pack_name) DO UPDATE SET
+                            images = EXCLUDED.images,
+                            combined_ports = EXCLUDED.combined_ports,
+                            compose_content = EXCLUDED.compose_content,
+                            updated_at = NOW()
+                    ''', pack_id, clean_name, image_name, json.dumps(built_images), json.dumps(list(set(all_ports))), compose_content)
+            except Exception as db_err:
+                logger.warning(f"Could not store pack: {db_err}")
+            
+            return {
+                'status': 'success',
+                'type': 'pack',
+                'pack_name': clean_name,
+                'images': built_images,
+                'ports': list(set(all_ports)),
+                'message': f"Built {len(built_images)} service(s)"
+            }
+        
+        else:
+            # Single Dockerfile build
+            image_url = f"ghcr.io/{ghcr_username.lower()}/{clean_name}:latest"
+            
+            # Build
+            build_process = await asyncio.create_subprocess_exec(
+                'docker', 'build', '-t', image_url, str(context_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await asyncio.wait_for(build_process.communicate(), timeout=600)
+            
+            if build_process.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Build failed: {stderr.decode()[:500]}")
+            
+            # Push
+            push_process = await asyncio.create_subprocess_exec(
+                'docker', 'push', image_url,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await asyncio.wait_for(push_process.communicate(), timeout=300)
+            
+            # Detect ports from Dockerfile
+            ports = []
+            dockerfile_path = context_dir / 'Dockerfile'
+            if dockerfile_path.exists():
+                dockerfile_content = dockerfile_path.read_text()
+                expose_matches = re.findall(r'EXPOSE\s+(\d+)', dockerfile_content)
+                ports = [int(p) for p in expose_matches]
+            
+            # Store in metadata
+            try:
+                pool = await Database.get_pool()
+                async with pool.acquire() as conn:
+                    await conn.execute('''
+                        INSERT INTO docker_image_metadata (image_uri, ports, created_at)
+                        VALUES ($1, $2, NOW())
+                        ON CONFLICT (image_uri) DO UPDATE SET ports = $2
+                    ''', image_url, json.dumps(ports))
+            except:
+                pass
+            
+            return {
+                'status': 'success',
+                'type': 'image',
+                'image_url': image_url,
+                'ports': ports,
+                'message': f"Built and pushed {image_url}"
+            }
+    
+    except HTTPException:
+        raise
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Build timed out")
+    except Exception as e:
+        logger.error(f"GitHub build failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Cleanup
+        shutil.rmtree(build_dir, ignore_errors=True)
+
+
+# =============================================================================
 # Image Build API - Build and push Docker images
 # =============================================================================
 

@@ -83,6 +83,8 @@ const AdminImageRegistry = () => {
         has_dockerfile: boolean;
         has_compose: boolean;
         files: string[];
+        subdirectories?: string[];
+        can_build: boolean;
     } | null>(null);
 
     // ZIP Preview state
@@ -556,203 +558,378 @@ const AdminImageRegistry = () => {
 
             {/* Build New Image */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-                        <Upload className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                        <h2 className="font-semibold text-gray-900">Build New Image</h2>
-                        <p className="text-sm text-gray-500">Upload a ZIP with Dockerfile to build and push</p>
-                    </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Image Name</label>
-                        <Input
-                            value={buildName}
-                            onChange={(e) => setBuildName(e.target.value)}
-                            placeholder="e.g., linux-basics, web-exploit"
-                            disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
-                        />
-                        <p className="text-xs text-gray-400 mt-1">
-                            Will be: ghcr.io/{ghcrConfig.username?.toLowerCase() || 'username'}/{buildName.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'image-name'}:latest
-                        </p>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
-                            <span>ZIP File</span>
-                            <span className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">Max 300MB</span>
-                        </label>
-                        <input
-                            type="file"
-                            accept=".zip"
-                            onChange={async (e) => {
-                                const file = e.target.files?.[0] || null;
-                                setBuildFile(file);
-
-                                if (file) {
-                                    // Fetch ZIP preview
-                                    setLoadingZipPreview(true);
-                                    try {
-                                        const formData = new FormData();
-                                        formData.append('file', file);
-                                        const res = await axios.post(`${API}/admin/preview-zip`, formData);
-                                        setZipPreview(res.data);
-                                    } catch (err) {
-                                        console.error('ZIP preview failed', err);
-                                        setZipPreview(null);
-                                    } finally {
-                                        setLoadingZipPreview(false);
-                                    }
-                                } else {
-                                    setZipPreview(null);
-                                }
-                            }}
-                            disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
-                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
-                        />
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                            <Upload className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-gray-900">Build New Image</h2>
+                            <p className="text-sm text-gray-500">Upload ZIP or import from GitHub repository</p>
+                        </div>
                     </div>
                 </div>
 
-                {/* ZIP Preview Section */}
-                {loadingZipPreview && (
-                    <div className="mt-4 text-center py-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span className="text-sm text-gray-500">Scanning ZIP contents...</span>
-                    </div>
-                )}
+                {/* Source Tabs */}
+                <div className="flex gap-2 mb-4 p-1 bg-gray-100 rounded-lg w-fit">
+                    <button
+                        onClick={() => { setBuildSource('zip'); setSelectedRepo(null); setSelectedFolder(''); setFolderPreview(null); }}
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${buildSource === 'zip' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <Upload className="w-4 h-4" />
+                        Upload ZIP
+                    </button>
+                    <button
+                        onClick={() => { setBuildSource('github'); if (githubConnected) fetchGithubRepos(); }}
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${buildSource === 'github' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                    >
+                        <GitBranch className="w-4 h-4" />
+                        From GitHub
+                    </button>
+                </div>
 
-                {zipPreview && buildFile && !loadingZipPreview && (
-                    <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Package className="w-4 h-4 text-gray-500" />
-                                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">ZIP Preview</span>
+                {/* ZIP Upload Section */}
+                {buildSource === 'zip' && (
+                    <>
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Image Name</label>
+                                <Input
+                                    value={buildName}
+                                    onChange={(e) => setBuildName(e.target.value)}
+                                    placeholder="e.g., linux-basics, web-exploit"
+                                    disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
+                                />
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Will be: ghcr.io/{ghcrConfig.username?.toLowerCase() || 'username'}/{buildName.toLowerCase().replace(/[^a-z0-9-]/g, '-') || 'image-name'}:latest
+                                </p>
                             </div>
-                            <span className="text-xs text-gray-400">
-                                {zipPreview.total_files} files • {zipPreview.total_size < 1024 * 1024
-                                    ? `${(zipPreview.total_size / 1024).toFixed(1)} KB`
-                                    : `${(zipPreview.total_size / 1024 / 1024).toFixed(1)} MB`
-                                }
-                            </span>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                                    <span>ZIP File</span>
+                                    <span className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">Max 300MB</span>
+                                </label>
+                                <input
+                                    type="file"
+                                    accept=".zip"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0] || null;
+                                        setBuildFile(file);
+
+                                        if (file) {
+                                            // Fetch ZIP preview
+                                            setLoadingZipPreview(true);
+                                            try {
+                                                const formData = new FormData();
+                                                formData.append('file', file);
+                                                const res = await axios.post(`${API}/admin/preview-zip`, formData);
+                                                setZipPreview(res.data);
+                                            } catch (err) {
+                                                console.error('ZIP preview failed', err);
+                                                setZipPreview(null);
+                                            } finally {
+                                                setLoadingZipPreview(false);
+                                            }
+                                        } else {
+                                            setZipPreview(null);
+                                        }
+                                    }}
+                                    disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
+                                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
+                                />
+                            </div>
                         </div>
-                        <div className="p-3 max-h-40 overflow-y-auto font-mono text-[11px] space-y-1">
-                            {!zipPreview.has_dockerfile && (
-                                <div className="p-2 mb-2 bg-red-50 text-red-600 rounded flex items-center gap-2 border border-red-100">
-                                    <AlertCircle className="w-3 h-3" />
-                                    <span>No Dockerfile found!</span>
-                                </div>
-                            )}
-                            {zipPreview.files.slice(0, 20).map((file, i) => (
-                                <div key={i} className="flex items-center gap-2 text-gray-600 hover:bg-gray-50 rounded px-1 transition-colors">
-                                    <span className="text-gray-300 w-4">{i + 1}.</span>
-                                    {file.name.toLowerCase().includes('dockerfile') ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowFileModal('dockerfile')}
-                                            className="text-blue-600 font-medium hover:underline cursor-pointer"
-                                        >
-                                            {file.name} 📄
-                                        </button>
-                                    ) : file.name.toLowerCase().includes('docker-compose') ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowFileModal('compose')}
-                                            className="text-purple-600 font-medium hover:underline cursor-pointer"
-                                        >
-                                            {file.name} 📦
-                                        </button>
-                                    ) : (
-                                        <span className={file.is_dir ? 'text-gray-400 italic' : ''}>
-                                            {file.name}{file.is_dir && ' /'}
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                            {zipPreview.files.length > 20 && (
-                                <div className="text-gray-400 text-center pt-2">
-                                    ... and {zipPreview.files.length - 20} more files
-                                </div>
-                            )}
-                        </div>
-                        {/* Detected ports - Enhanced with source info */}
-                        {zipPreview.detected_ports.length > 0 && (
-                            <div className="px-4 py-3 bg-emerald-50 border-t border-emerald-100">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Check className="w-3 h-3 text-emerald-600" />
-                                    <span className="text-xs text-emerald-700 font-semibold">
-                                        Detected ports: <strong className="text-emerald-800">{zipPreview.detected_ports.join(', ')}</strong>
+
+                        {/* ZIP Preview Section */}
+                        {loadingZipPreview && (
+                            <div className="mt-4 text-center py-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center gap-2">
+                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <span className="text-sm text-gray-500">Scanning ZIP contents...</span>
+                            </div>
+                        )}
+
+                        {zipPreview && buildFile && !loadingZipPreview && (
+                            <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Package className="w-4 h-4 text-gray-500" />
+                                        <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">ZIP Preview</span>
+                                    </div>
+                                    <span className="text-xs text-gray-400">
+                                        {zipPreview.total_files} files • {zipPreview.total_size < 1024 * 1024
+                                            ? `${(zipPreview.total_size / 1024).toFixed(1)} KB`
+                                            : `${(zipPreview.total_size / 1024 / 1024).toFixed(1)} MB`
+                                        }
                                     </span>
                                 </div>
-                                {zipPreview.port_detection_info?.sources && zipPreview.port_detection_info.sources.length > 0 && (
-                                    <div className="text-[10px] text-emerald-600 ml-5">
-                                        From: {zipPreview.port_detection_info.sources.join(' + ')}
+                                <div className="p-3 max-h-40 overflow-y-auto font-mono text-[11px] space-y-1">
+                                    {!zipPreview.has_dockerfile && (
+                                        <div className="p-2 mb-2 bg-red-50 text-red-600 rounded flex items-center gap-2 border border-red-100">
+                                            <AlertCircle className="w-3 h-3" />
+                                            <span>No Dockerfile found!</span>
+                                        </div>
+                                    )}
+                                    {zipPreview.files.slice(0, 20).map((file, i) => (
+                                        <div key={i} className="flex items-center gap-2 text-gray-600 hover:bg-gray-50 rounded px-1 transition-colors">
+                                            <span className="text-gray-300 w-4">{i + 1}.</span>
+                                            {file.name.toLowerCase().includes('dockerfile') ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowFileModal('dockerfile')}
+                                                    className="text-blue-600 font-medium hover:underline cursor-pointer"
+                                                >
+                                                    {file.name} 📄
+                                                </button>
+                                            ) : file.name.toLowerCase().includes('docker-compose') ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowFileModal('compose')}
+                                                    className="text-purple-600 font-medium hover:underline cursor-pointer"
+                                                >
+                                                    {file.name} 📦
+                                                </button>
+                                            ) : (
+                                                <span className={file.is_dir ? 'text-gray-400 italic' : ''}>
+                                                    {file.name}{file.is_dir && ' /'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {zipPreview.files.length > 20 && (
+                                        <div className="text-gray-400 text-center pt-2">
+                                            ... and {zipPreview.files.length - 20} more files
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Detected ports - Enhanced with source info */}
+                                {zipPreview.detected_ports.length > 0 && (
+                                    <div className="px-4 py-3 bg-emerald-50 border-t border-emerald-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Check className="w-3 h-3 text-emerald-600" />
+                                            <span className="text-xs text-emerald-700 font-semibold">
+                                                Detected ports: <strong className="text-emerald-800">{zipPreview.detected_ports.join(', ')}</strong>
+                                            </span>
+                                        </div>
+                                        {zipPreview.port_detection_info?.sources && zipPreview.port_detection_info.sources.length > 0 && (
+                                            <div className="text-[10px] text-emerald-600 ml-5">
+                                                From: {zipPreview.port_detection_info.sources.join(' + ')}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {/* Additional Dockerfiles found */}
+                                {zipPreview.additional_dockerfiles && zipPreview.additional_dockerfiles.length > 0 && (
+                                    <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-center gap-2">
+                                        <FileText className="w-3 h-3 text-blue-600" />
+                                        <span className="text-xs text-blue-700">
+                                            Additional Dockerfiles: <strong>{zipPreview.additional_dockerfiles.join(', ')}</strong>
+                                        </span>
                                     </div>
                                 )}
                             </div>
                         )}
-                        {/* Additional Dockerfiles found */}
-                        {zipPreview.additional_dockerfiles && zipPreview.additional_dockerfiles.length > 0 && (
-                            <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-center gap-2">
-                                <FileText className="w-3 h-3 text-blue-600" />
-                                <span className="text-xs text-blue-700">
-                                    Additional Dockerfiles: <strong>{zipPreview.additional_dockerfiles.join(', ')}</strong>
-                                </span>
+
+                        {/* Build Log - White Background */}
+                        {buildProgress !== 'idle' && (
+                            <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4 font-mono text-sm max-h-40 overflow-y-auto">
+                                {buildLogs.map((log, i) => (
+                                    <div
+                                        key={i}
+                                        className={
+                                            log.includes('✅') ? 'text-emerald-600' :
+                                                log.includes('❌') ? 'text-red-600' :
+                                                    log.includes('📦') ? 'text-blue-600 font-medium' :
+                                                        'text-gray-600'
+                                        }
+                                    >
+                                        {log}
+                                    </div>
+                                ))}
                             </div>
                         )}
-                    </div>
-                )}
 
-                {/* Build Log - White Background */}
-                {buildProgress !== 'idle' && (
-                    <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4 font-mono text-sm max-h-40 overflow-y-auto">
-                        {buildLogs.map((log, i) => (
-                            <div
-                                key={i}
-                                className={
-                                    log.includes('✅') ? 'text-emerald-600' :
-                                        log.includes('❌') ? 'text-red-600' :
-                                            log.includes('📦') ? 'text-blue-600 font-medium' :
-                                                'text-gray-600'
-                                }
+                        <div className="mt-4 flex gap-3">
+                            <Button
+                                onClick={handleBuildUpload}
+                                disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing' || !ghcrConfig.connected || !buildFile || !buildName}
+                                className="bg-blue-600 hover:bg-blue-700"
                             >
-                                {log}
-                            </div>
-                        ))}
-                    </div>
+                                {buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing' ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                        {buildProgress === 'uploading' ? 'Uploading...' : buildProgress === 'building' ? 'Building...' : 'Pushing...'}
+                                    </>
+                                ) : (
+                                    <>
+                                        <Server className="w-4 h-4 mr-2" />
+                                        Build & Push Image
+                                    </>
+                                )}
+                            </Button>
+                            {(buildProgress === 'done' || buildProgress === 'error') && (
+                                <Button variant="outline" onClick={resetBuild}>
+                                    Build Another
+                                </Button>
+                            )}
+                        </div>
+
+                        {!ghcrConfig.connected && (
+                            <p className="text-sm text-amber-600 mt-3">
+                                <AlertCircle className="w-4 h-4 inline mr-1" />
+                                Connect GHCR above before building
+                            </p>
+                        )}
+                    </>
                 )}
 
-                <div className="mt-4 flex gap-3">
-                    <Button
-                        onClick={handleBuildUpload}
-                        disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing' || !ghcrConfig.connected || !buildFile || !buildName}
-                        className="bg-blue-600 hover:bg-blue-700"
-                    >
-                        {buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing' ? (
-                            <>
-                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                {buildProgress === 'uploading' ? 'Uploading...' : buildProgress === 'building' ? 'Building...' : 'Pushing...'}
-                            </>
+                {/* GitHub Source Section */}
+                {buildSource === 'github' && (
+                    <div className="space-y-4">
+                        {!githubConnected ? (
+                            <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-200">
+                                <img src="/github-mark.svg" alt="GitHub" className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                <h4 className="font-medium text-gray-700 mb-2">Connect GitHub to browse repositories</h4>
+                                <p className="text-sm text-gray-500 mb-4">Your GHCR token will be used to access your repos</p>
+                                {ghcrConfig.connected ? (
+                                    <Button onClick={() => { checkGithubStatus(); fetchGithubRepos(); }}>
+                                        <GitBranch className="w-4 h-4 mr-2" />
+                                        Load Repositories
+                                    </Button>
+                                ) : (
+                                    <p className="text-sm text-amber-600">
+                                        <AlertCircle className="w-4 h-4 inline mr-1" />
+                                        Configure GHCR first
+                                    </p>
+                                )}
+                            </div>
                         ) : (
                             <>
-                                <Server className="w-4 h-4 mr-2" />
-                                Build & Push Image
+                                {/* Repo Selection */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Repository</label>
+                                    {loadingGithub ? (
+                                        <div className="text-center py-4 text-gray-400">Loading repos...</div>
+                                    ) : (
+                                        <select
+                                            value={selectedRepo?.full_name || ''}
+                                            onChange={(e) => {
+                                                const repo = githubRepos.find(r => r.full_name === e.target.value);
+                                                setSelectedRepo(repo || null);
+                                                setRepoFolders([]);
+                                                setSelectedFolder('');
+                                                setFolderPreview(null);
+                                                if (repo) fetchRepoFolders(repo, '');
+                                            }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        >
+                                            <option value="">-- Select a repository --</option>
+                                            {githubRepos.map(repo => (
+                                                <option key={repo.full_name} value={repo.full_name}>
+                                                    {repo.private && '🔒 '}{repo.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+
+                                {/* Folder Browser */}
+                                {selectedRepo && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Select Challenge Folder
+                                            <span className="text-gray-400 font-normal ml-2">
+                                                (must contain Dockerfile or docker-compose.yml)
+                                            </span>
+                                        </label>
+                                        {loadingFolders ? (
+                                            <div className="text-center py-4 text-gray-400">Loading folders...</div>
+                                        ) : (
+                                            <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                                                {repoFolders.filter(f => f.type === 'dir').map(folder => (
+                                                    <button
+                                                        key={folder.path}
+                                                        type="button"
+                                                        onClick={() => previewGithubFolder(selectedRepo, folder.path)}
+                                                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 border-b last:border-b-0 ${selectedFolder === folder.path ? 'bg-blue-50 text-blue-700' : ''
+                                                            }`}
+                                                    >
+                                                        <FolderOpen className="w-4 h-4 text-amber-500" />
+                                                        <span className="font-mono text-sm">{folder.name}</span>
+                                                    </button>
+                                                ))}
+                                                {repoFolders.filter(f => f.type === 'dir').length === 0 && (
+                                                    <p className="p-3 text-sm text-gray-500 text-center">No folders found in root</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Folder Preview */}
+                                {folderPreview && (
+                                    <div className={`p-4 rounded-lg border ${folderPreview.can_build ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {folderPreview.can_build ? (
+                                                <Check className="w-5 h-5 text-emerald-600" />
+                                            ) : (
+                                                <AlertCircle className="w-5 h-5 text-red-600" />
+                                            )}
+                                            <span className={`font-medium ${folderPreview.can_build ? 'text-emerald-700' : 'text-red-700'}`}>
+                                                {folderPreview.has_compose ? '🧩 Docker Compose Pack' : folderPreview.has_dockerfile ? '📦 Single Image' : 'No build files found'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-gray-600">
+                                            Files: {folderPreview.files.slice(0, 5).join(', ')}{folderPreview.files.length > 5 && '...'}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Image Name & Build Button */}
+                                {folderPreview?.can_build && (
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Image/Pack Name</label>
+                                            <Input
+                                                value={buildName}
+                                                onChange={(e) => setBuildName(e.target.value)}
+                                                placeholder="e.g., web-challenge, multi-service-ctf"
+                                            />
+                                        </div>
+                                        <div className="flex items-end">
+                                            <Button
+                                                onClick={buildFromGithub}
+                                                disabled={!buildName.trim() || buildProgress !== 'idle'}
+                                                className="bg-blue-600 hover:bg-blue-700"
+                                            >
+                                                {buildProgress === 'building' ? (
+                                                    <>
+                                                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                                        Building...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Server className="w-4 h-4 mr-2" />
+                                                        Build from GitHub
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Build Logs */}
+                                {buildLogs.length > 0 && (
+                                    <div className="bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-300 max-h-40 overflow-y-auto">
+                                        {buildLogs.map((log, i) => (
+                                            <div key={i}>{log}</div>
+                                        ))}
+                                    </div>
+                                )}
                             </>
                         )}
-                    </Button>
-                    {(buildProgress === 'done' || buildProgress === 'error') && (
-                        <Button variant="outline" onClick={resetBuild}>
-                            Build Another
-                        </Button>
-                    )}
-                </div>
-
-                {!ghcrConfig.connected && (
-                    <p className="text-sm text-amber-600 mt-3">
-                        <AlertCircle className="w-4 h-4 inline mr-1" />
-                        Connect GHCR above before building
-                    </p>
+                    </div>
                 )}
             </div>
 
@@ -871,96 +1048,98 @@ const AdminImageRegistry = () => {
             </div>
 
             {/* Dockerfile/Compose Viewer Modal */}
-            {showFileModal && zipPreview && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
-                    <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
-                        {/* Header */}
-                        <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b border-gray-200">
-                            <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${showFileModal === 'dockerfile' ? 'bg-blue-100' : 'bg-purple-100'
-                                    }`}>
-                                    <Package className={`w-4 h-4 ${showFileModal === 'dockerfile' ? 'text-blue-600' : 'text-purple-600'
-                                        }`} />
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-gray-900">
-                                        {showFileModal === 'dockerfile' ? 'Dockerfile' : 'docker-compose.yml'}
-                                    </h3>
-                                    <p className="text-xs text-gray-500">View contents for verification</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setShowFileModal(null)}
-                                className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 overflow-auto bg-gray-900 p-4">
-                            <div className="font-mono text-sm">
-                                {(showFileModal === 'dockerfile'
-                                    ? zipPreview.dockerfile_content
-                                    : zipPreview.docker_compose_content
-                                )?.split('\n').map((line, i) => (
-                                    <div key={i} className="flex hover:bg-gray-800/50 rounded px-2 -mx-2">
-                                        <span className="w-10 text-gray-500 text-right mr-4 select-none flex-shrink-0">
-                                            {i + 1}
-                                        </span>
-                                        <span className={
-                                            showFileModal === 'dockerfile' ? (
-                                                line.startsWith('FROM') ? 'text-purple-400' :
-                                                    line.startsWith('RUN') ? 'text-green-400' :
-                                                        line.startsWith('COPY') || line.startsWith('ADD') ? 'text-blue-400' :
-                                                            line.startsWith('EXPOSE') ? 'text-yellow-400 font-bold' :
-                                                                line.startsWith('CMD') || line.startsWith('ENTRYPOINT') ? 'text-orange-400' :
-                                                                    line.startsWith('ENV') ? 'text-cyan-400' :
-                                                                        line.startsWith('WORKDIR') ? 'text-pink-400' :
-                                                                            line.startsWith('#') ? 'text-gray-500 italic' :
-                                                                                'text-gray-100'
-                                            ) : (
-                                                // YAML syntax highlighting for docker-compose
-                                                line.match(/^\s*#/) ? 'text-gray-500 italic' :
-                                                    line.match(/^\s*[a-z_]+:/) ? 'text-cyan-400' :
-                                                        line.match(/^\s*-\s/) ? 'text-yellow-400' :
-                                                            line.match(/:\s*$/) ? 'text-purple-400' :
-                                                                'text-gray-100'
-                                            )
-                                        }>
-                                            {line || '\u00A0'}
-                                        </span>
+            {
+                showFileModal && zipPreview && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
+                        <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+                            {/* Header */}
+                            <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b border-gray-200">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${showFileModal === 'dockerfile' ? 'bg-blue-100' : 'bg-purple-100'
+                                        }`}>
+                                        <Package className={`w-4 h-4 ${showFileModal === 'dockerfile' ? 'text-blue-600' : 'text-purple-600'
+                                            }`} />
                                     </div>
-                                )) || (
-                                        <div className="text-center text-gray-500 py-8">
-                                            No content available
-                                        </div>
-                                    )}
+                                    <div>
+                                        <h3 className="font-semibold text-gray-900">
+                                            {showFileModal === 'dockerfile' ? 'Dockerfile' : 'docker-compose.yml'}
+                                        </h3>
+                                        <p className="text-xs text-gray-500">View contents for verification</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowFileModal(null)}
+                                    className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
-                        </div>
 
-                        {/* Footer */}
-                        <div className="bg-gray-100 px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                            <div className="text-xs text-gray-500">
-                                {showFileModal === 'dockerfile' && zipPreview.detected_ports.length > 0 ? (
-                                    <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                        Detected ports: <strong className="text-gray-700">{zipPreview.detected_ports.join(', ')}</strong>
-                                    </span>
-                                ) : showFileModal === 'dockerfile' ? (
-                                    <span className="text-amber-600">No EXPOSE statements found</span>
-                                ) : null}
+                            {/* Content */}
+                            <div className="flex-1 overflow-auto bg-gray-900 p-4">
+                                <div className="font-mono text-sm">
+                                    {(showFileModal === 'dockerfile'
+                                        ? zipPreview.dockerfile_content
+                                        : zipPreview.docker_compose_content
+                                    )?.split('\n').map((line, i) => (
+                                        <div key={i} className="flex hover:bg-gray-800/50 rounded px-2 -mx-2">
+                                            <span className="w-10 text-gray-500 text-right mr-4 select-none flex-shrink-0">
+                                                {i + 1}
+                                            </span>
+                                            <span className={
+                                                showFileModal === 'dockerfile' ? (
+                                                    line.startsWith('FROM') ? 'text-purple-400' :
+                                                        line.startsWith('RUN') ? 'text-green-400' :
+                                                            line.startsWith('COPY') || line.startsWith('ADD') ? 'text-blue-400' :
+                                                                line.startsWith('EXPOSE') ? 'text-yellow-400 font-bold' :
+                                                                    line.startsWith('CMD') || line.startsWith('ENTRYPOINT') ? 'text-orange-400' :
+                                                                        line.startsWith('ENV') ? 'text-cyan-400' :
+                                                                            line.startsWith('WORKDIR') ? 'text-pink-400' :
+                                                                                line.startsWith('#') ? 'text-gray-500 italic' :
+                                                                                    'text-gray-100'
+                                                ) : (
+                                                    // YAML syntax highlighting for docker-compose
+                                                    line.match(/^\s*#/) ? 'text-gray-500 italic' :
+                                                        line.match(/^\s*[a-z_]+:/) ? 'text-cyan-400' :
+                                                            line.match(/^\s*-\s/) ? 'text-yellow-400' :
+                                                                line.match(/:\s*$/) ? 'text-purple-400' :
+                                                                    'text-gray-100'
+                                                )
+                                            }>
+                                                {line || '\u00A0'}
+                                            </span>
+                                        </div>
+                                    )) || (
+                                            <div className="text-center text-gray-500 py-8">
+                                                No content available
+                                            </div>
+                                        )}
+                                </div>
                             </div>
-                            <button
-                                onClick={() => setShowFileModal(null)}
-                                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
-                            >
-                                Close
-                            </button>
+
+                            {/* Footer */}
+                            <div className="bg-gray-100 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                                <div className="text-xs text-gray-500">
+                                    {showFileModal === 'dockerfile' && zipPreview.detected_ports.length > 0 ? (
+                                        <span className="flex items-center gap-2">
+                                            <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                            Detected ports: <strong className="text-gray-700">{zipPreview.detected_ports.join(', ')}</strong>
+                                        </span>
+                                    ) : showFileModal === 'dockerfile' ? (
+                                        <span className="text-amber-600">No EXPOSE statements found</span>
+                                    ) : null}
+                                </div>
+                                <button
+                                    onClick={() => setShowFileModal(null)}
+                                    className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
         </div >
     );
 };

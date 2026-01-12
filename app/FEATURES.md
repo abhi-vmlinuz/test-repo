@@ -302,6 +302,20 @@ The Admin Panel provides full control over the platform.
 ### 9.5 Student Portal Management
 **URL:** `/admin/student-portal`
 
+### 9.5.1 Github Folder structure to be followed for challenge repo
+```
+challenges-repo/
+├── sqli-basic/
+│   └── Dockerfile
+├── web-multi/
+│   ├── docker-compose.yml
+│   ├── web/
+│   │   └── Dockerfile
+│   └── db/
+│       └── Dockerfile
+└── pwn-easy/
+    └── Dockerfile
+```
 **Tabs:**
 | Tab | Features |
 |-----|----------|
