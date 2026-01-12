@@ -12,6 +12,17 @@ interface DockerImage {
     created_at?: string;
 }
 
+// Multi-container challenge pack (from docker-compose builds)
+interface ChallengePack {
+    id: string;
+    pack_name: string;
+    display_name: string;
+    images: { name: string; image: string; ports: number[] }[];
+    combined_ports: number[];
+    is_multi_container: boolean;
+    created_at: string;
+}
+
 const AdminChallenges = () => {
     const [challenges, setChallenges] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -20,6 +31,7 @@ const AdminChallenges = () => {
     const [showModal, setShowModal] = useState(false);
     const [editingChallenge, setEditingChallenge] = useState(null);
     const [dockerImages, setDockerImages] = useState<DockerImage[]>([]);
+    const [challengePacks, setChallengePacks] = useState<ChallengePack[]>([]);
     const [loadingImages, setLoadingImages] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
@@ -31,7 +43,7 @@ const AdminChallenges = () => {
         flag: '',
         has_docker: false,
         docker_image: '',
-        docker_source: 'image' as 'image' | 'upload' | 'github',
+        docker_source: 'image' as 'image' | 'upload' | 'github' | 'pack',  // Added 'pack' option
         docker_port: null as number | null,
         ports: [] as number[],  // Ports to expose for container challenges
         uploadedFile: null as File | null,
@@ -40,7 +52,10 @@ const AdminChallenges = () => {
         hints: [] as { text: string; cost: number }[],
         questions: [] as { question: string; flag: string; points: number }[],
         tags: [] as string[],
-        is_published: true
+        is_published: true,
+        // Multi-container pack support
+        challenge_pack_id: '' as string,
+        is_multi_container: false
     });
 
     const [artifacts, setArtifacts] = useState<any[]>([]);
@@ -149,12 +164,13 @@ const AdminChallenges = () => {
         }
     };
 
-    // Fetch docker images when modal opens with Docker enabled
+    // Fetch docker images and challenge packs when modal opens with Docker enabled
     const fetchDockerImages = async () => {
         setLoadingImages(true);
         try {
             const res = await axios.get(`${API}/admin/docker-images`);
             setDockerImages(res.data.images || []);
+            setChallengePacks(res.data.packs || []);  // Also fetch challenge packs
         } catch (e) {
             console.error('Failed to fetch docker images:', e);
             toast.error('Could not load images from registry');
@@ -741,23 +757,23 @@ const AdminChallenges = () => {
                                         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
                                             <button
                                                 type="button"
-                                                onClick={() => setFormData(prev => ({ ...prev, docker_source: 'image' }))}
+                                                onClick={() => setFormData(prev => ({ ...prev, docker_source: 'image', challenge_pack_id: '', is_multi_container: false }))}
                                                 className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${(!formData.docker_source || formData.docker_source === 'image')
                                                     ? 'bg-white text-gray-900 shadow-sm'
                                                     : 'text-gray-500 hover:text-gray-700'
                                                     }`}
                                             >
-                                                📦 From Registry
+                                                📦 Single Container
                                             </button>
                                             <button
                                                 type="button"
-                                                onClick={() => setFormData(prev => ({ ...prev, docker_source: 'upload' }))}
-                                                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${formData.docker_source === 'upload'
+                                                onClick={() => setFormData(prev => ({ ...prev, docker_source: 'pack', docker_image: '', is_multi_container: true }))}
+                                                className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${formData.docker_source === 'pack'
                                                     ? 'bg-white text-gray-900 shadow-sm'
                                                     : 'text-gray-500 hover:text-gray-700'
                                                     }`}
                                             >
-                                                📁 Upload Files
+                                                🧩 Multi-Container
                                             </button>
                                             <button
                                                 type="button"
@@ -873,49 +889,117 @@ const AdminChallenges = () => {
                                             </div>
                                         )}
 
-                                        {/* File Upload Source */}
-                                        {formData.docker_source === 'upload' && (
+                                        {/* Multi-Container Pack Source */}
+                                        {formData.docker_source === 'pack' && (
                                             <div className="space-y-4">
-                                                {/* Info card redirecting to Image Registry */}
-                                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 text-center">
-                                                    <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                                        <Upload className="w-8 h-8 text-blue-600" />
+                                                {/* Pack Selection Header */}
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <h4 className="text-sm font-medium text-gray-700">Select Challenge Pack</h4>
+                                                        <p className="text-xs text-gray-400 mt-0.5">Multi-container bundles built from docker-compose</p>
                                                     </div>
-                                                    <h3 className="font-semibold text-gray-900 mb-2">Upload via Image Registry</h3>
-                                                    <p className="text-sm text-gray-600 max-w-md mx-auto mb-4">
-                                                        Docker images must be built and pushed to your GitHub Container Registry before use.
-                                                        Go to <strong>Image Registry</strong> to upload your ZIP file and build the image.
-                                                    </p>
-                                                    <a
-                                                        href="/admin/registry"
-                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                                                    <button
+                                                        type="button"
+                                                        onClick={fetchDockerImages}
+                                                        className="text-xs text-gray-500 hover:text-gray-700"
                                                     >
-                                                        <Upload className="w-4 h-4" />
-                                                        Open Image Registry
-                                                    </a>
-                                                    <p className="text-xs text-gray-400 mt-4">
-                                                        After building, return here and select your image from the "From Registry" tab
-                                                    </p>
+                                                        🔄 Refresh
+                                                    </button>
                                                 </div>
 
-                                                {/* How it works */}
-                                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                                                    <h4 className="font-medium text-gray-800 text-sm mb-3">How it works:</h4>
-                                                    <ol className="text-xs text-gray-600 space-y-2">
-                                                        <li className="flex items-start gap-2">
-                                                            <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center flex-shrink-0 text-[10px] font-bold">1</span>
-                                                            <span>Go to <strong>Image Registry</strong> and upload your ZIP file with Dockerfile</span>
-                                                        </li>
-                                                        <li className="flex items-start gap-2">
-                                                            <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center flex-shrink-0 text-[10px] font-bold">2</span>
-                                                            <span>The system builds the image and pushes it to GHCR</span>
-                                                        </li>
-                                                        <li className="flex items-start gap-2">
-                                                            <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center flex-shrink-0 text-[10px] font-bold">3</span>
-                                                            <span>Come back here and select image from "From Registry" — <strong>ports are auto-detected!</strong></span>
-                                                        </li>
-                                                    </ol>
-                                                </div>
+                                                {/* Pack Grid */}
+                                                {loadingImages ? (
+                                                    <div className="text-center py-8 text-gray-400">Loading packs...</div>
+                                                ) : challengePacks.length > 0 ? (
+                                                    <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto">
+                                                        {challengePacks.map((pack) => (
+                                                            <button
+                                                                key={pack.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setFormData(prev => ({
+                                                                        ...prev,
+                                                                        challenge_pack_id: pack.id,
+                                                                        docker_image: '',  // Clear single image
+                                                                        is_multi_container: true,
+                                                                        ports: pack.combined_ports  // Auto-fill ports!
+                                                                    }));
+                                                                    toast.info(`Selected pack with ${pack.images.length} containers, ${pack.combined_ports.length} ports auto-filled`);
+                                                                }}
+                                                                className={`p-4 text-left rounded-xl border-2 transition-all ${formData.challenge_pack_id === pack.id
+                                                                        ? 'border-indigo-500 bg-indigo-50'
+                                                                        : 'border-gray-200 hover:border-gray-400 bg-white'
+                                                                    }`}
+                                                            >
+                                                                <div className="flex items-start justify-between mb-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-2xl">🧩</span>
+                                                                        <div>
+                                                                            <span className="font-semibold text-gray-900">{pack.display_name || pack.pack_name}</span>
+                                                                            <div className="flex items-center gap-2 mt-1">
+                                                                                <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">
+                                                                                    {pack.images.length} containers
+                                                                                </span>
+                                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                                                                                    {pack.combined_ports.length} ports
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    {formData.challenge_pack_id === pack.id && (
+                                                                        <span className="text-indigo-600 text-sm font-medium">✓ Selected</span>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Container breakdown */}
+                                                                <div className="mt-3 space-y-1 text-xs border-t border-gray-100 pt-2">
+                                                                    {pack.images.map((img, idx) => (
+                                                                        <div key={idx} className="flex items-center justify-between text-gray-600">
+                                                                            <span className="flex items-center gap-1">
+                                                                                <Container className="w-3 h-3" />
+                                                                                {img.name}
+                                                                            </span>
+                                                                            <span className="font-mono text-gray-400">
+                                                                                {img.ports.map(p => `:${p}`).join(' ')}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-200">
+                                                        <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                                            <span className="text-3xl">🧩</span>
+                                                        </div>
+                                                        <h4 className="font-medium text-gray-700 mb-2">No Challenge Packs Yet</h4>
+                                                        <p className="text-sm text-gray-500 max-w-sm mx-auto mb-4">
+                                                            Upload a ZIP containing <code className="bg-gray-100 px-1 rounded text-xs">docker-compose.yml</code> in the Image Registry to create a multi-container pack.
+                                                        </p>
+                                                        <a
+                                                            href="/admin/registry"
+                                                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                                                        >
+                                                            <Upload className="w-4 h-4" />
+                                                            Open Image Registry
+                                                        </a>
+                                                    </div>
+                                                )}
+
+                                                {/* Selected pack info */}
+                                                {formData.challenge_pack_id && (
+                                                    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+                                                        <div className="flex items-center gap-2 text-indigo-700 mb-2">
+                                                            <span className="text-lg">✅</span>
+                                                            <span className="font-medium">Pack Selected</span>
+                                                        </div>
+                                                        <p className="text-sm text-indigo-600">
+                                                            When a player starts this challenge, all containers will run together in a single pod with a shared IP address.
+                                                            Ports have been auto-filled from the pack configuration.
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
