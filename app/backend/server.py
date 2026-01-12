@@ -1694,7 +1694,8 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow('''
             SELECT id, "categoryId", title, description, difficulty,
-                   points, "dockerImage", hints, questions, solves, flag, tags
+                   points, "dockerImage", hints, questions, solves, flag, tags,
+                   "hasDocker", "challengePackId", "isMultiContainer"
             FROM ctf_public_challenges
             WHERE id = $1 AND "isPublished" = true
         ''', challenge_id)
@@ -1743,6 +1744,9 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
             'difficulty': challenge['difficulty'].lower() if challenge['difficulty'] else 'medium',
             'points': challenge['points'],
             'docker_image': challenge['dockerImage'],
+            'has_docker': challenge.get('hasDocker', False),
+            'challenge_pack_id': challenge.get('challengePackId'),
+            'is_multi_container': challenge.get('isMultiContainer', False),
             'hints': hints,
             'questions': questions,
             'tags': tags,
@@ -5981,15 +5985,28 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow('''
-            SELECT id, title, "dockerImage" as docker_image, ports
+            SELECT id, title, "dockerImage" as docker_image, ports, 
+                   "hasDocker", "challengePackId", "isMultiContainer"
             FROM ctf_public_challenges WHERE id = $1
         ''', challenge_id)
         
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
         
-        if not challenge['docker_image']:
+        # Check if it has any docker configuration (single or multi)
+        if not challenge['docker_image'] and not challenge['challengePackId']:
             raise HTTPException(status_code=400, detail="This challenge does not have a container")
+        
+        # If multi-container, fetch the pack details
+        challenge_pack = None
+        if challenge['isMultiContainer'] and challenge['challengePackId']:
+            challenge_pack = await conn.fetchrow('''
+                SELECT id, pack_name, display_name, images, combined_ports
+                FROM challenge_packs WHERE id = $1
+            ''', challenge['challengePackId'])
+            
+            if not challenge_pack:
+                raise HTTPException(status_code=404, detail="Challenge pack not found")
         
         # Convert to strings for consistent storage/lookup
         user_id = str(current_user['id'])
@@ -6044,19 +6061,43 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
         # Spawn new session via Nexus
         try:
             async with httpx.AsyncClient() as client:
-                # ALWAYS create/update challenge in Nexus to ensure latest config (including ports!)
-                # This fixes the bug where cached challenges had old port config
-                nexus_challenge = {
-                    "name": challenge['title'],
-                    "category": "CTF",
-                    "difficulty": "Medium",
-                    "description": f"Challenge: {challenge['title']}",
-                    "max_score": 100,
-                    "flag": "PLACEHOLDER",
-                    "ttl_minutes": 60,
-                    "ports": challenge_ports,
-                    "image_url": challenge['docker_image']
+        # Prepare nexus challenge config
+        nexus_challenge = {
+            "name": challenge['title'],
+            "category": "CTF",
+            "difficulty": "Medium",
+            "description": f"Challenge: {challenge['title']}",
+            "max_score": 100,
+            "flag": "PLACEHOLDER",
+            "ttl_minutes": 60,
+            "ports": challenge_ports,
+        }
+
+        if challenge_pack:
+            nexus_challenge["is_multi_container"] = True
+            # Images in challenge_pack is a JSON list of objects with {name, image, ports}
+            pack_images = challenge_pack['images']
+            if isinstance(pack_images, str):
+                pack_images = json.loads(pack_images)
+            
+            nexus_challenge["containers"] = [
+                {
+                    "name": img.get('name', f"container-{i}"),
+                    "image": img.get('image'),
+                    "ports": img.get('ports', [])
                 }
+                for i, img in enumerate(pack_images)
+            ]
+            
+            # Ensure we use combined ports from the pack for service reachability
+            if challenge_pack.get('combined_ports'):
+                pack_ports = challenge_pack['combined_ports']
+                if isinstance(pack_ports, str):
+                    pack_ports = json.loads(pack_ports)
+                nexus_challenge["ports"] = pack_ports
+        else:
+            nexus_challenge["image_url"] = challenge['docker_image']
+            nexus_challenge["is_multi_container"] = False
                 
                 # Try to delete existing challenge to force fresh config
                 try:

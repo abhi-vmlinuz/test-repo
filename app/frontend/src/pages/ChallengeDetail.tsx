@@ -255,7 +255,7 @@ const ChallengeDetail = ({ user, logout }) => {
   };
 
   const handleStartDocker = async () => {
-    if (!challenge?.docker_image) return;
+    if (!challenge?.docker_image && !challenge?.has_docker && !challenge?.is_multi_container) return;
     if (startingDocker) return; // Prevent double-clicks
 
     // First check if there's already a running instance
@@ -436,7 +436,7 @@ const ChallengeDetail = ({ user, logout }) => {
           </motion.div>
 
           {/* Lab Environment - Gray/Black Theme */}
-          {challenge.docker_image && (
+          {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container) && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
               <div className="bg-gradient-to-r from-gray-100 to-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -795,7 +795,7 @@ const ChallengeDetail = ({ user, logout }) => {
           </div>
 
           {/* Challenge IP for Docker challenges */}
-          {challenge.docker_image && dockerInstance && (
+          {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container) && dockerInstance && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Challenge IP</h3>
               <div
@@ -829,7 +829,7 @@ const ChallengeDetail = ({ user, logout }) => {
               <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
                 {challenge.difficulty}
               </Badge>
-              {challenge.docker_image && (
+              {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container) && (
                 <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
                   Lab
                 </Badge>
