@@ -494,7 +494,9 @@ const AdminChallenges = () => {
                                         {challenge.difficulty}
                                     </Badge>
                                 </td>
-                                <td className="px-6 py-4 font-mono text-gray-900">{challenge.points}</td>
+                                <td className="px-6 py-4 font-mono text-gray-900">
+                                    {challenge.total_points ?? (challenge.points + (challenge.questions?.reduce((sum: number, q: { points?: number }) => sum + (q.points || 0), 0) || 0))}
+                                </td>
                                 <td className="px-6 py-4">
                                     {challenge.docker_image ? (
                                         <span className="flex items-center gap-1 text-indigo-600 text-sm">

@@ -2638,6 +2638,10 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
             if isinstance(ports, str):
                 ports = json.loads(ports)
             
+            # Calculate total points (base + questions)
+            question_points = sum(q.get('points', 25) for q in (questions or []))
+            total_points = c['points'] + question_points
+            
             result.append({
                 'id': c['id'],
                 'category_id': c['categoryId'],
@@ -2645,6 +2649,7 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
                 'description': c['description'],
                 'difficulty': c['difficulty'].lower() if c['difficulty'] else 'medium',
                 'points': c['points'],
+                'total_points': total_points,  # Base + question points
                 'flag': c['flag'],
                 'docker_image': c['dockerImage'],
                 'hints': hints or [],
