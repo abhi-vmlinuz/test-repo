@@ -48,11 +48,19 @@ const AdminImageRegistry = () => {
         files: { name: string; size: number; is_dir: boolean }[];
         total_files: number;
         total_size: number;
+        all_files_count: number;
         has_dockerfile: boolean;
         has_docker_compose: boolean;
         dockerfile_content?: string;
         docker_compose_content?: string;
         detected_ports: number[];
+        port_detection_info?: {
+            sources: string[];
+            details: Record<string, number[]>;
+        };
+        additional_dockerfiles?: string[];  // Paths where extra Dockerfiles were found
+        has_wrapper_folder?: boolean;
+        wrapper_folder?: string | null;
     } | null>(null);
     const [loadingZipPreview, setLoadingZipPreview] = useState(false);
     const [showFileModal, setShowFileModal] = useState<'dockerfile' | 'compose' | null>(null);
@@ -513,12 +521,28 @@ const AdminImageRegistry = () => {
                                 </div>
                             )}
                         </div>
-                        {/* Detected ports */}
+                        {/* Detected ports - Enhanced with source info */}
                         {zipPreview.detected_ports.length > 0 && (
-                            <div className="px-4 py-2 bg-emerald-50 border-t border-emerald-100 flex items-center gap-2">
-                                <Check className="w-3 h-3 text-emerald-600" />
-                                <span className="text-xs text-emerald-700 font-medium">
-                                    Detected EXPOSE ports: <strong>{zipPreview.detected_ports.join(', ')}</strong>
+                            <div className="px-4 py-3 bg-emerald-50 border-t border-emerald-100">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Check className="w-3 h-3 text-emerald-600" />
+                                    <span className="text-xs text-emerald-700 font-semibold">
+                                        Detected ports: <strong className="text-emerald-800">{zipPreview.detected_ports.join(', ')}</strong>
+                                    </span>
+                                </div>
+                                {zipPreview.port_detection_info?.sources && zipPreview.port_detection_info.sources.length > 0 && (
+                                    <div className="text-[10px] text-emerald-600 ml-5">
+                                        From: {zipPreview.port_detection_info.sources.join(' + ')}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {/* Additional Dockerfiles found */}
+                        {zipPreview.additional_dockerfiles && zipPreview.additional_dockerfiles.length > 0 && (
+                            <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-center gap-2">
+                                <FileText className="w-3 h-3 text-blue-600" />
+                                <span className="text-xs text-blue-700">
+                                    Additional Dockerfiles: <strong>{zipPreview.additional_dockerfiles.join(', ')}</strong>
                                 </span>
                             </div>
                         )}

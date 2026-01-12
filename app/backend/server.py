@@ -2718,7 +2718,7 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
 
 
 # ===========================================
-# DOCKERFILE PORT ANALYSIS
+# DOCKERFILE & DOCKER COMPOSE PORT ANALYSIS
 # ===========================================
 
 def parse_expose_from_dockerfile(dockerfile_content: str) -> List[int]:
@@ -2735,6 +2735,159 @@ def parse_expose_from_dockerfile(dockerfile_content: str) -> List[int]:
             if 1 <= port <= 65535 and port not in ports:
                 ports.append(port)
     return ports
+
+
+def parse_ports_from_docker_compose(compose_content: str) -> List[int]:
+    """
+    Parse ports from a docker-compose.yml file.
+    Handles various port formats:
+      - "80"
+      - "80:80"
+      - "12222:22"
+      - "$PORT:80"
+      - "8080-8090:8080-8090"
+    Returns the INTERNAL port (right side of mapping) for K8s exposure.
+    """
+    import re
+    import yaml
+    
+    ports = []
+    
+    try:
+        # Parse YAML
+        compose_data = yaml.safe_load(compose_content)
+        if not compose_data:
+            return ports
+        
+        # Get services (support both docker-compose v2 and v3)
+        services = compose_data.get('services', {})
+        
+        for service_name, service_config in services.items():
+            if not isinstance(service_config, dict):
+                continue
+            
+            # Get ports for this service
+            service_ports = service_config.get('ports', [])
+            
+            for port_spec in service_ports:
+                if isinstance(port_spec, int):
+                    # Simple port number
+                    if 1 <= port_spec <= 65535 and port_spec not in ports:
+                        ports.append(port_spec)
+                elif isinstance(port_spec, str):
+                    # Port mapping string like "8080:80" or "80"
+                    # Remove any protocol suffix like /tcp or /udp
+                    port_str = port_spec.split('/')[0]
+                    
+                    # Handle variable substitution like $PORT:80
+                    port_str = re.sub(r'\$\{?[A-Za-z_][A-Za-z0-9_]*\}?', '0', port_str)
+                    
+                    if ':' in port_str:
+                        # Host:Container format - we want the container port (internal)
+                        parts = port_str.split(':')
+                        try:
+                            # Get the internal port (last part)
+                            internal = parts[-1]
+                            # Handle range like 8080-8090
+                            if '-' in internal:
+                                range_parts = internal.split('-')
+                                start_port = int(range_parts[0])
+                                end_port = int(range_parts[1])
+                                for p in range(start_port, min(end_port + 1, start_port + 10)):  # Limit range
+                                    if 1 <= p <= 65535 and p not in ports:
+                                        ports.append(p)
+                            else:
+                                port = int(internal)
+                                if 1 <= port <= 65535 and port not in ports:
+                                    ports.append(port)
+                        except (ValueError, IndexError):
+                            pass
+                    else:
+                        # Single port
+                        try:
+                            if '-' in port_str:
+                                range_parts = port_str.split('-')
+                                start_port = int(range_parts[0])
+                                if 1 <= start_port <= 65535 and start_port not in ports:
+                                    ports.append(start_port)
+                            else:
+                                port = int(port_str)
+                                if 1 <= port <= 65535 and port not in ports:
+                                    ports.append(port)
+                        except ValueError:
+                            pass
+                            
+            # Also check for 'expose' directive (internal ports)
+            exposed_ports = service_config.get('expose', [])
+            for port_spec in exposed_ports:
+                try:
+                    port = int(str(port_spec).split('/')[0])
+                    if 1 <= port <= 65535 and port not in ports:
+                        ports.append(port)
+                except ValueError:
+                    pass
+    
+    except yaml.YAMLError as e:
+        logger.warning(f"Failed to parse docker-compose.yml: {e}")
+    except Exception as e:
+        logger.warning(f"Error parsing compose ports: {e}")
+    
+    return ports
+
+
+def detect_all_ports_from_zip(zip_file_contents: dict) -> tuple[List[int], dict]:
+    """
+    Comprehensive port detection from a ZIP containing Docker files.
+    
+    Args:
+        zip_file_contents: Dict with keys like 'dockerfile_content', 
+                          'docker_compose_content', 'dockerfiles' (list of contents)
+    
+    Returns:
+        Tuple of (merged_ports, detection_info)
+    """
+    all_ports = []
+    detection_info = {
+        'sources': [],
+        'details': {}
+    }
+    
+    # 1. Parse main Dockerfile
+    if zip_file_contents.get('dockerfile_content'):
+        dockerfile_ports = parse_expose_from_dockerfile(zip_file_contents['dockerfile_content'])
+        if dockerfile_ports:
+            for p in dockerfile_ports:
+                if p not in all_ports:
+                    all_ports.append(p)
+            detection_info['sources'].append('Dockerfile')
+            detection_info['details']['dockerfile'] = dockerfile_ports
+    
+    # 2. Parse docker-compose.yml
+    if zip_file_contents.get('docker_compose_content'):
+        compose_ports = parse_ports_from_docker_compose(zip_file_contents['docker_compose_content'])
+        if compose_ports:
+            for p in compose_ports:
+                if p not in all_ports:
+                    all_ports.append(p)
+            detection_info['sources'].append('docker-compose.yml')
+            detection_info['details']['docker_compose'] = compose_ports
+    
+    # 3. Parse additional Dockerfiles (for multi-service compose with Dockerfile builds)
+    additional_dockerfiles = zip_file_contents.get('additional_dockerfiles', {})
+    for path, content in additional_dockerfiles.items():
+        df_ports = parse_expose_from_dockerfile(content)
+        if df_ports:
+            for p in df_ports:
+                if p not in all_ports:
+                    all_ports.append(p)
+            source_name = f"Dockerfile ({path})"
+            detection_info['sources'].append(source_name)
+            detection_info['details'][path] = df_ports
+    
+    # Sort ports for consistent display
+    all_ports.sort()
+    
+    return all_ports, detection_info
 
 
 @api_router.post("/admin/analyze-ports")
@@ -2811,10 +2964,13 @@ async def preview_zip_contents(
     admin: dict = Depends(require_admin)
 ):
     """
-    Preview the contents of a ZIP file without extracting.
-    Returns list of files with their paths and sizes.
+    Preview the contents of a ZIP file.
+    - Shows only ROOT level files/folders
+    - Scans all subdirectories for Dockerfiles (for docker-compose builds)
+    - Combines ports from docker-compose.yml AND all Dockerfiles
     """
     import io
+    import yaml
     
     if not file.filename.endswith('.zip'):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
@@ -2830,50 +2986,104 @@ async def preview_zip_contents(
         # Parse ZIP
         zip_buffer = io.BytesIO(content)
         with zipfile.ZipFile(zip_buffer, 'r') as zf:
-            # Get file list
-            file_list = []
-            dockerfile_content = None
+            # Collect all file info
+            all_files = []
+            root_files = []  # Only root-level files/folders
+            dockerfile_content = None  # Root Dockerfile
             docker_compose_content = None
+            additional_dockerfiles = {}  # Subdirectory Dockerfiles: {path: content}
+            
+            # Determine if ZIP has a wrapper folder (common when zipping a folder)
+            all_names = [info.filename for info in zf.infolist()]
+            wrapper_prefix = ""
+            if all_names:
+                # Check if all files share a common top-level folder
+                first_parts = [n.split('/')[0] for n in all_names if '/' in n]
+                if first_parts and len(set(first_parts)) == 1:
+                    # All files are in a single folder - treat its contents as root
+                    wrapper_prefix = first_parts[0] + "/"
             
             for info in zf.infolist():
+                # Skip Mac OS metadata
+                if '__MACOSX' in info.filename or info.filename.startswith('.'):
+                    continue
+                
+                # Normalize path (remove wrapper folder if present)
+                normalized_name = info.filename
+                if wrapper_prefix and normalized_name.startswith(wrapper_prefix):
+                    normalized_name = normalized_name[len(wrapper_prefix):]
+                
+                if not normalized_name:
+                    continue
+                
                 file_entry = {
-                    "name": info.filename,
+                    "name": normalized_name,
+                    "original_path": info.filename,
                     "size": info.file_size,
                     "compressed_size": info.compress_size,
                     "is_dir": info.is_dir()
                 }
-                file_list.append(file_entry)
+                all_files.append(file_entry)
                 
-                # Check for Dockerfile to extract ports
-                if info.filename.lower().endswith('dockerfile') or info.filename.lower() == 'dockerfile':
+                # Check if this is a root-level item
+                # Root level means no '/' in the normalized name (or only trailing '/')
+                path_parts = normalized_name.rstrip('/').split('/')
+                if len(path_parts) == 1:
+                    root_files.append(file_entry)
+                
+                # Check for ROOT Dockerfile
+                if normalized_name.lower() in ['dockerfile', 'dockerfile/']:
                     try:
                         dockerfile_content = zf.read(info.filename).decode('utf-8')
                     except:
                         pass
                 
-                # Check for docker-compose.yml
-                if 'docker-compose' in info.filename.lower() and info.filename.endswith(('.yml', '.yaml')):
+                # Check for ANY Dockerfile in subdirectories (for docker-compose builds)
+                basename = normalized_name.rstrip('/').split('/')[-1].lower()
+                if basename == 'dockerfile' and normalized_name.lower() not in ['dockerfile', 'dockerfile/']:
+                    try:
+                        df_content = zf.read(info.filename).decode('utf-8')
+                        # Store with the directory path for reference
+                        dir_path = '/'.join(normalized_name.split('/')[:-1])
+                        additional_dockerfiles[dir_path] = df_content
+                    except:
+                        pass
+                
+                # Check for docker-compose.yml (at root or one level deep)
+                if (normalized_name.lower() in ['docker-compose.yml', 'docker-compose.yaml'] or 
+                    normalized_name.lower().endswith('/docker-compose.yml') or
+                    normalized_name.lower().endswith('/docker-compose.yaml')):
                     try:
                         docker_compose_content = zf.read(info.filename).decode('utf-8')
                     except:
                         pass
             
-            # Extract ports from Dockerfile if found
-            detected_ports = []
-            if dockerfile_content:
-                detected_ports = parse_expose_from_dockerfile(dockerfile_content)
+            # ==========================================
+            # COMPREHENSIVE PORT DETECTION
+            # ==========================================
+            zip_contents = {
+                'dockerfile_content': dockerfile_content,
+                'docker_compose_content': docker_compose_content,
+                'additional_dockerfiles': additional_dockerfiles
+            }
+            
+            detected_ports, port_detection_info = detect_all_ports_from_zip(zip_contents)
             
             return {
                 "filename": file.filename,
-                "total_files": len(file_list),
-                "total_size": sum(f["size"] for f in file_list),
-                "files": file_list[:100],  # Limit to first 100 files in preview
+                "total_files": len(all_files),
+                "total_size": sum(f["size"] for f in all_files),
+                "files": root_files,  # Only show root-level files!
+                "all_files_count": len(all_files),
                 "has_dockerfile": dockerfile_content is not None,
                 "has_docker_compose": docker_compose_content is not None,
-                "dockerfile_content": dockerfile_content,  # Include for frontend viewing
-                "docker_compose_content": docker_compose_content,  # Include for frontend viewing
+                "dockerfile_content": dockerfile_content,
+                "docker_compose_content": docker_compose_content,
+                "additional_dockerfiles": list(additional_dockerfiles.keys()),  # Show paths where extra Dockerfiles found
                 "detected_ports": detected_ports,
-                "truncated": len(file_list) > 100
+                "port_detection_info": port_detection_info,  # Details on where ports came from
+                "has_wrapper_folder": bool(wrapper_prefix),
+                "wrapper_folder": wrapper_prefix.rstrip('/') if wrapper_prefix else None
             }
     
     except zipfile.BadZipFile:
@@ -3149,8 +3359,35 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                 images.append(db_img)
     
     logger.info(f"Returning {len(images)} total images (GHCR API success: {ghcr_api_success})")
+    
+    # 4. Also fetch Challenge Packs (multi-container bundles)
+    packs = []
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            pack_rows = await conn.fetch('''
+                SELECT id, pack_name, display_name, images, combined_ports, created_at
+                FROM challenge_packs
+                ORDER BY created_at DESC
+                LIMIT 50
+            ''')
+            for row in pack_rows:
+                packs.append({
+                    'id': str(row['id']),
+                    'pack_name': row['pack_name'],
+                    'display_name': row['display_name'],
+                    'images': row['images'] if isinstance(row['images'], list) else json.loads(row['images']),
+                    'ports': row['combined_ports'] if isinstance(row['combined_ports'], list) else json.loads(row['combined_ports']),
+                    'container_count': len(row['images'] if isinstance(row['images'], list) else json.loads(row['images'])),
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                    'is_pack': True
+                })
+    except Exception as e:
+        logger.warning(f"Could not fetch challenge packs: {e}")
+    
     return {
         'images': images,
+        'packs': packs,
         'ghcr_connected': ghcr_api_success,
         'ghcr_username': ghcr_username
     }
@@ -3302,7 +3539,14 @@ async def build_docker_image(
     image_name: str = Form(...),
     admin: dict = Depends(require_admin)
 ):
-    """Build a Docker image from uploaded ZIP and push to GHCR"""
+    """
+    Build Docker image(s) from uploaded ZIP and push to GHCR.
+    
+    Supports:
+    - Single Dockerfile: Builds one image
+    - Docker Compose: Builds ALL service images as a "Challenge Pack"
+    """
+    import yaml
     
     # Clean up old builds first
     cleanup_old_builds()
@@ -3335,7 +3579,7 @@ async def build_docker_image(
     if not file.filename.endswith('.zip'):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
     
-    # Clean image name
+    # Clean image name (will be used as pack name for compose)
     clean_name = image_name.lower().replace(' ', '-').replace('_', '-')
     clean_name = ''.join(c for c in clean_name if c.isalnum() or c == '-')
     
@@ -3355,132 +3599,328 @@ async def build_docker_image(
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(build_dir / "extracted")
         
-        # Find Dockerfile
         extracted_dir = build_dir / "extracted"
-        dockerfile_path = None
         
-        # Check root level first
-        if (extracted_dir / "Dockerfile").exists():
-            dockerfile_path = extracted_dir / "Dockerfile"
-        else:
-            # Check one level deep (common when zipping a folder)
-            for subdir in extracted_dir.iterdir():
-                if subdir.is_dir() and (subdir / "Dockerfile").exists():
-                    dockerfile_path = subdir / "Dockerfile"
-                    extracted_dir = subdir  # Use this as build context
-                    break
+        # Handle wrapper folder (common when zipping a folder)
+        subdirs = [d for d in extracted_dir.iterdir() if d.is_dir() and not d.name.startswith('.') and d.name != '__MACOSX']
+        if len(subdirs) == 1 and not (extracted_dir / "Dockerfile").exists() and not (extracted_dir / "docker-compose.yml").exists():
+            # ZIP contains a single folder - use it as root
+            extracted_dir = subdirs[0]
         
-        if not dockerfile_path:
-            raise HTTPException(status_code=400, detail="Dockerfile not found in ZIP. Place it at the root.")
-        
-        # Parse Dockerfile for EXPOSE ports
-        detected_ports = []
-        dockerfile_content = ""
-        try:
-            with open(dockerfile_path, 'r') as df:
-                dockerfile_content = df.read()
-                detected_ports = parse_expose_from_dockerfile(dockerfile_content)
-        except Exception as e:
-            logger.warning(f"Could not parse Dockerfile for ports: {e}")
-        
-        # Build the image - Docker requires lowercase for image names!
-        full_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}:latest"
+        # Check for docker-compose.yml
+        compose_path = None
+        for compose_name in ['docker-compose.yml', 'docker-compose.yaml']:
+            if (extracted_dir / compose_name).exists():
+                compose_path = extracted_dir / compose_name
+                break
         
         if not docker_client:
             raise HTTPException(status_code=500, detail="Docker not available on server")
         
-        logger.info(f"Building image: {full_image_name}")
+        # Login to GHCR first
+        docker_client.login(
+            username=ghcr_username,
+            password=ghcr_token,
+            registry="ghcr.io"
+        )
+        logger.info("Logged in to GHCR")
         
-        try:
-            # Build image
-            image, build_logs = docker_client.images.build(
-                path=str(extracted_dir),
-                tag=full_image_name,
-                rm=True
-            )
-            logger.info(f"Image built successfully: {full_image_name}")
+        # =====================================
+        # DOCKER COMPOSE BUILD (Multi-Container)
+        # =====================================
+        if compose_path:
+            logger.info(f"Docker Compose detected: {compose_path}")
             
-            # Login to GHCR
-            docker_client.login(
-                username=ghcr_username,
-                password=ghcr_token,
-                registry="ghcr.io"
-            )
-            logger.info("Logged in to GHCR")
+            with open(compose_path, 'r') as f:
+                compose_content = f.read()
+                compose_data = yaml.safe_load(compose_content)
             
-            # Push to GHCR
-            logger.info(f"Pushing image to GHCR: {full_image_name}")
-            push_result = docker_client.images.push(full_image_name)
-            logger.info(f"Push result: {push_result}")
+            services = compose_data.get('services', {})
+            if not services:
+                raise HTTPException(status_code=400, detail="No services found in docker-compose.yml")
             
-            # Make the package public so K8s can pull without auth
-            try:
-                async with httpx.AsyncClient() as client:
-                    # GitHub API to change package visibility
-                    # Note: This requires the token to have write:packages scope
-                    visibility_resp = await client.patch(
-                        f"https://api.github.com/user/packages/container/{clean_name}",
-                        headers={
-                            "Authorization": f"Bearer {ghcr_token}",
-                            "Accept": "application/vnd.github+json",
-                            "X-GitHub-Api-Version": "2022-11-28"
-                        },
-                        json={"visibility": "public"},
-                        timeout=10.0
-                    )
-                    if visibility_resp.status_code == 200:
-                        logger.info(f"Package {clean_name} made public successfully")
+            built_images = []
+            all_ports = []
+            
+            for service_name, service_config in services.items():
+                if not isinstance(service_config, dict):
+                    continue
+                
+                # Determine build context
+                build_config = service_config.get('build', None)
+                service_image = service_config.get('image', None)
+                
+                if build_config:
+                    # Service has a build context
+                    if isinstance(build_config, str):
+                        build_context = extracted_dir / build_config
+                        dockerfile_name = "Dockerfile"
+                    elif isinstance(build_config, dict):
+                        build_context = extracted_dir / build_config.get('context', '.')
+                        dockerfile_name = build_config.get('dockerfile', 'Dockerfile')
                     else:
-                        logger.warning(f"Could not make package public: {visibility_resp.status_code} - {visibility_resp.text[:200]}")
-            except Exception as vis_error:
-                logger.warning(f"Failed to make package public: {vis_error}")
-                # Don't fail the entire operation - package is pushed but private
+                        continue
+                    
+                    # Check Dockerfile exists
+                    dockerfile_path = build_context / dockerfile_name
+                    if not dockerfile_path.exists():
+                        logger.warning(f"Dockerfile not found for service {service_name}: {dockerfile_path}")
+                        continue
+                    
+                    # Parse ports from Dockerfile
+                    service_ports = []
+                    try:
+                        with open(dockerfile_path, 'r') as df:
+                            service_ports = parse_expose_from_dockerfile(df.read())
+                    except:
+                        pass
+                    
+                    # Also get ports from compose service definition
+                    compose_ports = service_config.get('ports', [])
+                    for port_spec in compose_ports:
+                        try:
+                            if isinstance(port_spec, int):
+                                if port_spec not in service_ports:
+                                    service_ports.append(port_spec)
+                            elif isinstance(port_spec, str):
+                                # Parse "host:container" format
+                                parts = port_spec.split(':')
+                                container_port = int(parts[-1].split('/')[0])
+                                if container_port not in service_ports:
+                                    service_ports.append(container_port)
+                        except:
+                            pass
+                    
+                    # Build image for this service
+                    service_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}-{service_name}:latest"
+                    
+                    logger.info(f"Building service '{service_name}': {service_image_name}")
+                    
+                    try:
+                        image, build_logs = docker_client.images.build(
+                            path=str(build_context),
+                            dockerfile=dockerfile_name,
+                            tag=service_image_name,
+                            rm=True
+                        )
+                        
+                        # Push to GHCR
+                        logger.info(f"Pushing {service_image_name}")
+                        docker_client.images.push(service_image_name)
+                        
+                        # Make public
+                        try:
+                            async with httpx.AsyncClient() as client:
+                                pkg_name = f"{clean_name}-{service_name}"
+                                await client.patch(
+                                    f"https://api.github.com/user/packages/container/{pkg_name}",
+                                    headers={
+                                        "Authorization": f"Bearer {ghcr_token}",
+                                        "Accept": "application/vnd.github+json",
+                                        "X-GitHub-Api-Version": "2022-11-28"
+                                    },
+                                    json={"visibility": "public"},
+                                    timeout=10.0
+                                )
+                        except:
+                            pass
+                        
+                        built_images.append({
+                            'service': service_name,
+                            'image': service_image_name,
+                            'ports': service_ports
+                        })
+                        
+                        for p in service_ports:
+                            if p not in all_ports:
+                                all_ports.append(p)
+                        
+                        logger.info(f"Built and pushed {service_name} with ports {service_ports}")
+                        
+                    except Exception as build_err:
+                        logger.error(f"Failed to build service {service_name}: {build_err}")
+                        # Continue with other services
+                
+                elif service_image:
+                    # Service uses a pre-built image
+                    service_ports = []
+                    compose_ports = service_config.get('ports', [])
+                    for port_spec in compose_ports:
+                        try:
+                            if isinstance(port_spec, int):
+                                service_ports.append(port_spec)
+                            elif isinstance(port_spec, str):
+                                parts = port_spec.split(':')
+                                container_port = int(parts[-1].split('/')[0])
+                                if container_port not in service_ports:
+                                    service_ports.append(container_port)
+                        except:
+                            pass
+                    
+                    built_images.append({
+                        'service': service_name,
+                        'image': service_image,
+                        'ports': service_ports,
+                        'prebuild': True
+                    })
+                    
+                    for p in service_ports:
+                        if p not in all_ports:
+                            all_ports.append(p)
             
-            # Store image metadata in database with detected ports
+            if not built_images:
+                raise HTTPException(status_code=400, detail="No services could be built from docker-compose.yml")
+            
+            # Store as Challenge Pack in database
             try:
                 pool = await Database.get_pool()
                 async with pool.acquire() as conn:
-                    # Check if docker_image_metadata table exists, create if not
+                    # Create challenge_packs table if not exists
                     await conn.execute('''
-                        CREATE TABLE IF NOT EXISTS docker_image_metadata (
-                            id SERIAL PRIMARY KEY,
-                            image_url TEXT UNIQUE NOT NULL,
-                            image_name TEXT,
-                            ports JSONB DEFAULT '[]',
-                            dockerfile_content TEXT,
+                        CREATE TABLE IF NOT EXISTS challenge_packs (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            pack_name TEXT UNIQUE NOT NULL,
+                            display_name TEXT NOT NULL,
+                            images JSONB NOT NULL,
+                            combined_ports JSONB NOT NULL,
+                            compose_content TEXT,
+                            is_multi_container BOOLEAN DEFAULT TRUE,
                             created_at TIMESTAMP DEFAULT NOW(),
                             updated_at TIMESTAMP DEFAULT NOW()
                         )
                     ''')
                     
-                    # Insert or update image metadata
+                    pack_id = uuid.uuid4()
                     await conn.execute('''
-                        INSERT INTO docker_image_metadata (image_url, image_name, ports, dockerfile_content)
-                        VALUES ($1, $2, $3, $4)
-                        ON CONFLICT (image_url) DO UPDATE SET
-                            ports = EXCLUDED.ports,
-                            dockerfile_content = EXCLUDED.dockerfile_content,
+                        INSERT INTO challenge_packs (id, pack_name, display_name, images, combined_ports, compose_content)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT (pack_name) DO UPDATE SET
+                            images = EXCLUDED.images,
+                            combined_ports = EXCLUDED.combined_ports,
+                            compose_content = EXCLUDED.compose_content,
                             updated_at = NOW()
-                    ''', full_image_name, clean_name, json.dumps(detected_ports), dockerfile_content)
+                    ''', pack_id, clean_name, image_name, json.dumps(built_images), json.dumps(all_ports), compose_content)
                     
-                    logger.info(f"Stored image metadata with ports: {detected_ports}")
+                    logger.info(f"Stored challenge pack '{clean_name}' with {len(built_images)} images")
             except Exception as db_error:
-                logger.warning(f"Could not store image metadata: {db_error}")
+                logger.warning(f"Could not store challenge pack: {db_error}")
             
             # Clean up
             shutil.rmtree(build_dir, ignore_errors=True)
             
             return {
                 'status': 'success',
-                'image': full_image_name,
-                'ports': detected_ports,
-                'message': f'Image {clean_name} built and pushed to GHCR!'
+                'type': 'pack',
+                'pack_name': clean_name,
+                'images': built_images,
+                'ports': all_ports,
+                'message': f'Challenge Pack "{clean_name}" built with {len(built_images)} container(s)!'
             }
+        
+        # =====================================
+        # SINGLE DOCKERFILE BUILD
+        # =====================================
+        else:
+            # Find Dockerfile
+            dockerfile_path = None
             
-        except Exception as build_error:
-            logger.error(f"Docker build/push failed: {build_error}")
-            shutil.rmtree(build_dir, ignore_errors=True)
-            raise HTTPException(status_code=500, detail=f"Build failed: {str(build_error)}")
+            if (extracted_dir / "Dockerfile").exists():
+                dockerfile_path = extracted_dir / "Dockerfile"
+            else:
+                # Check one level deep
+                for subdir in extracted_dir.iterdir():
+                    if subdir.is_dir() and (subdir / "Dockerfile").exists():
+                        dockerfile_path = subdir / "Dockerfile"
+                        extracted_dir = subdir
+                        break
+            
+            if not dockerfile_path:
+                raise HTTPException(status_code=400, detail="No Dockerfile or docker-compose.yml found in ZIP")
+            
+            # Parse Dockerfile for EXPOSE ports
+            detected_ports = []
+            dockerfile_content = ""
+            try:
+                with open(dockerfile_path, 'r') as df:
+                    dockerfile_content = df.read()
+                    detected_ports = parse_expose_from_dockerfile(dockerfile_content)
+            except Exception as e:
+                logger.warning(f"Could not parse Dockerfile for ports: {e}")
+            
+            full_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}:latest"
+            
+            logger.info(f"Building single image: {full_image_name}")
+            
+            try:
+                image, build_logs = docker_client.images.build(
+                    path=str(extracted_dir),
+                    tag=full_image_name,
+                    rm=True
+                )
+                logger.info(f"Image built successfully: {full_image_name}")
+                
+                # Push to GHCR
+                logger.info(f"Pushing image to GHCR: {full_image_name}")
+                docker_client.images.push(full_image_name)
+                
+                # Make public
+                try:
+                    async with httpx.AsyncClient() as client:
+                        await client.patch(
+                            f"https://api.github.com/user/packages/container/{clean_name}",
+                            headers={
+                                "Authorization": f"Bearer {ghcr_token}",
+                                "Accept": "application/vnd.github+json",
+                                "X-GitHub-Api-Version": "2022-11-28"
+                            },
+                            json={"visibility": "public"},
+                            timeout=10.0
+                        )
+                except:
+                    pass
+                
+                # Store image metadata
+                try:
+                    pool = await Database.get_pool()
+                    async with pool.acquire() as conn:
+                        await conn.execute('''
+                            CREATE TABLE IF NOT EXISTS docker_image_metadata (
+                                id SERIAL PRIMARY KEY,
+                                image_url TEXT UNIQUE NOT NULL,
+                                image_name TEXT,
+                                ports JSONB DEFAULT '[]',
+                                dockerfile_content TEXT,
+                                created_at TIMESTAMP DEFAULT NOW(),
+                                updated_at TIMESTAMP DEFAULT NOW()
+                            )
+                        ''')
+                        
+                        await conn.execute('''
+                            INSERT INTO docker_image_metadata (image_url, image_name, ports, dockerfile_content)
+                            VALUES ($1, $2, $3, $4)
+                            ON CONFLICT (image_url) DO UPDATE SET
+                                ports = EXCLUDED.ports,
+                                dockerfile_content = EXCLUDED.dockerfile_content,
+                                updated_at = NOW()
+                        ''', full_image_name, clean_name, json.dumps(detected_ports), dockerfile_content)
+                except Exception as db_error:
+                    logger.warning(f"Could not store image metadata: {db_error}")
+                
+                # Clean up
+                shutil.rmtree(build_dir, ignore_errors=True)
+                
+                return {
+                    'status': 'success',
+                    'type': 'single',
+                    'image': full_image_name,
+                    'ports': detected_ports,
+                    'message': f'Image {clean_name} built and pushed to GHCR!'
+                }
+                
+            except Exception as build_error:
+                logger.error(f"Docker build/push failed: {build_error}")
+                shutil.rmtree(build_dir, ignore_errors=True)
+                raise HTTPException(status_code=500, detail=f"Build failed: {str(build_error)}")
             
     except HTTPException:
         raise
