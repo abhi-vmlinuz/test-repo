@@ -258,19 +258,21 @@ const ChallengeDetail = ({ user, logout }) => {
     if (!challenge?.docker_image && !challenge?.has_docker && !challenge?.is_multi_container) return;
     if (startingDocker) return; // Prevent double-clicks
 
+    // Set loading state IMMEDIATELY for instant visual feedback
+    setStartingDocker(true);
+
     // First check if there's already a running instance
     try {
       const existingCheck = await axios.get(`${API}/docker/challenge-session/${id}`);
       if (existingCheck.data && existingCheck.data.status === 'running' && existingCheck.data.target_ip) {
         setDockerInstance(existingCheck.data);
+        setStartingDocker(false);
         toast.info('Instance already running!');
         return;
       }
     } catch (e) {
       // No existing session, proceed to start
     }
-
-    setStartingDocker(true);
 
     try {
       const response = await axios.post(`${API}/docker/start/${id}`);
