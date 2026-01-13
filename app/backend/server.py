@@ -2288,6 +2288,13 @@ async def admin_create_public_challenge(data: PublicChallengeCreate, admin: dict
     """Create a new public challenge"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
+        # Check for duplicate title to prevent double-click issues
+        existing = await conn.fetchrow('''
+            SELECT id FROM ctf_public_challenges WHERE lower(title) = lower($1)
+        ''', data.title)
+        if existing:
+            raise HTTPException(status_code=409, detail=f"A challenge with the title '{data.title}' already exists")
+        
         challenge_id = generate_uuid()
         
         hints = [{'text': h.text, 'cost': h.cost} for h in data.hints]
@@ -2305,6 +2312,7 @@ async def admin_create_public_challenge(data: PublicChallengeCreate, admin: dict
              json.dumps(hints), json.dumps(questions), data.is_published)
         
         return {'id': challenge_id}
+
 
 
 @api_router.delete("/admin/public-challenges/{challenge_id}")
@@ -3281,6 +3289,132 @@ async def get_zip_info(file: UploadFile = File(...), admin: dict = Depends(requi
 
 DOCKER_BUILDS_DIR = Path("/tmp/nexus-docker-builds")
 DOCKER_BUILDS_DIR.mkdir(exist_ok=True)
+
+
+@api_router.post("/admin/preview-zip")
+async def preview_zip_contents(file: UploadFile, admin: dict = Depends(require_admin)):
+    """
+    Preview contents of a ZIP file without processing.
+    Returns file list, detected Dockerfiles, compose files, and ports.
+    """
+    import re
+    import tempfile
+    import zipfile
+    
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="Only ZIP files are allowed")
+    
+    # Save to temp file
+    temp_path = Path(tempfile.mktemp(suffix='.zip'))
+    try:
+        content = await file.read()
+        temp_path.write_bytes(content)
+        
+        with zipfile.ZipFile(temp_path, 'r') as zf:
+            all_files = zf.namelist()
+            
+            # Build file info list
+            files = []
+            total_size = 0
+            for name in all_files[:100]:  # Limit to first 100 entries
+                info = zf.getinfo(name)
+                is_dir = name.endswith('/')
+                files.append({
+                    'name': name,
+                    'size': info.file_size,
+                    'is_dir': is_dir
+                })
+                total_size += info.file_size
+            
+            # Detect Dockerfile and docker-compose
+            has_dockerfile = False
+            has_docker_compose = False
+            dockerfile_content = None
+            docker_compose_content = None
+            additional_dockerfiles = []
+            
+            # Check for wrapper folder (common pattern: zip contains single folder with all files)
+            wrapper_folder = None
+            if len(all_files) > 0:
+                first_parts = set()
+                for f in all_files:
+                    parts = f.split('/')
+                    if parts[0]:
+                        first_parts.add(parts[0])
+                if len(first_parts) == 1:
+                    wrapper_folder = list(first_parts)[0]
+            
+            # Find Dockerfile and compose files
+            for name in all_files:
+                basename = name.split('/')[-1].lower()
+                if basename == 'dockerfile':
+                    if not has_dockerfile:
+                        has_dockerfile = True
+                        try:
+                            dockerfile_content = zf.read(name).decode('utf-8', errors='ignore')[:5000]
+                        except:
+                            pass
+                    else:
+                        additional_dockerfiles.append(name)
+                elif basename in ['docker-compose.yml', 'docker-compose.yaml', 'compose.yml', 'compose.yaml']:
+                    if not has_docker_compose:
+                        has_docker_compose = True
+                        try:
+                            docker_compose_content = zf.read(name).decode('utf-8', errors='ignore')[:5000]
+                        except:
+                            pass
+            
+            # Detect ports from Dockerfile and compose
+            detected_ports = set()
+            port_sources = []
+            port_details = {}
+            
+            if dockerfile_content:
+                # EXPOSE instructions
+                for match in re.findall(r'EXPOSE\s+(\d+)', dockerfile_content, re.IGNORECASE):
+                    detected_ports.add(int(match))
+                if detected_ports:
+                    port_sources.append('Dockerfile EXPOSE')
+                    port_details['dockerfile'] = list(detected_ports)
+            
+            if docker_compose_content:
+                # ports: - "8080:80" or - 3000
+                compose_ports = set()
+                for match in re.findall(r'["\']?(\d+):(\d+)["\']?', docker_compose_content):
+                    compose_ports.add(int(match[0]))  # Host port
+                for match in re.findall(r'^\s*-\s*["\']?(\d+)["\']?\s*$', docker_compose_content, re.MULTILINE):
+                    compose_ports.add(int(match))
+                if compose_ports:
+                    detected_ports.update(compose_ports)
+                    port_sources.append('docker-compose ports')
+                    port_details['compose'] = list(compose_ports)
+            
+            return {
+                'files': files,
+                'total_files': len(files),
+                'all_files_count': len(all_files),
+                'total_size': total_size,
+                'has_dockerfile': has_dockerfile,
+                'has_docker_compose': has_docker_compose,
+                'dockerfile_content': dockerfile_content,
+                'docker_compose_content': docker_compose_content,
+                'detected_ports': sorted(list(detected_ports)),
+                'port_detection_info': {
+                    'sources': port_sources,
+                    'details': port_details
+                },
+                'additional_dockerfiles': additional_dockerfiles if additional_dockerfiles else None,
+                'has_wrapper_folder': wrapper_folder is not None,
+                'wrapper_folder': wrapper_folder
+            }
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file")
+    except Exception as e:
+        logger.error(f"ZIP preview error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to preview ZIP: {str(e)}")
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 @api_router.get("/admin/docker-images")

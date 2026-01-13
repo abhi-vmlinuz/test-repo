@@ -69,6 +69,7 @@ const AdminChallenges = () => {
         detected_ports: number[];
     } | null>(null);
     const [loadingZipPreview, setLoadingZipPreview] = useState(false);
+    const [saving, setSaving] = useState(false);  // Prevent double-click on save
     const [showDockerfileModal, setShowDockerfileModal] = useState(false);
     const [imageNotFoundWarning, setImageNotFoundWarning] = useState(false);
 
@@ -338,6 +339,10 @@ const AdminChallenges = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        // Prevent double-click
+        if (saving) return;
+        setSaving(true);
+
         // Prepare data - only include docker fields if has_docker is true
         // Only include flag if has_main_flag is true
         const submitData = {
@@ -395,10 +400,17 @@ const AdminChallenges = () => {
             }
             setShowModal(false);
             fetchData();
-        } catch (error) {
-            toast.error(error.response?.data?.detail || 'Failed to save challenge');
+        } catch (error: any) {
+            if (error.response?.status === 409) {
+                toast.error('A challenge with this title already exists');
+            } else {
+                toast.error(error.response?.data?.detail || 'Failed to save challenge');
+            }
+        } finally {
+            setSaving(false);
         }
     };
+
 
     const handleDelete = async (challenge) => {
         if (!confirm(`Delete "${challenge.title}"? This will also delete all user progress for this challenge.`)) {
@@ -1457,11 +1469,22 @@ const AdminChallenges = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex items-center gap-2 px-6 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors"
+                                    disabled={saving}
+                                    className="flex items-center gap-2 px-6 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    <Save className="w-4 h-4" />
-                                    {editingChallenge ? 'Save Changes' : 'Create Challenge'}
+                                    {saving ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-4 h-4" />
+                                            {editingChallenge ? 'Save Changes' : 'Create Challenge'}
+                                        </>
+                                    )}
                                 </button>
+
                             </div>
                         </form>
                     </div>
