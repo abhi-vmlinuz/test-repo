@@ -619,6 +619,13 @@ const AdminImageRegistry = () => {
                                         setBuildFile(file);
 
                                         if (file) {
+                                            // Skip preview for files larger than 50MB
+                                            if (file.size > 50 * 1024 * 1024) {
+                                                setZipPreview(null);
+                                                toast.info('File too large for preview (>50MB). Build will still work.');
+                                                return;
+                                            }
+
                                             // Fetch ZIP preview
                                             setLoadingZipPreview(true);
                                             try {
@@ -639,7 +646,11 @@ const AdminImageRegistry = () => {
                                     disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
                                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
                                 />
+                                <p className="text-[10px] text-gray-400 mt-1">
+                                    💡 Files over 50MB won't show preview but will still build successfully
+                                </p>
                             </div>
+
                         </div>
 
                         {/* ZIP Preview Section */}
