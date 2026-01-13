@@ -6752,11 +6752,11 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
     """Admin-only: List all active sessions/pods with details"""
     sessions = []
     
-    # 1. Get sessions from Nexus Engine
+    # 1. Get sessions from Nexus Engine (admin endpoint)
     nexus_sessions = {}
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions", timeout=10.0)
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/sessions", timeout=10.0)
             if resp.status_code == 200:
                 data = resp.json()
                 for sess in data.get('sessions', []):
