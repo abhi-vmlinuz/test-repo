@@ -274,25 +274,39 @@ const ChallengeDetail = ({ user, logout }) => {
       // No existing session, proceed to start
     }
 
+    // Fire the start request but don't wait for full response
+    // The polling mechanism will pick up the result
     try {
-      const response = await axios.post(`${API}/docker/start/${id}`);
+      // Use a short timeout - if the backend responds quickly, great!
+      // Otherwise, polling will handle it
+      const response = await axios.post(`${API}/docker/start/${id}`, {}, { timeout: 15000 });
       if (response.data && response.data.status === 'running' && response.data.target_ip) {
-        // Immediate success - instance started quickly
+        // Immediate success - instance started quickly (cached or fast provision)
         setDockerInstance(response.data);
         setStartingDocker(false);
-        // Don't show toast here - let polling handle it to avoid duplicates
+        toast.success('Instance is ready!');
+        return;
       }
-      // Otherwise, polling will handle it - don't show any error here
+      // If we get here, session was started but still provisioning - polling will handle it
     } catch (error: any) {
-      console.error('[Nexus] Start error:', error);
-      setStartingDocker(false);
-
-      if (error.response?.status === 429) {
+      // Only show error for non-timeout errors
+      // Timeouts are expected since provisioning takes 1-2 minutes
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        // Timeout is expected - polling will continue checking
+        console.log('[Nexus] Initial request timed out - polling will continue');
+      } else if (error.response?.status === 429) {
+        setStartingDocker(false);
         toast.error(error.response?.data?.detail || 'Please wait before starting another instance');
-      } else if (error.response?.status === 503 || error.response?.status === 504) {
+      } else if (error.response?.status === 503) {
+        setStartingDocker(false);
         toast.error(error.response?.data?.detail || 'Container service unavailable. Please try again later.');
+      } else if (error.response?.status >= 400 && error.response?.status < 500) {
+        // Client errors should stop polling
+        setStartingDocker(false);
+        toast.error(error.response?.data?.detail || 'Failed to start instance');
       } else {
-        toast.error('Failed to start lab instance. Please check your connection.');
+        // Network/server errors - keep polling as backend might still be processing
+        console.log('[Nexus] Request error, polling will continue:', error.message);
       }
     }
   };
