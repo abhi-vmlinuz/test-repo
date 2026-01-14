@@ -2007,13 +2007,13 @@ async def get_leaderboard(limit: int = 100, period: str = "all"):
                     u.name, 
                     u.email, 
                     u.avatar_url,
-                    COALESCE(SUM(cp.score_earned), 0) as score
+                    COALESCE(SUM(cp."scoreEarned"), 0) as score
                 FROM users u
-                LEFT JOIN ctf_public_progress cp ON u.id = cp.user_id 
-                    AND cp.solved_at >= NOW() - INTERVAL '{interval}'
-                    AND cp.is_solved = true
+                LEFT JOIN ctf_public_progress cp ON u.id = cp."userId" 
+                    AND cp."solvedAt" >= NOW() - INTERVAL '{interval}'
+                    AND cp.solved = true
                 GROUP BY u.id, u.name, u.email, u.avatar_url
-                HAVING COALESCE(SUM(cp.score_earned), 0) > 0
+                HAVING COALESCE(SUM(cp."scoreEarned"), 0) > 0
                 ORDER BY score DESC
                 LIMIT $1
             ''', limit)

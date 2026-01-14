@@ -259,7 +259,7 @@ const Challenges = ({ user, logout }) => {
                       </div>
 
                       <div className="text-right">
-                        <span className="block text-lg font-mono font-bold text-zinc-900">{challenge.points}</span>
+                        <span className="block text-lg font-mono font-bold text-zinc-900">{challenge.total_points || challenge.points}</span>
                         <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Points</span>
                       </div>
                     </div>
