@@ -4029,6 +4029,8 @@ async def build_image_from_github(
     admin: dict = Depends(require_admin)
 ):
     """Clone a GitHub folder and build Docker image from it"""
+    import re  # Required for sanitizing image names
+    
     repo = data.get('repo')  # e.g., 'username/repo-name'
     path = data.get('path', '')  # folder path in repo
     image_name = data.get('image_name', '')
