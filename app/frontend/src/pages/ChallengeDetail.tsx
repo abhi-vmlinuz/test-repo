@@ -477,7 +477,7 @@ const ChallengeDetail = ({ user, logout }) => {
                   <div className="space-y-4">
                     <p className="text-gray-600 text-sm">
                       {startingDocker
-                        ? 'Preparing your lab environment. The machine IP will be displayed shortly...'
+                        ? "Preparing your lab environment. It'd take a minute for the machine IP..."
                         : 'Start a private lab instance to access the challenge environment.'}
                     </p>
                     <Button
