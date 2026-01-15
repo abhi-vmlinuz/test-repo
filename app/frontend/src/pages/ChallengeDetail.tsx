@@ -445,7 +445,7 @@ const ChallengeDetail = ({ user, logout }) => {
 
               <div className="prose prose-sm max-w-none">
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                  <p className="font-sans text-base leading-relaxed text-gray-600 whitespace-pre-line">{challenge.description}</p>
+                  <p className="font-sans text-base leading-relaxed text-gray-600">{challenge.description?.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim()}</p>
                 </div>
               </div>
             </div>
