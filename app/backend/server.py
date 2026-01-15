@@ -4030,6 +4030,7 @@ async def build_image_from_github(
 ):
     """Clone a GitHub folder and build Docker image from it"""
     import re  # Required for sanitizing image names
+    import yaml  # Required for parsing docker-compose.yml
     
     repo = data.get('repo')  # e.g., 'username/repo-name'
     path = data.get('path', '')  # folder path in repo
