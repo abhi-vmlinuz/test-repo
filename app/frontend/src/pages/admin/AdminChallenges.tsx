@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag, Paperclip, Download, FileText, Upload, FolderOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag, Paperclip, Download, FileText, Upload, FolderOpen, GitBranch } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
@@ -78,6 +78,11 @@ const AdminChallenges = () => {
     const [githubUsername, setGithubUsername] = useState('');
     const [githubRepos, setGithubRepos] = useState<any[]>([]);
     const [loadingGithub, setLoadingGithub] = useState(false);
+
+    // GitHub artifact import state
+    const [showGithubArtifactModal, setShowGithubArtifactModal] = useState(false);
+    const [githubArtifactForm, setGithubArtifactForm] = useState({ repo: '', path: '', branch: 'main' });
+    const [importingArtifact, setImportingArtifact] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -333,6 +338,40 @@ const AdminChallenges = () => {
             if (editingChallenge) fetchArtifacts(editingChallenge.id);
         } catch (error) {
             toast.error('Failed to delete artifact');
+        }
+    };
+
+    const handleGithubArtifactImport = async () => {
+        if (!editingChallenge || !githubArtifactForm.repo || !githubArtifactForm.path) {
+            toast.error('Please fill in repository and file path');
+            return;
+        }
+
+        setImportingArtifact(true);
+        try {
+            const formData = new FormData();
+            formData.append('repo', githubArtifactForm.repo);
+            formData.append('path', githubArtifactForm.path);
+            formData.append('branch', githubArtifactForm.branch || 'main');
+
+            const res = await axios.post(
+                `${API}/admin/challenges/${editingChallenge.id}/artifacts/from-github`,
+                formData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+            );
+
+            if (res.data.success) {
+                toast.success(`Imported: ${res.data.filename} (${(res.data.size / 1024).toFixed(1)} KB)`);
+                fetchArtifacts(editingChallenge.id);
+                setShowGithubArtifactModal(false);
+                setGithubArtifactForm({ repo: '', path: '', branch: 'main' });
+            } else {
+                toast.error(res.data.detail || 'Import failed');
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Failed to import from GitHub');
+        } finally {
+            setImportingArtifact(false);
         }
     };
 
@@ -1378,7 +1417,7 @@ const AdminChallenges = () => {
                                         </div>
                                     </div>
                                     {editingChallenge ? (
-                                        <div className="relative">
+                                        <div className="flex items-center gap-2">
                                             <input
                                                 type="file"
                                                 id="artifact-upload"
@@ -1395,8 +1434,19 @@ const AdminChallenges = () => {
                                                 ) : (
                                                     <Upload className="w-3 h-3" />
                                                 )}
-                                                Add Artifact
+                                                Upload
                                             </label>
+                                            {githubConnected && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowGithubArtifactModal(true)}
+                                                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700 transition-colors"
+                                                    title="Import from GitHub"
+                                                >
+                                                    <GitBranch className="w-3 h-3" />
+                                                    GitHub
+                                                </button>
+                                            )}
                                         </div>
                                     ) : (
                                         <Badge variant="outline" className="text-[10px] text-gray-400">Save Challenge First</Badge>
@@ -1560,6 +1610,91 @@ const AdminChallenges = () => {
                                 className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
                             >
                                 Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* GitHub Artifact Import Modal */}
+            {showGithubArtifactModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
+                    <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 rounded-t-2xl">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <GitBranch className="w-5 h-5 text-white" />
+                                    <h3 className="text-lg font-semibold text-white">Import from GitHub</h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowGithubArtifactModal(false)}
+                                    className="text-white/70 hover:text-white"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Repository</label>
+                                <input
+                                    type="text"
+                                    value={githubArtifactForm.repo}
+                                    onChange={(e) => setGithubArtifactForm({ ...githubArtifactForm, repo: e.target.value })}
+                                    placeholder="owner/repo (e.g., zecurx/ctf-challenges)"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">File Path</label>
+                                <input
+                                    type="text"
+                                    value={githubArtifactForm.path}
+                                    onChange={(e) => setGithubArtifactForm({ ...githubArtifactForm, path: e.target.value })}
+                                    placeholder="challenges/web/files/artifact.zip"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                />
+                                <p className="text-xs text-gray-400 mt-1">Full path to the file in the repository</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                                <input
+                                    type="text"
+                                    value={githubArtifactForm.branch}
+                                    onChange={(e) => setGithubArtifactForm({ ...githubArtifactForm, branch: e.target.value })}
+                                    placeholder="main"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-gray-50 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3">
+                            <button
+                                onClick={() => setShowGithubArtifactModal(false)}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleGithubArtifactImport}
+                                disabled={importingArtifact || !githubArtifactForm.repo || !githubArtifactForm.path}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {importingArtifact ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Importing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="w-4 h-4" />
+                                        Import
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

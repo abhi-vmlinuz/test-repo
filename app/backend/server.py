@@ -3264,6 +3264,105 @@ async def download_artifact(artifact_id: str):
             media_type=row['mime_type'] or 'application/octet-stream'
         )
 
+
+@api_router.post("/admin/challenges/{challenge_id}/artifacts/from-github")
+async def import_artifact_from_github(
+    challenge_id: str,
+    repo: str = Form(...),        # e.g., "owner/repo"
+    path: str = Form(...),        # e.g., "challenges/web/files/flag.txt"
+    branch: str = Form("main"),   # e.g., "main" or "master"
+    admin: dict = Depends(require_admin)
+):
+    """Import an artifact from a GitHub repository"""
+    import mimetypes
+    
+    # Get GitHub token from admin_settings or env
+    github_token = os.environ.get('GITHUB_TOKEN', '')
+    if not github_token:
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT value FROM admin_settings WHERE key = 'github_token'"
+                )
+                if row:
+                    github_token = row['value']
+        except:
+            pass
+    
+    if not github_token:
+        raise HTTPException(status_code=400, detail="GitHub token not configured. Connect GitHub in Image Registry first.")
+    
+    # Construct raw GitHub URL
+    raw_url = f"https://raw.githubusercontent.com/{repo}/{branch}/{path}"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                raw_url,
+                headers={
+                    "Authorization": f"Bearer {github_token}",
+                    "Accept": "application/vnd.github.v3.raw"
+                },
+                timeout=60.0,
+                follow_redirects=True
+            )
+            
+            if resp.status_code == 404:
+                raise HTTPException(status_code=404, detail=f"File not found: {path} in {repo}/{branch}")
+            elif resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"GitHub error: {resp.status_code}")
+            
+            content = resp.content
+            file_size = len(content)
+            
+            # 300MB limit
+            if file_size > 300 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail="File too large. Maximum size is 300MB.")
+            
+            # Extract filename from path
+            filename = path.split('/')[-1]
+            clean_filename = "".join(c for c in filename if c.isalnum() or c in "._- ").strip()
+            if not clean_filename:
+                clean_filename = "artifact_" + str(uuid.uuid4())[:8]
+            
+            artifact_id = uuid.uuid4()
+            storage_name = f"{artifact_id}_{clean_filename}"
+            file_path = ROOT_DIR / "uploads" / "artifacts" / storage_name
+            
+            # Ensure directory exists
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(file_path, "wb") as f:
+                f.write(content)
+            
+            mime_type, _ = mimetypes.guess_type(clean_filename)
+            
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute('''
+                    INSERT INTO ctf_challenge_artifacts (id, challenge_id, filename, file_path, file_size, mime_type)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                ''', artifact_id, challenge_id, clean_filename, str(file_path), file_size, mime_type)
+            
+            logger.info(f"Imported artifact from GitHub: {repo}/{path} -> {clean_filename}")
+            
+            return {
+                "success": True,
+                "id": str(artifact_id),
+                "filename": clean_filename,
+                "size": file_size,
+                "source": f"github:{repo}/{path}"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"GitHub artifact import failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
+
+
 @api_router.post("/admin/zip-info")
 async def get_zip_info(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
     """Extract file list from a ZIP for preview"""
