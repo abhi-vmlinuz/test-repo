@@ -445,7 +445,7 @@ const ChallengeDetail = ({ user, logout }) => {
 
               <div className="prose prose-sm max-w-none">
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                  <pre className="whitespace-pre-wrap font-sans text-base leading-relaxed bg-transparent p-0 m-0 text-gray-600">{challenge.description}</pre>
+                  <p className="font-sans text-base leading-relaxed text-gray-600 whitespace-pre-line">{challenge.description}</p>
                 </div>
               </div>
             </div>
