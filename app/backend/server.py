@@ -6588,7 +6588,15 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                         elif resp.status_code == 404:
                             # Nexus explicitly says session doesn't exist
                             logger.info(f"Session {session_id} not in Nexus (404) - marking expired")
-                            await conn.execute("UPDATE nexus_usage SET status = 'expired', ended_at = NOW() WHERE session_id = $1", session_id)
+                            # Calculate cost when marking as expired
+                            await conn.execute("""
+                                UPDATE nexus_usage SET 
+                                    status = 'expired', 
+                                    ended_at = NOW(),
+                                    pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER),
+                                    estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035)
+                                WHERE session_id = $1 AND status = 'running'
+                            """, session_id)
                             session_valid = False
                         else:
                             # Other error - trust DB, session might still be running
@@ -6615,82 +6623,6 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
 
 
 # Nexus Admin Endpoints
-@api_router.get("/admin/nexus/sessions")
-async def admin_nexus_sessions(current_user: dict = Depends(require_admin)):
-    """Get all active Nexus sessions (admin only) - from Nexus Engine + database"""
-    sessions = []
-    
-    # 1. Try to get from Nexus Engine API
-    try:
-        async with httpx.AsyncClient() as client:
-            # Try the main sessions endpoint
-            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions", timeout=10.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                if 'sessions' in data:
-                    sessions.extend(data['sessions'])
-    except Exception as e:
-        logger.warning(f"Failed to fetch sessions from Nexus: {e}")
-    
-    # 2. Also get from database (nexus_usage running sessions) and enrich with Nexus data
-    try:
-        pool = await Database.get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch('''
-                SELECT session_id, user_id, challenge_id, started_at, status
-                FROM nexus_usage
-                WHERE status = 'running'
-                ORDER BY started_at DESC
-                LIMIT 50
-            ''')
-            for row in rows:
-                session_id = row['session_id']
-                # Check if already in sessions list from Nexus
-                existing = next((s for s in sessions if s.get('session_id') == session_id), None)
-                if existing:
-                    continue
-                
-                # Try to get details from Nexus
-                session_data = {
-                    'session_id': session_id,
-                    'user_id': row['user_id'],
-                    'challenge_id': row['challenge_id'],
-                    'started_at': row['started_at'].isoformat() if row['started_at'] else None,
-                    'status': row['status'],
-                    'source': 'database'
-                }
-                
-                # Enrich with user and challenge info
-                try:
-                    pool = await Database.get_pool()
-                    async with pool.acquire() as conn_inner:
-                        user_info = await conn_inner.fetchrow("SELECT username, email FROM users WHERE id = $1", row['user_id'])
-                        if user_info:
-                            session_data['username'] = user_info['username']
-                            session_data['email'] = user_info['email']
-                        
-                        chal_info = await conn_inner.fetchrow("SELECT title FROM ctf_public_challenges WHERE id = $1", row['challenge_id'])
-                        if chal_info:
-                            session_data['challenge_title'] = chal_info['title']
-                except:
-                    pass
-                
-                # Fetch target_ip from Nexus
-                try:
-                    async with httpx.AsyncClient() as client:
-                        resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=5.0)
-                        if resp.status_code == 200:
-                            nexus_data = resp.json()
-                            session_data['target_ip'] = nexus_data.get('target_ip')
-                            session_data['expires_at'] = nexus_data.get('expires_at')
-                except:
-                    pass
-                
-                sessions.append(session_data)
-    except Exception as e:
-        logger.warning(f"Failed to fetch sessions from DB: {e}")
-    
-    return {"sessions": sessions}
 
 
 @api_router.get("/admin/nexus/stats")
@@ -6771,7 +6703,7 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
             rows = await conn.fetch('''
                 SELECT 
                     nu.session_id, nu.challenge_id, nu.user_id, nu.status, 
-                    nu.target_ip, nu.started_at, nu.ended_at,
+                    nu.started_at, nu.ended_at,
                     COALESCE(nu.pod_seconds, 0) as pod_seconds,
                     COALESCE(nu.estimated_cost, 0) as estimated_cost,
                     c.title as challenge_title,
@@ -6799,7 +6731,7 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
                     'user_id': str(row['user_id']),
                     'username': row['username'] or 'Unknown',
                     'status': row['status'],
-                    'target_ip': row['target_ip'] or nexus_data.get('target_ip'),
+                    'target_ip': nexus_data.get('target_ip'),  # Get from Nexus, not DB
                     'started_at': row['started_at'].isoformat() if row['started_at'] else None,
                     'ended_at': row['ended_at'].isoformat() if row['ended_at'] else None,
                     'pod_seconds': int(row['pod_seconds']),
@@ -6936,10 +6868,13 @@ async def nexus_cleanup_janitor_task():
                             if resp.status_code == 404:
                                 # Session no longer exists in Nexus - TTL expired
                                 logger.info(f"🛡️ Janitor: Session {session_id} not found in Nexus, marking as expired")
+                                # Calculate cost when marking as expired
                                 await conn.execute("""
                                     UPDATE nexus_usage SET 
                                         status = 'expired', 
-                                        ended_at = COALESCE(ended_at, NOW())
+                                        ended_at = COALESCE(ended_at, NOW()),
+                                        pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at))::INTEGER),
+                                        estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 3600.0) * 0.035)
                                     WHERE session_id = $1 AND status = 'running'
                                 """, session_id)
                                 
