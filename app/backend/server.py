@@ -4722,6 +4722,37 @@ async def cleanup_orphaned_images(admin: dict = Depends(require_admin)):
     }
 
 
+@api_router.delete("/admin/challenge-packs/{pack_id}")
+async def delete_challenge_pack(pack_id: str, admin: dict = Depends(require_admin)):
+    """Delete a challenge pack by ID"""
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Check if pack exists
+            pack = await conn.fetchrow(
+                "SELECT id, pack_name, display_name FROM challenge_packs WHERE id = $1",
+                pack_id
+            )
+            if not pack:
+                raise HTTPException(status_code=404, detail="Challenge pack not found")
+            
+            # Delete the pack
+            await conn.execute("DELETE FROM challenge_packs WHERE id = $1", pack_id)
+            
+            logger.info(f"Challenge pack '{pack['display_name']}' ({pack_id}) deleted by admin {admin.get('email')}")
+            
+            return {
+                'success': True,
+                'message': f"Challenge pack '{pack['display_name']}' deleted",
+                'pack_name': pack['pack_name']
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete challenge pack: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @api_router.post("/admin/images/metadata")
 async def get_image_metadata(
     image_url: str = Form(...),

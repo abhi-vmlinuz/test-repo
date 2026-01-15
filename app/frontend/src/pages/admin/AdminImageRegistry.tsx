@@ -400,6 +400,22 @@ const AdminImageRegistry = () => {
         }
     };
 
+    const deletePack = async (packId: string, packName: string) => {
+        if (!confirm(`Delete challenge pack "${packName}"? This will remove the pack configuration but not the images from GHCR.`)) return;
+
+        try {
+            const res = await axios.delete(`${API}/admin/challenge-packs/${packId}`);
+            if (res.data.success) {
+                toast.success('Challenge pack deleted');
+                fetchImages();
+            } else {
+                toast.error(res.data.message || 'Failed to delete pack');
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.detail || 'Failed to delete pack');
+        }
+    };
+
     const orphanCount = images.filter(img => img.is_orphaned).length;
 
     if (loadingConfig) {
@@ -1132,8 +1148,8 @@ const AdminImageRegistry = () => {
                                                     ))}
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                                            <div className="text-right flex flex-col items-end gap-2">
+                                                <div className="flex items-center gap-2 text-sm text-gray-500">
                                                     <span>{pack.combined_ports.length} port{pack.combined_ports.length !== 1 ? 's' : ''}</span>
                                                 </div>
                                                 {pack.created_at && (
@@ -1141,6 +1157,13 @@ const AdminImageRegistry = () => {
                                                         {new Date(pack.created_at).toLocaleDateString()}
                                                     </span>
                                                 )}
+                                                <button
+                                                    onClick={() => deletePack(pack.id, pack.display_name)}
+                                                    className="mt-1 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Delete pack"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
