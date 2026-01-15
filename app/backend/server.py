@@ -3164,8 +3164,8 @@ async def get_challenge_artifacts(challenge_id: str):
         rows = await conn.fetch('''
             SELECT a.id, a.filename, a.file_size, a.mime_type, a.created_at 
             FROM ctf_challenge_artifacts a
-            JOIN ctf_public_challenges c ON a.challenge_id = c.id
-            WHERE c.id::text = $1 OR c.slug = $1
+            JOIN ctf_public_challenges c ON a.challenge_id::text = c.id::text
+            WHERE c.id::text = $1
             ORDER BY a.created_at DESC
         ''', challenge_id)
         
