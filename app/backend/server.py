@@ -1657,11 +1657,11 @@ async def get_challenges(
         
         result = []
         for ch in challenges:
-            # Parse hints (remove text, show only cost)
+            # Parse hints (include text since hints are free)
             hints = []
             if ch.get('hints'):
                 hint_data = json.loads(ch['hints']) if isinstance(ch['hints'], str) else ch['hints']
-                hints = [{'cost': h.get('cost', 0)} for h in hint_data]
+                hints = [{'text': h.get('text', ''), 'cost': 0} for h in hint_data]
             
             # Parse questions (remove flags from response)
             questions = []
@@ -1722,15 +1722,12 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
             WHERE "userId" = $1 AND "challengeId" = $2
         ''', current_user['id'], challenge_id)
         
-        # Parse hints
+        # Parse hints (always include text since hints are free)
         hints_data = json.loads(challenge['hints']) if isinstance(challenge['hints'], str) else (challenge['hints'] or [])
-        hints_used = list(progress['hintsUsed']) if progress else []
+        hints_used = list(progress['hintsUsed']) if progress else []  # Keep for user_progress
         hints = []
         for i, h in enumerate(hints_data):
-            hint_info = {'index': i, 'cost': h.get('cost', 0), 'unlocked': i in hints_used}
-            if i in hints_used:
-                hint_info['text'] = h.get('text', '')
-            hints.append(hint_info)
+            hints.append({'index': i, 'text': h.get('text', ''), 'cost': 0})
         
         # Parse questions
         questions_data = json.loads(challenge['questions']) if isinstance(challenge['questions'], str) else (challenge['questions'] or [])
@@ -5424,12 +5421,12 @@ async def get_student_module(module_id: str, current_user: dict = Depends(get_cu
         result_challenges = []
         for ch in challenges:
             ch_dict = dict(ch)
-            # Parse hints (remove flag text, keep cost only)
+            # Parse hints (include text since hints are free)
             hints = ch_dict.get('hints')
             if hints:
                 if isinstance(hints, str):
                     hints = json.loads(hints)
-                ch_dict['hints'] = [{'cost': h.get('cost', 0)} for h in hints]
+                ch_dict['hints'] = [{'text': h.get('text', ''), 'cost': 0} for h in hints]
             result_challenges.append(ch_dict)
         
         return {

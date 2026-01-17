@@ -49,7 +49,7 @@ const AdminChallenges = () => {
         uploadedFile: null as File | null,
         github_repo: '',
         github_path: '',
-        hints: [] as { text: string; cost: number }[],
+        hints: [] as { text: string; cost?: number }[],
         questions: [] as { question: string; flag: string; points: number }[],
         tags: [] as string[],
         is_published: true,
@@ -494,7 +494,7 @@ const AdminChallenges = () => {
     const addHint = () => {
         setFormData(prev => ({
             ...prev,
-            hints: [...prev.hints, { text: '', cost: 10 }]
+            hints: [...prev.hints, { text: '' }]
         }));
     };
 
@@ -1410,15 +1410,6 @@ const AdminChallenges = () => {
                                                 value={hint.text}
                                                 onChange={(e) => updateHint(idx, 'text', e.target.value)}
                                                 placeholder="Hint text..."
-                                            />
-                                        </div>
-                                        <div className="w-24">
-                                            <Input
-                                                type="number"
-                                                value={hint.cost}
-                                                onChange={(e) => updateHint(idx, 'cost', parseInt(e.target.value))}
-                                                min={0}
-                                                placeholder="Cost"
                                             />
                                         </div>
                                         <button
