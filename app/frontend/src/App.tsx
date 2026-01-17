@@ -4,6 +4,7 @@ import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster } from '@/components/ui/sonner';
+import { ThemeProvider } from '@/hooks/useTheme';
 import { toast } from 'sonner';
 import LandingPage from '@/pages/LandingPage';
 import LoginPage from '@/pages/LoginPage';
@@ -104,77 +105,74 @@ function App() {
   }
 
   return (
-    <div className="App">
-      <BrowserRouter>
-        <ScrollToTop />
-        <Routes>
-          {/* Public routes */}
-          <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
-          <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage setUser={setUser} />} />
-          <Route path="/pricing" element={<PricingPage user={user} />} />
-          <Route path="/about" element={<AboutUs />} />
-          <Route path="/careers" element={<Careers />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/community" element={<Community />} />
-          <Route path="/documentation" element={<Documentation />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/cookie" element={<Cookie />} />
+    <ThemeProvider>
+      <div className="App bg-background text-foreground min-h-screen">
+        <BrowserRouter>
+          <ScrollToTop />
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
+            <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage setUser={setUser} />} />
+            <Route path="/pricing" element={<PricingPage user={user} />} />
+            <Route path="/about" element={<AboutUs />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/documentation" element={<Documentation />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/cookie" element={<Cookie />} />
 
-          {/* Protected CTF routes */}
-          <Route path="/dashboard" element={user ? <Dashboard user={user} logout={logout} /> : <Navigate to="/login" />} />
-          <Route path="/challenges" element={user ? <Challenges user={user} logout={logout} /> : <Navigate to="/login" />} />
-          <Route path="/challenges/:id" element={user ? <ChallengeDetail user={user} logout={logout} /> : <Navigate to="/login" />} />
-          <Route path="/leaderboard" element={user ? <Leaderboard user={user} logout={logout} /> : <Navigate to="/login" />} />
-          <Route path="/profile" element={user ? <Profile user={user} logout={logout} setUser={setUser} /> : <Navigate to="/login" />} />
-          <Route path="/profile/:userId" element={user ? <PublicProfile user={user} logout={logout} /> : <Navigate to="/login" />} />
+            {/* Protected CTF routes */}
+            <Route path="/dashboard" element={user ? <Dashboard user={user} logout={logout} /> : <Navigate to="/login" />} />
+            <Route path="/challenges" element={user ? <Challenges user={user} logout={logout} /> : <Navigate to="/login" />} />
+            <Route path="/challenges/:id" element={user ? <ChallengeDetail user={user} logout={logout} /> : <Navigate to="/login" />} />
+            <Route path="/leaderboard" element={user ? <Leaderboard user={user} logout={logout} /> : <Navigate to="/login" />} />
+            <Route path="/profile" element={user ? <Profile user={user} logout={logout} setUser={setUser} /> : <Navigate to="/login" />} />
+            <Route path="/profile/:userId" element={user ? <PublicProfile user={user} logout={logout} /> : <Navigate to="/login" />} />
 
 
-          {/* Admin routes */}
-          <Route
-            path="/admin"
-            element={isAdmin ? <AdminLayout user={user} logout={logout} /> : <Navigate to="/dashboard" />}
-          >
-            <Route index element={<AdminDashboard />} />
-            <Route path="challenges" element={<AdminChallenges />} />
-            <Route path="categories" element={<AdminCategories />} />
-            <Route path="users" element={<AdminUsers user={user} />} />
-            <Route path="submissions" element={<AdminSubmissions />} />
-            <Route path="notifications" element={<AdminNotifications user={user} />} />
-            <Route path="student-portal" element={<AdminStudentPortal user={user} />} />
-            <Route path="nexus" element={<AdminNexus user={user} logout={logout} />} />
-            <Route path="registry" element={<AdminImageRegistry />} />
-          </Route>
+            {/* Admin routes */}
+            <Route
+              path="/admin"
+              element={isAdmin ? <AdminLayout user={user} logout={logout} /> : <Navigate to="/dashboard" />}
+            >
+              <Route index element={<AdminDashboard />} />
+              <Route path="challenges" element={<AdminChallenges />} />
+              <Route path="categories" element={<AdminCategories />} />
+              <Route path="users" element={<AdminUsers user={user} />} />
+              <Route path="submissions" element={<AdminSubmissions />} />
+              <Route path="notifications" element={<AdminNotifications user={user} />} />
+              <Route path="student-portal" element={<AdminStudentPortal user={user} />} />
+              <Route path="nexus" element={<AdminNexus user={user} logout={logout} />} />
+              <Route path="registry" element={<AdminImageRegistry />} />
+            </Route>
 
-          {/* Student Portal routes - accessible to all logged-in users */}
-          <Route
-            path="/student"
-            element={user ? <StudentLayout user={user} logout={logout} /> : <Navigate to="/login" />}
-          >
-            <Route index element={<StudentDashboard user={user} />} />
-            <Route path="courses" element={<StudentCourses user={user} />} />
-            <Route path="course/:courseId" element={<StudentCourse user={user} />} />
-            <Route path="module/:moduleId" element={<StudentModule user={user} />} />
-            <Route path="challenge/:challengeId" element={<StudentChallenge user={user} />} />
-            <Route path="progress" element={<StudentProgress user={user} />} />
-            <Route path="achievements" element={<StudentAchievements user={user} />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-      <Toaster
-        position="top-right"
-        closeButton={true}
-        toastOptions={{
-          style: {
-            background: '#fff',
-            color: '#1f2937',
-            border: '1px solid #e5e7eb',
-          },
-          className: 'shadow-lg',
-        }}
-      />
-    </div>
+            {/* Student Portal routes - accessible to all logged-in users */}
+            <Route
+              path="/student"
+              element={user ? <StudentLayout user={user} logout={logout} /> : <Navigate to="/login" />}
+            >
+              <Route index element={<StudentDashboard user={user} />} />
+              <Route path="courses" element={<StudentCourses user={user} />} />
+              <Route path="course/:courseId" element={<StudentCourse user={user} />} />
+              <Route path="module/:moduleId" element={<StudentModule user={user} />} />
+              <Route path="challenge/:challengeId" element={<StudentChallenge user={user} />} />
+              <Route path="progress" element={<StudentProgress user={user} />} />
+              <Route path="achievements" element={<StudentAchievements user={user} />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+        <Toaster
+          position="top-right"
+          closeButton={true}
+          toastOptions={{
+            className: 'shadow-lg bg-card text-card-foreground border-border',
+          }}
+        />
+      </div>
+    </ThemeProvider>
   );
 }
 
