@@ -2,7 +2,6 @@ import { Link, useLocation } from 'react-router-dom';
 import { Shield, LayoutDashboard, Flag, Trophy, User, LogOut, Zap, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import CreativeBackground from './CreativeBackground';
-import { ThemeToggle } from './ThemeToggle';
 
 const Layout = ({ user, children, logout }) => {
     const location = useLocation();
@@ -22,7 +21,7 @@ const Layout = ({ user, children, logout }) => {
     const isActive = (path) => location.pathname === path;
 
     return (
-        <div className="min-h-screen bg-background flex text-foreground font-sans selection:bg-zinc-800 selection:text-white dark:selection:bg-zinc-200 dark:selection:text-black relative overflow-x-hidden">
+        <div className="min-h-screen bg-white flex text-slate-900 font-sans selection:bg-zinc-800 selection:text-white relative overflow-x-hidden">
             {/* Background Grid */}
             <div className="fixed inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none z-0"></div>
 
@@ -30,20 +29,15 @@ const Layout = ({ user, children, logout }) => {
             <CreativeBackground />
 
             {/* Sidebar - Desktop */}
-            <aside className="fixed left-0 top-0 bottom-0 w-64 border-r border-border bg-card/50 backdrop-blur-xl z-40 hidden lg:flex flex-col p-6">
+            <aside className="fixed left-0 top-0 bottom-0 w-64 border-r border-gray-100 bg-white/50 backdrop-blur-xl z-40 hidden lg:flex flex-col p-6">
                 {/* Logo */}
                 <div className="mb-10 px-2">
                     <Link to="/" className="flex items-center gap-3 group">
                         <div className="relative">
                             <img src="/logo.png" alt="ZecurX" className="w-8 h-8 object-contain" />
                         </div>
-                        <span className="text-lg font-bold tracking-tight text-foreground">ZecurX LABS</span>
+                        <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX LABS</span>
                     </Link>
-                </div>
-
-                {/* Theme Toggle */}
-                <div className="px-2 mb-4">
-                    <ThemeToggle />
                 </div>
 
                 {/* Navigation */}
@@ -53,8 +47,8 @@ const Layout = ({ user, children, logout }) => {
                             key={item.id}
                             to={item.path}
                             className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 group relative overflow-hidden ${isActive(item.path)
-                                ? 'bg-primary text-primary-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                                ? 'bg-zinc-900 text-white shadow-sm'
+                                : 'text-gray-500 hover:text-zinc-900 hover:bg-gray-100/80'
                                 }`}
                         >
                             <item.icon className={`w-4 h-4 transition-colors ${isActive(item.path) ? 'text-white' : 'text-gray-400 group-hover:text-zinc-900'}`} />
@@ -64,7 +58,7 @@ const Layout = ({ user, children, logout }) => {
                 </nav>
 
                 {/* User Profile Snippet */}
-                <div className="border-t border-border pt-4 mt-auto">
+                <div className="border-t border-gray-100 pt-4 mt-auto">
                     <Link to="/profile" className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors group cursor-pointer relative">
                         {user?.avatar_url ? (
                             <img
@@ -102,22 +96,19 @@ const Layout = ({ user, children, logout }) => {
             </aside>
 
             {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-b border-border z-50 flex items-center justify-between px-4">
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 flex items-center justify-between px-4">
                 <Link to="/" className="flex items-center gap-2">
                     <img src="/logo.png" alt="ZecurX" className="w-7 h-7 object-contain" />
                     <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX LABS</span>
                 </Link>
-                <div className="flex items-center gap-2">
-                    <ThemeToggle />
-                    <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-muted-foreground">
-                        {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                    </button>
-                </div>
+                <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-500">
+                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                </button>
             </div>
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="lg:hidden fixed inset-0 z-40 bg-background/95 backdrop-blur-sm pt-20 px-6">
+                <div className="lg:hidden fixed inset-0 z-40 bg-white/95 backdrop-blur-sm pt-20 px-6">
                     <nav className="space-y-4">
                         {navItems.map((item) => (
                             <Link
@@ -143,7 +134,7 @@ const Layout = ({ user, children, logout }) => {
 
 
             {/* Main Content Area */}
-            <main className="flex-1 lg:ml-64 relative z-10 w-full pt-16 lg:pt-0 bg-background min-h-screen">
+            <main className="flex-1 lg:ml-64 relative z-10 w-full pt-16 lg:pt-0 bg-white min-h-screen">
                 <div className="py-8 px-6 lg:px-10 lg:py-10 max-w-7xl mx-auto">
                     {children}
                 </div>

@@ -43,28 +43,6 @@ code {
         --chart-5: 27 87% 67%;
         --radius: 0.75rem;
     }
-
-    .dark {
-        --background: 0 0% 7%;
-        --foreground: 0 0% 95%;
-        --card: 0 0% 10%;
-        --card-foreground: 0 0% 95%;
-        --popover: 0 0% 10%;
-        --popover-foreground: 0 0% 95%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 15%;
-        --secondary-foreground: 0 0% 95%;
-        --muted: 0 0% 15%;
-        --muted-foreground: 0 0% 60%;
-        --accent: 0 0% 15%;
-        --accent-foreground: 0 0% 95%;
-        --destructive: 0 62% 50%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 20%;
-        --input: 0 0% 20%;
-        --ring: 0 0% 80%;
-    }
 }
 
 @layer base {
@@ -84,26 +62,22 @@ code {
 }
 
 ::-webkit-scrollbar-track {
-    background: hsl(var(--muted));
+    background: #fafafa;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
+    background: #d4d4d4;
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground));
+    background: #a3a3a3;
 }
 
 /* Selection color */
 ::selection {
     background: rgba(0, 0, 0, 0.1);
     color: inherit;
-}
-
-.dark ::selection {
-    background: rgba(255, 255, 255, 0.2);
 }
 
 /* Responsive table wrapper */
@@ -114,32 +88,6 @@ code {
 
 .table-responsive table {
     @apply min-w-full;
-}
-
-/* Responsive container utilities */
-@layer utilities {
-    .container-responsive {
-        @apply w-full px-4 mx-auto;
-        max-width: 100%;
-    }
-    
-    @screen sm {
-        .container-responsive {
-            @apply px-6;
-        }
-    }
-    
-    @screen lg {
-        .container-responsive {
-            @apply px-8;
-            max-width: 1400px;
-        }
-    }
-}
-
-/* Smooth theme transition */
-body, .bg-background, .bg-card, .text-foreground {
-    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 /* Debug wrapper styles */
