@@ -15,4 +15,6 @@ npm-debug.log*
 .env
 *.env.local
 deploy-ctf.bat
-deploy-local.ps1
+deploy-local.ps1.next
+zecurx-lms-client/.next
+zecurx-lms-server/dist
