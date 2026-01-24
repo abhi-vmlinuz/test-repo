@@ -6500,14 +6500,15 @@ async def stop_docker_instance(session_id: str, current_user: dict = Depends(get
                 try:
                     pool = await Database.get_pool()
                     async with pool.acquire() as conn:
-                        # Calculate cost: ~$0.035/hour per instance
+                        # Calculate cost: ~$0.045/hour per instance (GKE Autopilot asia-south1)
+                        # Pod (~$0.02/hr) + LoadBalancer (~$0.025/hr) = ~$0.045/hr
                         # Status 'stopped' = user manually stopped
                         await conn.execute('''
                             UPDATE nexus_usage SET 
                                 ended_at = NOW(),
                                 status = 'stopped',
                                 pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER),
-                                estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035)
+                                estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.045)
                             WHERE session_id = $1 AND status = 'running'
                         ''', session_id)
                 except Exception as e:
@@ -6586,10 +6587,10 @@ async def extend_docker_instance(session_id: str, current_user: dict = Depends(g
                     pool = await Database.get_pool()
                     async with pool.acquire() as conn:
                         # Record extension event and add estimated cost for 30 min
-                        # Cost: $0.035/hour = $0.0175 for 30 min
+                        # Cost: $0.045/hour = $0.0225 for 30 min
                         await conn.execute('''
                             UPDATE nexus_usage SET 
-                                estimated_cost = COALESCE(estimated_cost, 0) + 0.0175,
+                                estimated_cost = COALESCE(estimated_cost, 0) + 0.0225,
                                 pod_seconds = COALESCE(pod_seconds, 0) + 1800
                             WHERE session_id = $1
                         ''', session_id)
@@ -6724,7 +6725,7 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                                     status = 'expired', 
                                     ended_at = NOW(),
                                     pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER),
-                                    estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035)
+                                    estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.045)
                                 WHERE session_id = $1 AND status = 'running'
                             """, session_id)
                             session_valid = False
@@ -6900,7 +6901,7 @@ async def admin_terminate_session(session_id: str, current_user: dict = Depends(
                             ended_at = NOW(),
                             status = 'terminated',
                             pod_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER,
-                            estimated_cost = (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.035
+                            estimated_cost = (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.045
                         WHERE session_id = $1 AND status = 'running'
                     ''', session_id)
             except Exception as e:
@@ -7004,7 +7005,7 @@ async def nexus_cleanup_janitor_task():
                                         status = 'expired', 
                                         ended_at = COALESCE(ended_at, NOW()),
                                         pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at))::INTEGER),
-                                        estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 3600.0) * 0.035)
+                                        estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (COALESCE(ended_at, NOW()) - started_at)) / 3600.0) * 0.045)
                                     WHERE session_id = $1 AND status = 'running'
                                 """, session_id)
                                 
@@ -7171,7 +7172,7 @@ async def admin_nexus_pricing(
     - 0.25 vCPU = $0.0079/hour
     - 0.5GB RAM = $0.00168/hour  
     - 1 LoadBalancer = $0.025/hour
-    - Total: ~$0.035/hour per instance
+    - Total: ~$0.045/hour per instance
     """
     vcpu_cost = 0.25 * 0.0316
     memory_cost = 0.5 * 0.00336
