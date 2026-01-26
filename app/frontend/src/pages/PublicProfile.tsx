@@ -153,39 +153,39 @@ const PublicProfile = ({ user, logout }) => {
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-4 sm:p-8 relative">
                     <div className="absolute top-0 left-0 w-full h-24 sm:h-32 bg-gradient-to-r from-zinc-900 via-gray-800 to-zinc-900"></div>
 
-                    <div className="relative flex flex-col md:flex-row items-center md:items-end gap-4 sm:gap-6 pt-12 sm:pt-16 -mb-2">
+                    <div className="relative flex flex-col md:flex-row items-center md:items-end gap-4 sm:gap-6 pt-10 sm:pt-16 -mb-2">
                         {/* Avatar */}
                         <div className="relative">
                             {profile.avatar_url ? (
                                 <img
                                     src={profile.avatar_url}
                                     alt={profile.username}
-                                    className="w-32 h-32 rounded-2xl border-4 border-white shadow-lg object-cover bg-white"
+                                    className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl border-4 border-white shadow-lg object-cover bg-white"
                                 />
                             ) : (
-                                <div className="w-32 h-32 rounded-2xl border-4 border-white shadow-lg bg-zinc-900 flex items-center justify-center text-4xl font-bold text-white">
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl border-4 border-white shadow-lg bg-zinc-900 flex items-center justify-center text-2xl sm:text-4xl font-bold text-white">
                                     {profile.username.substring(0, 2).toUpperCase()}
                                 </div>
                             )}
                         </div>
 
                         {/* Info */}
-                        <div className="flex-1 mb-2">
-                            <h1 className="text-3xl font-black text-zinc-900 tracking-tight">{profile.username}</h1>
-                            <p className="text-gray-500 font-medium flex items-center gap-2">
+                        <div className="flex-1 mb-2 text-center md:text-left">
+                            <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight truncate max-w-full px-2">{profile.username}</h1>
+                            <p className="text-gray-500 font-medium flex items-center justify-center md:justify-start gap-2 text-sm">
                                 User joined {profile.member_since}
                             </p>
                         </div>
 
                         {/* Stats Cards */}
-                        <div className="flex gap-4 mb-2">
-                            <div className="text-center px-6 py-3 bg-gray-50 rounded-xl border border-gray-100">
-                                <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Rank</div>
-                                <div className="text-2xl font-black text-zinc-900 font-mono">#{profile.rank}</div>
+                        <div className="flex gap-3 sm:gap-4 mb-2">
+                            <div className="text-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-50 rounded-xl border border-gray-100 min-w-[80px]">
+                                <div className="text-[10px] sm:text-sm text-gray-500 font-bold uppercase tracking-wider mb-0.5 sm:mb-1">Rank</div>
+                                <div className="text-lg sm:text-2xl font-black text-zinc-900 font-mono">#{profile.rank}</div>
                             </div>
-                            <div className="text-center px-6 py-3 bg-gray-50 rounded-xl border border-gray-100">
-                                <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Score</div>
-                                <div className="text-2xl font-black text-zinc-900 font-mono">{profile.score.toLocaleString()}</div>
+                            <div className="text-center px-4 sm:px-6 py-2 sm:py-3 bg-gray-50 rounded-xl border border-gray-100 min-w-[80px]">
+                                <div className="text-[10px] sm:text-sm text-gray-500 font-bold uppercase tracking-wider mb-0.5 sm:mb-1">Score</div>
+                                <div className="text-lg sm:text-2xl font-black text-zinc-900 font-mono">{profile.score.toLocaleString()}</div>
                             </div>
                         </div>
                     </div>

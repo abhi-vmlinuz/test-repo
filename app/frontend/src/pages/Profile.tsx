@@ -239,27 +239,27 @@ const Profile = ({ user, logout, setUser }) => {
         <p className="text-base sm:text-lg text-gray-500">Manage your identity and track your progress.</p>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-6 sm:gap-8 px-4 sm:px-0 pb-8">
+      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 sm:gap-8 px-4 sm:px-0 pb-8 w-full max-w-full overflow-x-hidden">
         {/* Left Column: Identity Card */}
-        <div className="lg:col-span-4">
-          <div className="bg-zinc-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden lg:sticky lg:top-24">
+        <div className="w-full lg:col-span-4">
+          <div className="bg-zinc-900 rounded-2xl p-4 sm:p-6 lg:p-8 text-white shadow-xl relative overflow-hidden lg:sticky lg:top-24 w-full max-w-full">
             {/* Background Effects */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+            <div className="absolute top-0 right-0 w-32 sm:w-64 h-32 sm:h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-            <div className="flex flex-col items-center text-center relative z-10">
+            <div className="flex flex-col items-center text-center relative z-10 w-full">
               {user.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt={user.username || user.name}
-                  className="w-24 h-24 rounded-2xl object-cover border-2 border-white/20 shadow-2xl mb-6"
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-2 border-white/20 shadow-2xl mb-4 sm:mb-6"
                 />
               ) : (
-                <div className="w-24 h-24 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-6 border border-white/10 shadow-2xl">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-white text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 border border-white/10 shadow-2xl">
                   {(user.username || user.name)?.substring(0, 2).toUpperCase()}
                 </div>
               )}
 
-              <h2 className="text-2xl font-bold text-white mb-1 tracking-tight" data-testid="profile-username">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 tracking-tight truncate w-full px-2" data-testid="profile-username">
                 {user.username || user.name}
               </h2>
 
@@ -306,23 +306,23 @@ const Profile = ({ user, logout, setUser }) => {
                 </div>
               )}
 
-              <div className="w-full pt-8 border-t border-white/10">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <Trophy className="w-8 h-8 text-yellow-400" fill="currentColor" />
-                  <span className="text-5xl font-black font-mono tracking-tighter" data-testid="profile-score">
+              <div className="w-full pt-4 sm:pt-8 border-t border-white/10">
+                <div className="flex items-center justify-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                  <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400" fill="currentColor" />
+                  <span className="text-3xl sm:text-5xl font-black font-mono tracking-tighter" data-testid="profile-score">
                     {user.score}
                   </span>
                 </div>
-                <p className="text-xs text-gray-400 uppercase tracking-widest font-semibold">Total Reputation Points</p>
+                <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-widest font-semibold">Total Reputation Points</p>
               </div>
 
-              <div className="w-full pt-6 mt-6 border-t border-white/10 grid grid-cols-2 gap-4">
+              <div className="w-full pt-4 sm:pt-6 mt-4 sm:mt-6 border-t border-white/10 grid grid-cols-2 gap-4">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-white">{stats?.challenges_solved || 0}</p>
+                  <p className="text-lg sm:text-2xl font-bold text-white">{stats?.challenges_solved || 0}</p>
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide">Solved</p>
                 </div>
                 <div className="text-center border-l border-white/10">
-                  <p className="text-2xl font-bold text-white">{completionPercentage}%</p>
+                  <p className="text-lg sm:text-2xl font-bold text-white">{completionPercentage}%</p>
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide">Complete</p>
                 </div>
               </div>
