@@ -18,3 +18,5 @@ deploy-ctf.bat
 deploy-local.ps1.next
 zecurx-lms-client/.next
 zecurx-lms-server/dist
+certbot/conf/
+certbot/www/
