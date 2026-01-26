@@ -234,15 +234,15 @@ const Profile = ({ user, logout, setUser }) => {
 
   return (
     <Layout user={user} logout={logout}>
-      <div className="mb-8">
-        <h1 className="text-4xl font-extrabold text-zinc-900 mb-2 tracking-tight">User Profile</h1>
-        <p className="text-lg text-gray-500">Manage your identity and track your progress.</p>
+      <div className="mb-8 px-4 sm:px-0">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-zinc-900 mb-2 tracking-tight">User Profile</h1>
+        <p className="text-base sm:text-lg text-gray-500">Manage your identity and track your progress.</p>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-8">
+      <div className="grid lg:grid-cols-12 gap-6 sm:gap-8 px-4 sm:px-0 pb-8">
         {/* Left Column: Identity Card */}
         <div className="lg:col-span-4">
-          <div className="bg-zinc-900 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden sticky top-24">
+          <div className="bg-zinc-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden lg:sticky lg:top-24">
             {/* Background Effects */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 

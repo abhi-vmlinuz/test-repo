@@ -139,7 +139,7 @@ const PublicProfile = ({ user, logout }) => {
 
     return (
         <Layout user={user} logout={logout}>
-            <div className="max-w-6xl mx-auto space-y-8">
+            <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 px-4 sm:px-0 pb-8">
                 {/* Navigation */}
                 <button
                     onClick={() => navigate(-1)}
@@ -150,10 +150,10 @@ const PublicProfile = ({ user, logout }) => {
                 </button>
 
                 {/* Profile Header */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-8 relative">
-                    <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-zinc-900 via-gray-800 to-zinc-900"></div>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden p-4 sm:p-8 relative">
+                    <div className="absolute top-0 left-0 w-full h-24 sm:h-32 bg-gradient-to-r from-zinc-900 via-gray-800 to-zinc-900"></div>
 
-                    <div className="relative flex flex-col md:flex-row items-end gap-6 pt-16 -mb-2">
+                    <div className="relative flex flex-col md:flex-row items-center md:items-end gap-4 sm:gap-6 pt-12 sm:pt-16 -mb-2">
                         {/* Avatar */}
                         <div className="relative">
                             {profile.avatar_url ? (
@@ -234,7 +234,7 @@ const PublicProfile = ({ user, logout }) => {
                 </div>
 
                 {/* Content Grid */}
-                <div className="grid lg:grid-cols-3 gap-8">
+                <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
 
                     {/* Left Col: Activity & Achievements */}
                     <div className="lg:col-span-2 space-y-8">

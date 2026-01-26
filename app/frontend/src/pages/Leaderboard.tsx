@@ -77,7 +77,7 @@ const Leaderboard = ({ user, logout }) => {
 
   return (
     <Layout user={user} logout={logout}>
-      <div className="space-y-8">
+      <div className="space-y-8 pb-8 px-4 sm:px-0">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-6">
           <div>
@@ -102,10 +102,10 @@ const Leaderboard = ({ user, logout }) => {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-4 gap-8">
+        <div className="grid lg:grid-cols-4 gap-8 min-h-[500px] mb-8">
           {/* Your Rank Card */}
           <div className="lg:col-span-1 order-2 lg:order-1">
-            <div className="bg-zinc-900 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden sticky top-24">
+            <div className="bg-zinc-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden lg:sticky lg:top-24">
               {/* Background Effects */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2"></div>
@@ -114,7 +114,6 @@ const Leaderboard = ({ user, logout }) => {
 
               <div className="flex items-baseline gap-2 mb-2">
                 <span className="text-5xl font-black font-mono tracking-tight text-white">#{userRank > 0 ? userRank : '-'}</span>
-                <span className="text-sm text-gray-400">/ {leaderboard.length}</span>
               </div>
 
               <div className="mb-8">
@@ -141,40 +140,40 @@ const Leaderboard = ({ user, logout }) => {
 
             {/* Top 3 Podium */}
             {leaderboard.length >= 3 && (
-              <div className="grid grid-cols-3 gap-4 items-end mb-8">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 items-end mb-8 pt-12 sm:pt-8">
                 {/* 2nd Place */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-white border border-gray-100 rounded-2xl p-6 text-center shadow-sm relative pt-12 cursor-pointer hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-100 rounded-xl sm:rounded-2xl p-3 sm:p-6 text-center shadow-sm relative pt-10 sm:pt-12 cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => handleViewProfile(leaderboard[1]?.id)}
                 >
-                  <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center border-4 border-white shadow-sm font-bold text-gray-500 text-lg">2</div>
+                  <div className="absolute -top-4 sm:-top-6 left-1/2 -translate-x-1/2">
+                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center border-2 sm:border-4 border-white shadow-sm font-bold text-gray-500 text-sm sm:text-lg">2</div>
                   </div>
-                  <UserAvatar player={leaderboard[1]} size="lg" className="mx-auto mb-3 bg-gray-100 text-gray-600" />
-                  <div className="font-bold text-gray-900 truncate">{leaderboard[1]?.username}</div>
-                  <div className="font-mono text-gray-500 text-sm font-medium">{leaderboard[1]?.score} pts</div>
+                  <UserAvatar player={leaderboard[1]} size="md" className="mx-auto mb-2 sm:mb-3 bg-gray-100 text-gray-600" />
+                  <div className="font-bold text-xs sm:text-base text-gray-900 truncate px-1">{leaderboard[1]?.username}</div>
+                  <div className="font-mono text-gray-500 text-xs sm:text-sm font-medium">{leaderboard[1]?.score} pts</div>
                 </motion.div>
 
                 {/* 1st Place */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-b from-yellow-50 to-white border border-yellow-100 rounded-2xl p-8 text-center shadow-md relative pt-16 z-10 transform -translate-y-4 cursor-pointer hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-b from-yellow-50 to-white border border-yellow-100 rounded-xl sm:rounded-2xl p-4 sm:p-8 text-center shadow-md relative pt-12 sm:pt-16 z-10 transform -translate-y-2 sm:-translate-y-4 cursor-pointer hover:shadow-lg transition-shadow"
                   onClick={() => handleViewProfile(leaderboard[0]?.id)}
                 >
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2">
+                  <div className="absolute -top-6 sm:-top-8 left-1/2 -translate-x-1/2">
                     <div className="relative">
-                      <Crown className="w-8 h-8 text-yellow-500 absolute -top-8 left-1/2 -translate-x-1/2" fill="currentColor" />
-                      <div className="w-16 h-16 bg-yellow-400 rounded-full flex items-center justify-center border-4 border-white shadow-md font-bold text-white text-2xl">1</div>
+                      <Crown className="w-5 h-5 sm:w-8 sm:h-8 text-yellow-500 absolute -top-5 sm:-top-8 left-1/2 -translate-x-1/2" fill="currentColor" />
+                      <div className="w-10 h-10 sm:w-16 sm:h-16 bg-yellow-400 rounded-full flex items-center justify-center border-2 sm:border-4 border-white shadow-md font-bold text-white text-lg sm:text-2xl">1</div>
                     </div>
                   </div>
-                  <UserAvatar player={leaderboard[0]} size="xl" className="mx-auto mb-3 bg-yellow-100 text-yellow-600 border border-yellow-200" />
-                  <div className="font-bold text-lg text-gray-900 truncate">{leaderboard[0]?.username}</div>
-                  <div className="font-mono text-yellow-600 font-bold text-xl">{leaderboard[0]?.score} pts</div>
-                  <Badge className="mt-2 bg-yellow-400 text-black border-0 hover:bg-yellow-500" variant={undefined}>Champion</Badge>
+                  <UserAvatar player={leaderboard[0]} size="lg" className="mx-auto mb-2 sm:mb-3 bg-yellow-100 text-yellow-600 border border-yellow-200" />
+                  <div className="font-bold text-sm sm:text-lg text-gray-900 truncate px-1">{leaderboard[0]?.username}</div>
+                  <div className="font-mono text-yellow-600 font-bold text-base sm:text-xl">{leaderboard[0]?.score} pts</div>
+                  <Badge className="mt-1 sm:mt-2 text-xs sm:text-sm bg-yellow-400 text-black border-0 hover:bg-yellow-500" variant={undefined}>Champion</Badge>
                 </motion.div>
 
                 {/* 3rd Place */}
@@ -182,15 +181,15 @@ const Leaderboard = ({ user, logout }) => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="bg-white border border-orange-100 rounded-2xl p-6 text-center shadow-sm relative pt-12 cursor-pointer hover:shadow-md transition-shadow"
+                  className="bg-white border border-orange-100 rounded-xl sm:rounded-2xl p-3 sm:p-6 text-center shadow-sm relative pt-10 sm:pt-12 cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => handleViewProfile(leaderboard[2]?.id)}
                 >
-                  <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-                    <div className="w-12 h-12 bg-orange-200 rounded-full flex items-center justify-center border-4 border-white shadow-sm font-bold text-orange-700 text-lg">3</div>
+                  <div className="absolute -top-4 sm:-top-6 left-1/2 -translate-x-1/2">
+                    <div className="w-8 h-8 sm:w-12 sm:h-12 bg-orange-200 rounded-full flex items-center justify-center border-2 sm:border-4 border-white shadow-sm font-bold text-orange-700 text-sm sm:text-lg">3</div>
                   </div>
-                  <UserAvatar player={leaderboard[2]} size="lg" className="mx-auto mb-3 bg-orange-50 text-orange-500" />
-                  <div className="font-bold text-gray-900 truncate">{leaderboard[2]?.username}</div>
-                  <div className="font-mono text-gray-500 text-sm font-medium">{leaderboard[2]?.score} pts</div>
+                  <UserAvatar player={leaderboard[2]} size="md" className="mx-auto mb-2 sm:mb-3 bg-orange-50 text-orange-500" />
+                  <div className="font-bold text-xs sm:text-base text-gray-900 truncate px-1">{leaderboard[2]?.username}</div>
+                  <div className="font-mono text-gray-500 text-xs sm:text-sm font-medium">{leaderboard[2]?.score} pts</div>
                 </motion.div>
               </div>
             )}

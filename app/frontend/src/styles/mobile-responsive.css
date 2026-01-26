@@ -1,0 +1,133 @@
+/* Mobile Responsive Fixes for ZecurX Platform */
+
+/* Fix crown overlap on mobile */
+@media (max-width: 640px) {
+  /* Leaderboard Mobile Fixes */
+  .podium-container {
+    padding-top: 3rem !important;
+  }
+  
+  /* Reduce podium card sizes */
+  .podium-card {
+    padding: 0.75rem !important;
+    padding-top: 2.5rem !important;
+    border-radius: 0.75rem !important;
+  }
+  
+  .podium-card-first {
+    padding: 1rem !important;
+    padding-top: 3rem !important;
+    transform: translateY(-0.5rem) !important;
+  }
+  
+  /* Reduce rank badge sizes */
+  .rank-badge {
+    width: 2rem !important;
+    height: 2rem !important;
+    font-size: 0.875rem !important;
+    border-width: 2px !important;
+    top: -1rem !important;
+  }
+  
+  .rank-badge-first {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    font-size: 1.125rem !important;
+  }
+  
+  /* Reduce crown size */
+  .crown-icon {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+    top: -1.25rem !important;
+  }
+  
+  /* Reduce avatar sizes */
+  .podium-avatar {
+    width: 3rem !important;
+    height: 3rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .podium-avatar-first {
+    width: 4rem !important;
+    height: 4rem !important;
+  }
+  
+  /* Reduce text sizes */
+  .podium-username {
+    font-size: 0.75rem !important;
+    padding: 0 0.25rem;
+  }
+  
+  .podium-score {
+    font-size: 0.75rem !important;
+  }
+  
+  .podium-score-first {
+    font-size: 1rem !important;
+  }
+  
+  .podium-badge {
+    font-size: 0.75rem !important;
+    margin-top: 0.25rem !important;
+  }
+}
+
+/* Ensure proper spacing at bottom of pages */
+.page-container {
+  padding-bottom: 2rem !important;
+  min-height: calc(100vh - 4rem);
+}
+
+/* Fix card cutoff on mobile */
+@media (max-width: 1024px) {
+  .grid-container {
+    margin-bottom: 2rem !important;
+  }
+  
+  .sticky-card {
+    position: relative !important;
+    margin-bottom: 2rem;
+  }
+}
+
+/* Profile page mobile fixes */
+@media (max-width: 768px) {
+  .profile-header {
+    flex-direction: column !important;
+    align-items: start !important;
+  }
+  
+  .profile-avatar {
+    width: 4rem !important;
+    height: 4rem !important;
+  }
+  
+  .profile-stats {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  .profile-challenges {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Ensure all containers have proper mobile padding */
+@media (max-width: 640px) {
+  .container-padding {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  /* Fix table overflow on small screens */
+  .table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Make cards stack on mobile */
+  .card-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
