@@ -351,7 +351,7 @@ const Profile = ({ user, logout, setUser }) => {
         <div className="lg:col-span-8 space-y-8">
 
           {/* Category Progress */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-6 uppercase tracking-wide flex items-center gap-2">
               <Target className="w-5 h-5 text-zinc-900" />
               Skill Proficiency
@@ -381,14 +381,14 @@ const Profile = ({ user, logout, setUser }) => {
 
           {/* Activity Calendar */}
           {stats?.activity && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8 w-full max-w-full overflow-hidden">
               <h3 className="text-lg font-bold text-zinc-900 mb-6 uppercase tracking-wide flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-zinc-900" />
                 Activity Log
               </h3>
               <TooltipProvider delayDuration={100}>
-                <div className="w-full overflow-x-auto pb-2 border-t border-gray-50 pt-6">
-                  <div className="flex gap-1 min-w-max">
+                <div className="w-full overflow-x-auto pb-2 border-t border-gray-50 pt-6 scrollbar-hide touch-pan-x">
+                  <div className="flex gap-1 min-w-max pb-4 px-1">
                     {Array.from({ length: 53 }).map((_, weekIndex) => {
                       const today = new Date();
                       const dates = [];
@@ -448,26 +448,26 @@ const Profile = ({ user, logout, setUser }) => {
           )}
 
           {/* Achievements */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8 w-full max-w-full overflow-hidden">
             <h3 className="text-lg font-bold text-zinc-900 mb-6 uppercase tracking-wide flex items-center gap-2">
               <Award className="w-5 h-5 text-zinc-900" />
               Achievements
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {achievements.map((achievement, idx) => (
                 <div
                   key={idx}
-                  className={`flex items-start gap-4 p-4 rounded-xl border transition-all ${achievement.earned
+                  className={`flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl border transition-all ${achievement.earned
                     ? 'bg-zinc-900 border-zinc-900 text-white'
                     : 'bg-gray-50 border-gray-100 text-gray-400 grayscale'
                     }`}
                 >
-                  <div className={`p-2 rounded-lg ${achievement.earned ? 'bg-white/10' : 'bg-gray-200'}`}>
-                    <achievement.icon className="w-6 h-6" />
+                  <div className={`p-1.5 sm:p-2 rounded-lg ${achievement.earned ? 'bg-white/10' : 'bg-gray-200'}`}>
+                    <achievement.icon className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
-                  <div>
-                    <p className={`font-bold text-sm ${achievement.earned ? 'text-white' : 'text-gray-500'}`}>{achievement.name}</p>
-                    <p className="text-xs mt-1 opacity-80">{achievement.description}</p>
+                  <div className="min-w-0">
+                    <p className={`font-bold text-xs sm:text-sm ${achievement.earned ? 'text-white' : 'text-gray-500'} truncate`}>{achievement.name}</p>
+                    <p className="text-[10px] sm:text-xs mt-0.5 sm:mt-1 opacity-80 line-clamp-2">{achievement.description}</p>
                   </div>
                 </div>
               ))}
@@ -475,12 +475,12 @@ const Profile = ({ user, logout, setUser }) => {
           </div>
 
           {/* Account Details */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-6 uppercase tracking-wide flex items-center gap-2">
               <User className="w-5 h-5 text-zinc-900" />
               Account Data
             </h3>
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                 <div className="flex items-center gap-3 mb-2">
                   <Mail className="w-4 h-4 text-gray-400" />
@@ -508,7 +508,7 @@ const Profile = ({ user, logout, setUser }) => {
           </div>
 
           {/* Connected Accounts */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-8">
             <h3 className="text-lg font-bold text-zinc-900 mb-6 uppercase tracking-wide flex items-center gap-2">
               <Shield className="w-5 h-5 text-zinc-900" />
               Connected Accounts

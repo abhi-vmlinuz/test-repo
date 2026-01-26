@@ -57,8 +57,8 @@ const PublicProfile = ({ user, logout }) => {
 
         return (
             <TooltipProvider delayDuration={100}>
-                <div className="w-full overflow-x-auto pb-2 border-t border-gray-50 pt-6 mt-4">
-                    <div className="flex gap-1 min-w-max">
+                <div className="w-full overflow-x-auto pb-2 border-t border-gray-50 pt-6 mt-4 scrollbar-hide touch-pan-x">
+                    <div className="flex gap-1 min-w-max pb-4 px-1">
                         {Array.from({ length: 53 }).map((_, weekIndex) => (
                             <div key={weekIndex} className="grid grid-rows-7 gap-1">
                                 {Array.from({ length: 7 }).map((_, dayIndex) => {
@@ -139,7 +139,7 @@ const PublicProfile = ({ user, logout }) => {
 
     return (
         <Layout user={user} logout={logout}>
-            <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 px-4 sm:px-0 pb-8">
+            <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8 px-4 pb-8 w-full overflow-x-hidden">
                 {/* Navigation */}
                 <button
                     onClick={() => navigate(-1)}
@@ -234,12 +234,12 @@ const PublicProfile = ({ user, logout }) => {
                 </div>
 
                 {/* Content Grid */}
-                <div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
+                <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 sm:gap-8 w-full">
 
                     {/* Left Col: Activity & Achievements */}
-                    <div className="lg:col-span-2 space-y-8">
+                    <div className="lg:col-span-2 space-y-6 sm:space-y-8 w-full overflow-hidden">
                         {/* Activity Calendar */}
-                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 w-full">
                             <h3 className="text-lg font-bold text-zinc-900 mb-6 flex items-center gap-2">
                                 <Calendar className="w-5 h-5 text-gray-500" />
                                 Activity Log
@@ -248,26 +248,26 @@ const PublicProfile = ({ user, logout }) => {
                         </div>
 
                         {/* Achievements */}
-                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 w-full max-w-full overflow-hidden">
                             <h3 className="text-lg font-bold text-zinc-900 mb-6 flex items-center gap-2">
                                 <Trophy className="w-5 h-5 text-yellow-500" />
                                 Achievements
                             </h3>
-                            <div className="grid sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                 {profile.achievements.map((achievement, idx) => (
                                     <div
                                         key={idx}
-                                        className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${achievement.earned
+                                        className={`flex items-start gap-3 p-3 sm:p-4 rounded-xl border transition-all ${achievement.earned
                                             ? 'bg-zinc-900 border-zinc-900 text-white'
                                             : 'bg-gray-50 border-gray-100 text-gray-400 grayscale opacity-50'
                                             }`}
                                     >
-                                        <div className={`p-2 rounded-lg ${achievement.earned ? 'bg-white/10' : 'bg-gray-200'}`}>
-                                            <Award className="w-5 h-5" />
+                                        <div className={`p-1.5 sm:p-2 rounded-lg ${achievement.earned ? 'bg-white/10' : 'bg-gray-200'}`}>
+                                            <Award className="w-4 h-4 sm:w-5 sm:h-5" />
                                         </div>
-                                        <div>
-                                            <div className="font-bold text-sm">{achievement.name}</div>
-                                            <div className="text-xs opacity-70 mt-1">{achievement.description}</div>
+                                        <div className="min-w-0">
+                                            <div className="font-bold text-xs sm:text-sm truncate">{achievement.name}</div>
+                                            <div className="text-[10px] sm:text-xs opacity-70 mt-0.5 sm:mt-1 line-clamp-2">{achievement.description}</div>
                                         </div>
                                     </div>
                                 ))}
@@ -276,9 +276,9 @@ const PublicProfile = ({ user, logout }) => {
                     </div>
 
                     {/* Right Col: Stats Breakdown */}
-                    <div className="space-y-8">
+                    <div className="flex flex-col space-y-6 sm:space-y-8 w-full max-w-full overflow-hidden">
                         {/* Category Progress */}
-                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-6 w-full max-w-full">
                             <h3 className="text-lg font-bold text-zinc-900 mb-6 flex items-center gap-2">
                                 <Target className="w-5 h-5 text-red-500" />
                                 Skill Breakdown
@@ -305,14 +305,14 @@ const PublicProfile = ({ user, logout }) => {
                         </div>
 
                         {/* Overall Completion */}
-                        <div className="bg-zinc-900 text-white rounded-2xl shadow-xl p-8 text-center relative overflow-hidden">
+                        <div className="bg-zinc-900 text-white rounded-2xl shadow-xl p-6 sm:p-8 text-center relative overflow-hidden w-full">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
 
                             <div className="relative z-10">
-                                <div className="text-5xl font-black font-mono mb-2">{profile.completion_percentage}%</div>
-                                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Platform Completion</div>
+                                <div className="text-4xl sm:text-5xl font-black font-mono mb-2">{profile.completion_percentage}%</div>
+                                <div className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 sm:mb-6">Platform Completion</div>
 
-                                <div className="flex justify-center gap-4 text-sm font-medium text-gray-300">
+                                <div className="flex justify-center gap-3 sm:gap-4 text-xs sm:text-sm font-medium text-gray-300">
                                     <div>
                                         <span className="text-white font-bold block text-lg">{profile.challenges_solved}</span>
                                         Solved
