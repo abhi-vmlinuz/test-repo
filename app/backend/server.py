@@ -6843,7 +6843,6 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
                 LEFT JOIN ctf_public_challenges c ON nu.challenge_id::text = c.id::text
                 LEFT JOIN users u ON nu.user_id::text = u.id::text
                 WHERE nu.status = 'running'
-                OR nu.started_at > NOW() - INTERVAL '24 hours'
                 ORDER BY nu.started_at DESC
                 LIMIT 100
             ''')
