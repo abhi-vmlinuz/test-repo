@@ -519,6 +519,12 @@ const AdminNexus = () => {
                                                         <p className="font-mono text-lg font-semibold text-zinc-900">
                                                             {session.target_ip || 'N/A'}
                                                         </p>
+                                                        {/* Spawn Mode Badge */}
+                                                        {session.spawn_mode && (
+                                                            <Badge variant="outline" className={`text-[10px] ${session.spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
+                                                                {session.spawn_mode === 'hostport' ? '⚡ hostPort' : '⚖️ LoadBalancer'}
+                                                            </Badge>
+                                                        )}
                                                         {session.is_orphaned && (
                                                             <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-[10px]">
                                                                 ⚠️ Orphaned
@@ -537,6 +543,13 @@ const AdminNexus = () => {
                                                         <p className="text-sm text-gray-600">
                                                             <span className="text-gray-400">Challenge:</span> {session.challenge_title || 'Unknown'}
                                                         </p>
+                                                        {/* Exposed Ports */}
+                                                        {session.ports && session.ports.length > 0 && (
+                                                            <p className="text-sm text-gray-600">
+                                                                <span className="text-gray-400">Ports:</span>{' '}
+                                                                <span className="font-mono text-xs">{session.ports.join(', ')}</span>
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <p className="text-xs text-gray-400 font-mono mt-1">
                                                         {session.session_id}
