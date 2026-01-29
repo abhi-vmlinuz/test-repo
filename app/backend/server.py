@@ -7235,6 +7235,85 @@ async def admin_nexus_billing(current_user: dict = Depends(require_admin)):
             return {"history": []}
 
 
+@api_router.get("/admin/nexus/nodes")
+async def admin_nexus_nodes(current_user: dict = Depends(require_admin)):
+    """
+    Get cluster nodes with external IPs (for hostPort mode monitoring).
+    Proxies to Nexus Engine /api/v1/admin/nodes endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/nodes", timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                return {"nodes": [], "count": 0, "error": f"Nexus returned {resp.status_code}"}
+    except Exception as e:
+        logger.warning(f"Failed to get nodes from Nexus: {e}")
+        return {"nodes": [], "count": 0, "error": str(e)}
+
+
+@api_router.get("/admin/nexus/ports")
+async def admin_nexus_ports(current_user: dict = Depends(require_admin)):
+    """
+    Get port allocations per node (for hostPort mode monitoring).
+    Proxies to Nexus Engine /api/v1/admin/ports endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/ports", timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                return {"port_allocations": [], "error": f"Nexus returned {resp.status_code}"}
+    except Exception as e:
+        logger.warning(f"Failed to get port allocations from Nexus: {e}")
+        return {"port_allocations": [], "error": str(e)}
+
+
+@api_router.get("/admin/nexus/config")
+async def admin_nexus_config(current_user: dict = Depends(require_admin)):
+    """
+    Get Nexus Engine configuration including spawn mode and cluster info.
+    Proxies to Nexus Engine /api/v1/admin/config endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/config", timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                # Return default config if Nexus endpoint not available
+                return {
+                    "default_spawn_mode": "loadbalancer",
+                    "available_modes": ["loadbalancer", "hostport"],
+                    "clusters": [
+                        {
+                            "name": "nexus-standard",
+                            "type": "GKE Standard",
+                            "zone": "asia-south1-a",
+                            "hostport": True,
+                            "description": "Cost-optimized cluster with hostPort support"
+                        },
+                        {
+                            "name": "nexus-cluster",
+                            "type": "GKE Autopilot",
+                            "region": "asia-south1",
+                            "hostport": False,
+                            "description": "Managed cluster with LoadBalancer only"
+                        }
+                    ]
+                }
+    except Exception as e:
+        logger.warning(f"Failed to get config from Nexus: {e}")
+        return {
+            "default_spawn_mode": "loadbalancer",
+            "available_modes": ["loadbalancer", "hostport"],
+            "clusters": [],
+            "error": str(e)
+        }
+
+
 # ===========================================
 # APPLICATION LIFECYCLE
 # ===========================================

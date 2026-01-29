@@ -9,7 +9,7 @@ import {
     Server, DollarSign, Activity, Calculator, Trash2, RefreshCw,
     Cloud, Cpu, HardDrive, Network, Clock, TrendingUp,
     Settings, Zap, CheckCircle, XCircle, BarChart3,
-    Download, Calendar, ChevronRight
+    Download, Calendar, ChevronRight, Layers, Globe, MonitorDot
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -22,6 +22,11 @@ const AdminNexus = () => {
     const [activeTab, setActiveTab] = useState('overview');
     const [history, setHistory] = useState({ sessions: [], summary: { total_sessions: 0, total_cost: 0, total_hours: 0, unique_users: 0 }, daily_breakdown: [] });
 
+    // New Phase 2 state
+    const [nodes, setNodes] = useState({ nodes: [], count: 0 });
+    const [nexusConfig, setNexusConfig] = useState({ default_spawn_mode: 'loadbalancer', available_modes: [], clusters: [] });
+    const [portAllocations, setPortAllocations] = useState({ port_allocations: [] });
+
     // Pricing calculator inputs
     const [hours, setHours] = useState(8);
     const [concurrent, setConcurrent] = useState(50);
@@ -33,12 +38,18 @@ const AdminNexus = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, sessionsRes, historyRes] = await Promise.all([
+            const [statsRes, sessionsRes, historyRes, nodesRes, configRes, portsRes] = await Promise.all([
                 axios.get(`${API}/admin/nexus/stats`).catch(() => ({ data: { active_sessions: 0, total_pods: 0, total_sessions_today: 0, estimated_cost_today: 0 } })),
                 axios.get(`${API}/admin/nexus/sessions`).catch(() => ({ data: { sessions: [] } })),
-                axios.get(`${API}/admin/nexus/history`).catch(() => ({ data: { sessions: [], summary: {}, daily_breakdown: [] } }))
+                axios.get(`${API}/admin/nexus/history`).catch(() => ({ data: { sessions: [], summary: {}, daily_breakdown: [] } })),
+                axios.get(`${API}/admin/nexus/nodes`).catch(() => ({ data: { nodes: [], count: 0 } })),
+                axios.get(`${API}/admin/nexus/config`).catch(() => ({ data: { default_spawn_mode: 'loadbalancer', clusters: [] } })),
+                axios.get(`${API}/admin/nexus/ports`).catch(() => ({ data: { port_allocations: [] } }))
             ]);
             setStats(statsRes.data);
+            setNodes(nodesRes.data);
+            setNexusConfig(configRes.data);
+            setPortAllocations(portsRes.data);
             setSessions(sessionsRes.data.sessions || []);
             setHistory(historyRes.data);
         } catch (error) {
@@ -145,6 +156,7 @@ const AdminNexus = () => {
     const tabs = [
         { id: 'overview', label: 'Overview', icon: BarChart3 },
         { id: 'sessions', label: 'Sessions', icon: Server },
+        { id: 'nodes', label: 'Nodes', icon: Layers },
         { id: 'history', label: 'History', icon: Clock },
         { id: 'billing', label: 'Billing', icon: DollarSign },
         { id: 'settings', label: 'Settings', icon: Settings },
@@ -357,15 +369,22 @@ const AdminNexus = () => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer">
+                        <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setActiveTab('nodes')}>
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                        <Cloud className="w-6 h-6 text-blue-600" />
+                                        <Layers className="w-6 h-6 text-blue-600" />
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-zinc-900">GKE Cluster</p>
-                                        <p className="text-sm text-gray-500">asia-south1 (Autopilot)</p>
+                                        <p className="font-semibold text-zinc-900">GKE Clusters</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-700 bg-emerald-50">
+                                                {nodes.count || 0} node{(nodes.count || 0) !== 1 ? 's' : ''}
+                                            </Badge>
+                                            <Badge variant="outline" className={`text-[10px] ${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
+                                                {nexusConfig.default_spawn_mode === 'hostport' ? '⚡ hostPort' : '⚖️ LoadBalancer'}
+                                            </Badge>
+                                        </div>
                                     </div>
                                 </div>
                             </CardContent>
@@ -374,8 +393,8 @@ const AdminNexus = () => {
                         <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer">
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                                        <Zap className="w-6 h-6 text-purple-600" />
+                                    <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                                        <Zap className="w-6 h-6 text-indigo-600" />
                                     </div>
                                     <div>
                                         <p className="font-semibold text-zinc-900">Nexus Engine</p>
@@ -559,6 +578,137 @@ const AdminNexus = () => {
                         </div>
 
                     )}
+                </div>
+            )}
+
+            {/* Nodes Tab - Cluster & Port Monitoring */}
+            {activeTab === 'nodes' && (
+                <div className="space-y-6">
+                    {/* Clusters Section */}
+                    <Card className="border border-gray-200 bg-white">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Cloud className="w-5 h-5 text-gray-500" />
+                                Available Clusters
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {(nexusConfig.clusters || []).map((cluster: any, idx: number) => (
+                                    <div key={idx} className={`p-4 rounded-lg border ${cluster.hostport ? 'border-emerald-200 bg-emerald-50/30' : 'border-blue-200 bg-blue-50/30'}`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h4 className="font-semibold text-zinc-900">{cluster.name}</h4>
+                                            <Badge variant="outline" className={cluster.hostport ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-blue-200 text-blue-700 bg-blue-50'}>
+                                                {cluster.type}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-sm text-gray-500">{cluster.description}</p>
+                                        <div className="mt-3 flex items-center gap-4 text-xs">
+                                            <span className="text-gray-400">{cluster.zone || cluster.region}</span>
+                                            {cluster.hostport && (
+                                                <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700 bg-amber-50">
+                                                    ⚡ hostPort Enabled
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Node List */}
+                    <Card className="border border-gray-200 bg-white">
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <Server className="w-5 h-5 text-gray-500" />
+                                    Cluster Nodes ({nodes.count || 0})
+                                </CardTitle>
+                                <Badge variant="outline" className={`${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
+                                    Mode: {nexusConfig.default_spawn_mode || 'loadbalancer'}
+                                </Badge>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {(nodes.nodes || []).length > 0 ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {(nodes.nodes || []).map((node: any, idx: number) => (
+                                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <div className="flex items-center gap-3 mb-3">
+                                                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                                                <div>
+                                                    <p className="font-medium text-zinc-900 text-sm font-mono">{node.name}</p>
+                                                    <p className="text-xs text-gray-400">Ready</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <Globe className="w-4 h-4 text-gray-400" />
+                                                <code className="text-sm bg-white px-2 py-1 rounded border border-gray-200">
+                                                    {node.external_ip || 'No external IP'}
+                                                </code>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <Server className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                                    <p className="text-gray-400">No nodes found</p>
+                                    <p className="text-sm text-gray-300">Nodes will appear when the cluster is connected</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Port Allocations */}
+                    <Card className="border border-gray-200 bg-white">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Network className="w-5 h-5 text-gray-500" />
+                                Port Allocations (hostPort Mode)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {(portAllocations.port_allocations || []).length > 0 ? (
+                                <div className="space-y-4">
+                                    {(portAllocations.port_allocations || []).map((nodeAlloc: any, idx: number) => (
+                                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-2">
+                                                    <MonitorDot className="w-4 h-4 text-gray-500" />
+                                                    <span className="font-medium text-zinc-900 text-sm">{nodeAlloc.node_name}</span>
+                                                </div>
+                                                <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
+                                                    {nodeAlloc.external_ip}
+                                                </code>
+                                            </div>
+                                            {Object.keys(nodeAlloc.allocations || {}).length > 0 ? (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                                    {Object.entries(nodeAlloc.allocations || {}).map(([port, sessionId]: [string, any]) => (
+                                                        <div key={port} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
+                                                            <span className="font-mono text-sm text-emerald-600">{port}</span>
+                                                            <span className="text-xs text-gray-400 truncate" title={sessionId}>
+                                                                {(sessionId as string).slice(0, 8)}...
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-gray-400">No ports allocated on this node</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <Network className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                                    <p className="text-gray-400">No port allocations</p>
+                                    <p className="text-sm text-gray-300">Port allocations will appear when hostPort mode is active</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 </div>
             )}
 
@@ -892,12 +1042,18 @@ const AdminNexus = () => {
                         <CardContent className="space-y-4">
                             <div className="p-4 bg-gray-50 rounded-lg">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600">Platform</span>
-                                    <span className="font-medium">GKE Autopilot</span>
+                                    <span className="text-sm text-gray-600">Spawn Mode</span>
+                                    <Badge variant="outline" className={`${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
+                                        {nexusConfig.default_spawn_mode === 'hostport' ? '⚡ hostPort' : '⚖️ LoadBalancer'}
+                                    </Badge>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600">Region</span>
-                                    <span className="font-medium">asia-south1</span>
+                                    <span className="text-sm text-gray-600">Active Cluster</span>
+                                    <span className="font-medium">{(nexusConfig.clusters || [])[0]?.type || 'GKE Autopilot'}</span>
+                                </div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-600">Nodes Available</span>
+                                    <span className="font-medium">{nodes.count || 0}</span>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="text-sm text-gray-600">Nexus Engine</span>
