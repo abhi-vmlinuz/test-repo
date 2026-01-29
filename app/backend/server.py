@@ -6838,7 +6838,7 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
                     COALESCE(nu.pod_seconds, 0) as pod_seconds,
                     COALESCE(nu.estimated_cost, 0) as estimated_cost,
                     c.title as challenge_title,
-                    u.username
+                    u.name as username
                 FROM nexus_usage nu
                 LEFT JOIN ctf_public_challenges c ON nu.challenge_id::text = c.id::text
                 LEFT JOIN users u ON nu.user_id::text = u.id::text
@@ -6863,6 +6863,8 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
                     'username': row['username'] or 'Unknown',
                     'status': row['status'],
                     'target_ip': nexus_data.get('target_ip'),  # Get from Nexus, not DB
+                    'spawn_mode': nexus_data.get('spawn_mode'), # From Nexus
+                    'ports': nexus_data.get('ports'),           # From Nexus
                     'started_at': row['started_at'].isoformat() if row['started_at'] else None,
                     'ended_at': row['ended_at'].isoformat() if row['ended_at'] else None,
                     'pod_seconds': int(row['pod_seconds']),
