@@ -282,9 +282,19 @@ const AdminChallenges = () => {
         });
 
         // Check if docker image exists in registry
+        // More lenient matching: extract just the image name (without tag) for comparison
         if (challenge.docker_image && challenge.docker_image.trim()) {
+            const normalizeImageName = (url: string) => {
+                // Remove tag (:latest, :v1, etc.)
+                const noTag = url.split(':')[0];
+                // Get just the image name (last part of path)
+                const parts = noTag.split('/');
+                return parts[parts.length - 1].toLowerCase();
+            };
+
+            const targetImageName = normalizeImageName(challenge.docker_image);
             const imageExists = dockerImages.some(
-                img => img.image.toLowerCase() === challenge.docker_image.toLowerCase()
+                img => normalizeImageName(img.image) === targetImageName
             );
             setImageNotFoundWarning(!imageExists);
         } else {
@@ -792,9 +802,16 @@ const AdminChallenges = () => {
                                                 setFormData(prev => ({ ...prev, has_docker: isChecked }));
 
                                                 // Re-check image warning when enabling Docker
+                                                // Use lenient matching: compare just image names (without registry/tag)
                                                 if (isChecked && formData.docker_image && formData.docker_image.trim()) {
+                                                    const normalizeImageName = (url: string) => {
+                                                        const noTag = url.split(':')[0];
+                                                        const parts = noTag.split('/');
+                                                        return parts[parts.length - 1].toLowerCase();
+                                                    };
+                                                    const targetImageName = normalizeImageName(formData.docker_image);
                                                     const imageExists = dockerImages.some(
-                                                        img => img.image.toLowerCase() === formData.docker_image.toLowerCase()
+                                                        img => normalizeImageName(img.image) === targetImageName
                                                     );
                                                     setImageNotFoundWarning(!imageExists);
                                                 } else if (!isChecked) {
