@@ -17,6 +17,9 @@ code {
 
 @layer base {
     :root {
+        /* ============================================
+           Light Theme (Default)
+           ============================================ */
         --background: 0 0% 100%;
         --foreground: 0 0% 4%;
         --card: 0 0% 100%;
@@ -42,6 +45,51 @@ code {
         --chart-4: 43 74% 66%;
         --chart-5: 27 87% 67%;
         --radius: 0.75rem;
+
+        /* Sidebar variables for shadcn */
+        --sidebar-background: 0 0% 100%;
+        --sidebar-foreground: 0 0% 25%;
+        --sidebar-primary: 0 0% 9%;
+        --sidebar-primary-foreground: 0 0% 98%;
+        --sidebar-accent: 0 0% 96%;
+        --sidebar-accent-foreground: 0 0% 9%;
+        --sidebar-border: 0 0% 90%;
+        --sidebar-ring: 0 0% 4%;
+    }
+
+    /* ============================================
+       Dark Theme
+       ============================================ */
+    [data-theme="dark"] {
+        --background: 0 0% 7%;
+        --foreground: 0 0% 95%;
+        --card: 0 0% 10%;
+        --card-foreground: 0 0% 95%;
+        --popover: 0 0% 10%;
+        --popover-foreground: 0 0% 95%;
+        --primary: 0 0% 98%;
+        --primary-foreground: 0 0% 9%;
+        --secondary: 0 0% 15%;
+        --secondary-foreground: 0 0% 95%;
+        --muted: 0 0% 15%;
+        --muted-foreground: 0 0% 60%;
+        --accent: 0 0% 15%;
+        --accent-foreground: 0 0% 95%;
+        --destructive: 0 62% 50%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 20%;
+        --input: 0 0% 20%;
+        --ring: 0 0% 90%;
+
+        /* Sidebar variables for dark mode */
+        --sidebar-background: 0 0% 7%;
+        --sidebar-foreground: 0 0% 75%;
+        --sidebar-primary: 0 0% 98%;
+        --sidebar-primary-foreground: 0 0% 9%;
+        --sidebar-accent: 0 0% 15%;
+        --sidebar-accent-foreground: 0 0% 95%;
+        --sidebar-border: 0 0% 20%;
+        --sidebar-ring: 0 0% 90%;
     }
 }
 
@@ -50,8 +98,27 @@ code {
         @apply border-border;
     }
 
+    html {
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
     body {
         @apply bg-background text-foreground;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* Force text color inheritance for dark mode */
+    [data-theme="dark"] h1,
+    [data-theme="dark"] h2,
+    [data-theme="dark"] h3,
+    [data-theme="dark"] h4,
+    [data-theme="dark"] h5,
+    [data-theme="dark"] h6,
+    [data-theme="dark"] p,
+    [data-theme="dark"] span,
+    [data-theme="dark"] label,
+    [data-theme="dark"] li {
+        color: inherit;
     }
 }
 

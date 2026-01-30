@@ -21,7 +21,7 @@ const Layout = ({ user, children, logout }) => {
     const isActive = (path) => location.pathname === path;
 
     return (
-        <div className="min-h-screen bg-white flex text-slate-900 font-sans selection:bg-zinc-800 selection:text-white relative overflow-x-hidden">
+        <div className="min-h-screen flex font-sans selection:bg-zinc-800 selection:text-white relative overflow-x-hidden" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
             {/* Background Grid */}
             <div className="fixed inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none z-0"></div>
 
@@ -29,7 +29,7 @@ const Layout = ({ user, children, logout }) => {
             <CreativeBackground />
 
             {/* Sidebar - Desktop */}
-            <aside className="fixed left-0 top-0 bottom-0 w-64 border-r border-gray-100 bg-white/50 backdrop-blur-xl z-40 hidden lg:flex flex-col p-6">
+            <aside className="fixed left-0 top-0 bottom-0 w-64 border-r z-40 hidden lg:flex flex-col p-6 backdrop-blur-xl" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-light)' }}>
                 {/* Logo */}
                 <div className="mb-10 px-2">
                     <Link to="/" className="flex items-center gap-3 group">
@@ -96,7 +96,7 @@ const Layout = ({ user, children, logout }) => {
             </aside>
 
             {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 flex items-center justify-between px-4">
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 backdrop-blur-md border-b z-50 flex items-center justify-between px-4" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-light)' }}>
                 <Link to="/" className="flex items-center gap-2">
                     <img src="/logo.png" alt="ZecurX" className="w-7 h-7 object-contain" />
                     <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX LABS</span>
@@ -108,7 +108,7 @@ const Layout = ({ user, children, logout }) => {
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="lg:hidden fixed inset-0 z-40 bg-white/95 backdrop-blur-sm pt-20 px-6">
+                <div className="lg:hidden fixed inset-0 z-40 backdrop-blur-sm pt-20 px-6" style={{ backgroundColor: 'var(--bg-primary)' }}>
                     <nav className="space-y-4">
                         {navItems.map((item) => (
                             <Link
@@ -134,7 +134,7 @@ const Layout = ({ user, children, logout }) => {
 
 
             {/* Main Content Area */}
-            <main className="flex-1 lg:ml-64 relative z-10 w-full pt-16 lg:pt-0 bg-white min-h-screen">
+            <main className="flex-1 lg:ml-64 relative z-10 w-full pt-16 lg:pt-0 min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
                 <div className="py-8 px-6 lg:px-10 lg:py-10 max-w-7xl mx-auto">
                     {children}
                 </div>

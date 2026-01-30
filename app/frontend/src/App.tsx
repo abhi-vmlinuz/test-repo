@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import ScrollToTop from '@/components/ScrollToTop';
+import ThemeToggle from '@/components/ThemeToggle';
 import '@/App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
@@ -68,6 +69,14 @@ function App() {
 
   useEffect(() => {
     checkAuth();
+    // Initialize theme on app load
+    const savedTheme = localStorage.getItem('zecurx-theme');
+    if (savedTheme) {
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    } else {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    }
   }, []);
 
   const checkAuth = async () => {
@@ -94,10 +103,10 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
         <div className="flex flex-col items-center">
-          <div className="w-10 h-10 border-2 border-gray-200 border-t-gray-900 rounded-full animate-spin mb-4" />
-          <div className="text-gray-400 text-sm font-medium">Loading...</div>
+          <div className="w-10 h-10 border-2 rounded-full animate-spin mb-4" style={{ borderColor: 'var(--border-light)', borderTopColor: 'var(--text-primary)' }} />
+          <div className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Loading...</div>
         </div>
       </div>
     );
@@ -105,6 +114,7 @@ function App() {
 
   return (
     <div className="App">
+      <ThemeToggle />
       <BrowserRouter>
         <ScrollToTop />
         <Routes>
@@ -167,9 +177,9 @@ function App() {
         closeButton={true}
         toastOptions={{
           style: {
-            background: '#fff',
-            color: '#1f2937',
-            border: '1px solid #e5e7eb',
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-light)',
           },
           className: 'shadow-lg',
         }}
