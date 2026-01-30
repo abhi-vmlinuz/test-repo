@@ -104,6 +104,81 @@
 }
 
 /* ============================================
+   CRITICAL: Dark Mode Text Color Overrides
+   These MUST be directly after [data-theme="dark"]
+   to override Tailwind's gray text classes
+   ============================================ */
+
+/* Force all gray text classes to white/light in dark mode */
+[data-theme="dark"] [class*="text-gray-9"],
+[data-theme="dark"] [class*="text-gray-8"],
+[data-theme="dark"] [class*="text-gray-7"] {
+  color: #F5F5F5 !important;
+}
+
+[data-theme="dark"] [class*="text-gray-6"],
+[data-theme="dark"] [class*="text-gray-5"] {
+  color: #D4D4D4 !important;
+}
+
+[data-theme="dark"] [class*="text-gray-4"],
+[data-theme="dark"] [class*="text-gray-3"] {
+  color: #A3A3A3 !important;
+}
+
+/* Force all zinc text classes to white/light in dark mode */
+[data-theme="dark"] [class*="text-zinc-9"],
+[data-theme="dark"] [class*="text-zinc-8"],
+[data-theme="dark"] [class*="text-zinc-7"] {
+  color: #F5F5F5 !important;
+}
+
+[data-theme="dark"] [class*="text-zinc-6"],
+[data-theme="dark"] [class*="text-zinc-5"] {
+  color: #D4D4D4 !important;
+}
+
+/* Force all slate text classes to white/light in dark mode */
+[data-theme="dark"] [class*="text-slate-9"],
+[data-theme="dark"] [class*="text-slate-8"],
+[data-theme="dark"] [class*="text-slate-7"] {
+  color: #F5F5F5 !important;
+}
+
+[data-theme="dark"] [class*="text-slate-6"],
+[data-theme="dark"] [class*="text-slate-5"] {
+  color: #D4D4D4 !important;
+}
+
+/* Force all neutral text classes to white/light in dark mode */
+[data-theme="dark"] [class*="text-neutral-9"],
+[data-theme="dark"] [class*="text-neutral-8"],
+[data-theme="dark"] [class*="text-neutral-7"] {
+  color: #F5F5F5 !important;
+}
+
+/* White backgrounds should be dark in dark mode */
+[data-theme="dark"] [class*="bg-white"] {
+  background-color: #1A1A1A !important;
+}
+
+/* Gray-50 backgrounds */
+[data-theme="dark"] [class*="bg-gray-5"] {
+  background-color: #262626 !important;
+}
+
+/* Gray-100 backgrounds */
+[data-theme="dark"] [class*="bg-gray-1"] {
+  background-color: #1F1F1F !important;
+}
+
+/* Border colors */
+[data-theme="dark"] [class*="border-gray-1"],
+[data-theme="dark"] [class*="border-gray-2"] {
+  border-color: #333333 !important;
+}
+
+/* ============================================
    Reset & Base Styles
    ============================================ */
 * {
