@@ -1535,3 +1535,410 @@ pre code {
 [data-theme="dark"] p.text-gray-600.text-sm {
   color: var(--text-secondary) !important;
 }
+
+/* ============================================
+   DASHBOARD STAT CARD ICONS
+   Make zinc-900 icons visible in dark mode
+   ============================================ */
+
+/* Icon containers in stat cards */
+[data-theme="dark"] .bg-zinc-50.rounded-lg.border.border-zinc-100 {
+  background-color: rgba(245, 245, 245, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Icons inside stat cards - make them light */
+[data-theme="dark"] .bg-zinc-50 .text-zinc-900,
+[data-theme="dark"] .p-2.bg-zinc-50 svg.text-zinc-900 {
+  color: var(--text-primary) !important;
+}
+
+/* ============================================
+   GLOBAL PROGRESS CARD (BLACK CARD)
+   Keep card dark but invert progress bar
+   ============================================ */
+
+/* The card itself - keep it dark in both modes */
+[data-theme="dark"] .bg-zinc-900.border-zinc-800 {
+  background-color: #FAFAFA !important;
+  border-color: #E5E5E5 !important;
+}
+
+/* Text colors inside dark card for dark mode - invert them */
+[data-theme="dark"] .bg-zinc-900.border-zinc-800 .text-white {
+  color: #18181B !important;
+}
+
+[data-theme="dark"] .bg-zinc-900.border-zinc-800 .text-zinc-400 {
+  color: #6B7280 !important;
+}
+
+/* Progress bar track inside dark card */
+[data-theme="dark"] .bg-zinc-900.border-zinc-800 .bg-zinc-800 {
+  background-color: #E5E5E5 !important;
+}
+
+/* Progress bar fill - make it dark in dark mode (inverted) */
+[data-theme="dark"] .bg-zinc-900.border-zinc-800 .bg-white.rounded-full {
+  background-color: #18181B !important;
+}
+
+/* Icon inside global progress card */
+[data-theme="dark"] .bg-zinc-800\/50.rounded-lg {
+  background-color: rgba(24, 24, 27, 0.5) !important;
+}
+
+[data-theme="dark"] .bg-zinc-800\/50 .text-white {
+  color: #FAFAFA !important;
+}
+
+/* ============================================
+   CATEGORY SKILL PROGRESS BARS
+   ============================================ */
+
+/* Category skill progress bar fills (zinc-900) */
+[data-theme="dark"] .h-1\.5.bg-zinc-900.rounded-full,
+[data-theme="dark"] .bg-zinc-900.rounded-full.transition-all {
+  background-color: var(--text-primary) !important;
+}
+
+/* Category skill progress bar tracks */
+[data-theme="dark"] .h-1\.5.w-full.bg-gray-100.rounded-full {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ============================================
+   SKILL MATRIX RADAR CHART
+   ============================================ */
+
+/* SVG grid lines */
+[data-theme="dark"] svg polygon[stroke="#f3f4f6"] {
+  stroke: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Data polygon fill and stroke */
+[data-theme="dark"] svg polygon[stroke="#18181b"] {
+  stroke: #A3A3A3 !important;
+  fill: rgba(163, 163, 163, 0.15) !important;
+}
+
+/* Skill labels */
+[data-theme="dark"] .text-\[10px\].font-bold.text-gray-400 {
+  color: var(--text-secondary) !important;
+}
+
+/* ============================================
+   ADMIN TABLE AND ROWS
+   ============================================ */
+
+/* Admin table container */
+[data-theme="dark"] .bg-white.rounded-2xl.border.border-gray-100 {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Table header */
+[data-theme="dark"] thead.bg-gray-50.border-b.border-gray-100 {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] thead th.text-gray-600 {
+  color: var(--text-secondary) !important;
+}
+
+/* Table rows */
+[data-theme="dark"] tr.border-b.border-gray-50 {
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] tr.border-b.border-gray-50:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* User avatar backgrounds */
+[data-theme="dark"] .w-10.h-10.bg-gray-200.rounded-full {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Table cell text */
+[data-theme="dark"] td .font-medium.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] td .font-mono.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Badges in admin tables */
+[data-theme="dark"] .bg-emerald-100.text-emerald-700 {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  color: #34D399 !important;
+}
+
+[data-theme="dark"] .bg-red-100.text-red-700 {
+  background-color: rgba(239, 68, 68, 0.2) !important;
+  color: #F87171 !important;
+}
+
+[data-theme="dark"] .bg-gray-100.text-gray-600 {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .bg-purple-100.text-purple-700 {
+  background-color: rgba(147, 51, 234, 0.2) !important;
+  color: #C084FC !important;
+}
+
+[data-theme="dark"] .bg-indigo-100.text-indigo-700 {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  color: #A5B4FC !important;
+}
+
+/* View button in tables */
+[data-theme="dark"] .text-indigo-600.hover\:bg-indigo-50:hover {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+/* Dropdown menus */
+[data-theme="dark"] .absolute.right-0.top-full.bg-white.border.border-gray-200 {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .absolute.right-0.top-full button:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* ============================================
+   ADMIN MODALS
+   ============================================ */
+
+/* Modal overlay */
+[data-theme="dark"] .fixed.inset-0.bg-black\/50 {
+  backdrop-filter: blur(2px);
+}
+
+/* Modal content */
+[data-theme="dark"] .fixed.inset-0 .bg-white.rounded-2xl {
+  background-color: var(--bg-primary) !important;
+}
+
+[data-theme="dark"] .fixed.inset-0 .border-b.border-gray-100 {
+  border-color: var(--border-light) !important;
+}
+
+/* Modal headers */
+[data-theme="dark"] .fixed.inset-0 h2.text-xl.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .fixed.inset-0 h3.font-semibold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Modal stat cards */
+[data-theme="dark"] .grid.grid-cols-3.gap-4 .bg-gray-50.rounded-xl.p-4 {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .grid.grid-cols-3 .text-2xl.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Modal list items */
+[data-theme="dark"] .bg-gray-50.rounded-lg {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .bg-gray-50.rounded-lg .text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* ============================================
+   UPLOAD BUTTONS AND ZONES
+   ============================================ */
+
+/* Upload button in admin modals */
+[data-theme="dark"] label.bg-gray-900.text-white.cursor-pointer {
+  background-color: #FAFAFA !important;
+  color: #18181B !important;
+}
+
+[data-theme="dark"] label.bg-gray-900.text-white.cursor-pointer:hover {
+  background-color: #F5F5F5 !important;
+}
+
+/* Empty upload zone */
+[data-theme="dark"] .border-2.border-dashed.border-gray-100 {
+  border-color: var(--border-medium) !important;
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .text-sm.text-gray-400.italic {
+  color: var(--text-muted) !important;
+}
+
+/* ============================================
+   ADMIN CHALLENGE LIST SPECIFIC
+   ============================================ */
+
+/* Dockerized badge/section */
+[data-theme="dark"] .text-xs.text-gray-500 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Status badges in challenges */
+[data-theme="dark"] .bg-gray-50.text-gray-500 {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-tertiary) !important;
+}
+
+/* ============================================
+   ADMIN SUBMISSIONS PAGE
+   ============================================ */
+
+/* Submission cards */
+[data-theme="dark"] .bg-white.rounded-xl.border.border-gray-200 {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* ============================================
+   ADMIN NOTIFICATIONS PAGE
+   ============================================ */
+
+/* Notification cards */
+[data-theme="dark"] .bg-white.rounded-xl.p-4 {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* ============================================
+   ADMIN STUDENT PORTAL PAGE
+   ============================================ */
+
+/* Course cards */
+[data-theme="dark"] .bg-white.rounded-2xl.border {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* ============================================
+   ADMIN IMAGE REGISTRY PAGE
+   ============================================ */
+
+/* Image list items */
+[data-theme="dark"] .hover\:bg-gray-50:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Image status */
+[data-theme="dark"] .bg-emerald-50.text-emerald-600 {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  color: #34D399 !important;
+}
+
+/* ============================================
+   ADMIN NEXUS ENGINE PAGE
+   ============================================ */
+
+/* Nexus stat cards */
+[data-theme="dark"] .bg-gradient-to-br.from-zinc-800.to-zinc-900 {
+  background: linear-gradient(to bottom right, #FAFAFA, #F5F5F5) !important;
+}
+
+[data-theme="dark"] .bg-gradient-to-br.from-zinc-800.to-zinc-900 .text-white {
+  color: #18181B !important;
+}
+
+[data-theme="dark"] .bg-gradient-to-br.from-zinc-800.to-zinc-900 .text-zinc-400 {
+  color: #6B7280 !important;
+}
+
+/* ============================================
+   MISCELLANEOUS FIXES
+   ============================================ */
+
+/* Page headers */
+[data-theme="dark"] h1.text-3xl.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] h1.text-2xl.font-semibold.text-zinc-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Subheadings */
+[data-theme="dark"] p.text-gray-500.mt-1 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Empty states */
+[data-theme="dark"] .text-center.py-12.text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Skeleton loading states */
+[data-theme="dark"] .animate-pulse .bg-gray-200 {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Card titles */
+[data-theme="dark"] .text-sm.font-bold.text-zinc-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Card subtitles */
+[data-theme="dark"] .text-zinc-700.font-semibold {
+  color: var(--text-secondary) !important;
+}
+
+/* Font-mono text in cards */
+[data-theme="dark"] .text-zinc-500.font-mono {
+  color: var(--text-tertiary) !important;
+}
+
+/* Additional white backgrounds in dark mode */
+[data-theme="dark"] .bg-white.border.rounded-xl.p-4 {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Search inputs */
+[data-theme="dark"] input.pl-12 {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Search icon */
+[data-theme="dark"] .absolute.left-4 svg.text-gray-400 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Stat labels */
+[data-theme="dark"] .text-xs.font-medium.text-gray-500.uppercase {
+  color: var(--text-tertiary) !important;
+}
+
+/* Big numbers */
+[data-theme="dark"] .text-2xl.font-bold.text-zinc-900.font-mono {
+  color: var(--text-primary) !important;
+}
+
+/* Artifact items in admin */
+[data-theme="dark"] .flex.items-center.justify-between.p-3.bg-gray-50.rounded-lg.border {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .p-2.bg-white.rounded.border.border-gray-200 {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .text-sm.font-medium.text-gray-700 {
+  color: var(--text-secondary) !important;
+}
