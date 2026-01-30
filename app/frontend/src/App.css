@@ -1279,3 +1279,259 @@ pre code {
 [data-theme="dark"] .text-gray-300.font-mono {
   color: var(--text-muted) !important;
 }
+
+/* ============================================
+   PROGRESS BARS - FILL COLORS
+   Make emerald/teal/green progress bars visible
+   ============================================ */
+
+/* Progress bar fill - emerald/teal colors */
+[data-theme="dark"] .bg-emerald-500 {
+  background-color: #10B981 !important;
+}
+
+[data-theme="dark"] .bg-emerald-400 {
+  background-color: #34D399 !important;
+}
+
+[data-theme="dark"] .bg-teal-500 {
+  background-color: #14B8A6 !important;
+}
+
+[data-theme="dark"] .bg-teal-400 {
+  background-color: #2DD4BF !important;
+}
+
+[data-theme="dark"] .bg-green-500 {
+  background-color: #22C55E !important;
+}
+
+[data-theme="dark"] .bg-green-400 {
+  background-color: #4ADE80 !important;
+}
+
+/* Skill Matrix radar chart labels */
+[data-theme="dark"] .text-\[9px\].text-gray-400,
+[data-theme="dark"] .text-\[10px\].text-gray-400 {
+  color: #A3A3A3 !important;
+}
+
+/* ============================================
+   DOCKER / CHALLENGE LAB SECTION
+   ============================================ */
+
+/* Challenge Lab header gradient in dark mode */
+[data-theme="dark"] .bg-gradient-to-r.from-gray-100.to-gray-50 {
+  background: linear-gradient(to right, rgba(38, 38, 38, 0.8), rgba(26, 26, 26, 0.6)) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Challenge Lab title and description */
+[data-theme="dark"] .bg-gradient-to-r.from-gray-100.to-gray-50 h3.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .bg-gradient-to-r.from-gray-100.to-gray-50 .text-gray-500 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Gradient icon container - keep dark */
+[data-theme="dark"] .bg-gradient-to-br.from-gray-700.to-gray-900 {
+  background: linear-gradient(to bottom right, #374151, #18181B) !important;
+}
+
+/* Docker target IP section */
+[data-theme="dark"] .bg-gray-50.rounded-lg.border.border-gray-200 {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .text-gray-900.font-mono.text-lg.font-bold {
+  color: var(--text-primary) !important;
+}
+
+/* ============================================
+   ADMIN PANEL MODALS & FORMS
+   ============================================ */
+
+/* Admin modal backgrounds */
+[data-theme="dark"] [role="dialog"] {
+  background-color: var(--bg-primary) !important;
+}
+
+[data-theme="dark"] [role="dialog"]>div {
+  background-color: var(--bg-primary) !important;
+}
+
+/* Main Flag section (indigo-50 background) */
+[data-theme="dark"] .bg-indigo-50 {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+}
+
+[data-theme="dark"] .bg-indigo-50 h3.text-gray-700,
+[data-theme="dark"] .bg-indigo-50 h3.font-medium {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .bg-indigo-50 .text-gray-400 {
+  color: var(--text-tertiary) !important;
+}
+
+[data-theme="dark"] .border-indigo-100 {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+/* Lab Environment section (gray-50 background in modals) */
+[data-theme="dark"] .bg-gray-50.rounded-xl.p-4 {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .bg-gray-50.rounded-xl.p-4 h3.text-gray-700,
+[data-theme="dark"] .bg-gray-50.rounded-xl h3.font-medium {
+  color: var(--text-primary) !important;
+}
+
+/* Toggle switches in modals */
+[data-theme="dark"] .bg-gray-200.peer-focus\:ring-4 {
+  background-color: #404040 !important;
+}
+
+[data-theme="dark"] .peer-checked\:bg-indigo-600:checked~.bg-gray-200 {
+  background-color: #6366F1 !important;
+}
+
+/* Additional Questions section */
+[data-theme="dark"] .bg-gray-900.rounded-2xl {
+  background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme="dark"] .bg-gray-900.rounded-2xl h2,
+[data-theme="dark"] .bg-gray-900.rounded-2xl .text-white {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] .bg-gray-900.rounded-2xl .text-gray-400 {
+  color: var(--text-tertiary) !important;
+}
+
+/* ============================================
+   UPLOAD BUTTONS & FILE INPUTS
+   ============================================ */
+
+/* File upload zones */
+[data-theme="dark"] .border-dashed.border-gray-300 {
+  border-color: var(--border-medium) !important;
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .border-dashed.border-gray-300:hover {
+  border-color: var(--accent) !important;
+}
+
+/* Upload button text */
+[data-theme="dark"] .text-gray-600.text-sm {
+  color: var(--text-secondary) !important;
+}
+
+/* File input labels */
+[data-theme="dark"] label.text-sm.text-gray-500 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Select dropdown in modals */
+[data-theme="dark"] select.bg-white {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Admin table rows */
+[data-theme="dark"] .divide-y.divide-gray-50>div {
+  border-color: var(--border-light) !important;
+}
+
+/* Admin challenge cards */
+[data-theme="dark"] .group.relative.bg-white {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Warning/Info boxes in admin */
+[data-theme="dark"] .bg-amber-50.border.border-amber-200 {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+[data-theme="dark"] .bg-amber-50 h4.text-amber-800 {
+  color: #FCD34D !important;
+}
+
+[data-theme="dark"] .bg-amber-50 .text-amber-700 {
+  color: #FDE68A !important;
+}
+
+/* ============================================
+   ADMIN LAYOUT SPECIFIC
+   ============================================ */
+
+/* Admin sidebar */
+[data-theme="dark"] .bg-white.border-r.border-gray-100 {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Admin header */
+[data-theme="dark"] .bg-white.border-b.border-gray-100 {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Admin main content area */
+[data-theme="dark"] .bg-gray-50.min-h-screen {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Admin stat cards */
+[data-theme="dark"] .bg-white.rounded-xl.border.shadow-sm {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Admin table header */
+[data-theme="dark"] .bg-gray-50.border-b {
+  background-color: var(--bg-tertiary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* ============================================
+   STUDENT PORTAL SPECIFIC
+   ============================================ */
+
+/* Student portal cards */
+[data-theme="dark"] .bg-white.rounded-2xl.shadow-lg {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Course progress bars */
+[data-theme="dark"] .h-1.rounded-full.bg-gray-200 {
+  background-color: #2A2A2A !important;
+}
+
+[data-theme="dark"] .h-1.rounded-full.bg-emerald-500 {
+  background-color: #10B981 !important;
+}
+
+/* ============================================
+   FORM LABELS & HELPER TEXT
+   ============================================ */
+
+[data-theme="dark"] label.block.text-sm.text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .text-xs.text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] p.text-gray-600.text-sm {
+  color: var(--text-secondary) !important;
+}

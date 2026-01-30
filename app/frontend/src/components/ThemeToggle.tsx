@@ -3,11 +3,23 @@ import { Sun, Moon } from 'lucide-react';
 
 type Theme = 'light' | 'dark';
 
-const ThemeToggle = () => {
+interface ThemeToggleProps {
+    isAuthenticated?: boolean;
+}
+
+const ThemeToggle = ({ isAuthenticated = false }: ThemeToggleProps) => {
     const [theme, setTheme] = useState<Theme>('light');
 
     // Initialize theme from localStorage or system preference
     useEffect(() => {
+        // If not authenticated, always use light theme
+        if (!isAuthenticated) {
+            setTheme('light');
+            document.documentElement.setAttribute('data-theme', 'light');
+            return;
+        }
+
+        // Only apply saved theme for authenticated users
         const savedTheme = localStorage.getItem('zecurx-theme') as Theme | null;
 
         if (savedTheme) {
@@ -20,7 +32,7 @@ const ThemeToggle = () => {
             setTheme(initialTheme);
             document.documentElement.setAttribute('data-theme', initialTheme);
         }
-    }, []);
+    }, [isAuthenticated]);
 
     const toggleTheme = () => {
         const newTheme: Theme = theme === 'light' ? 'dark' : 'light';
@@ -28,6 +40,11 @@ const ThemeToggle = () => {
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('zecurx-theme', newTheme);
     };
+
+    // Don't render the toggle button for non-authenticated users
+    if (!isAuthenticated) {
+        return null;
+    }
 
     return (
         <button
@@ -46,3 +63,4 @@ const ThemeToggle = () => {
 };
 
 export default ThemeToggle;
+
