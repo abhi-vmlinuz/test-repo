@@ -114,7 +114,7 @@ function App() {
 
   return (
     <div className="App">
-      <ThemeToggle />
+      <ThemeToggle isAuthenticated={!!user} />
       <BrowserRouter>
         <ScrollToTop />
         <Routes>
