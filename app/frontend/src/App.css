@@ -975,3 +975,457 @@ pre code {
 [data-theme="light"] * {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.15s ease;
 }
+
+/* ============================================
+   EXTENDED DARK MODE FIXES
+   Progress bars, Podium, Tags, Cards, Text
+   ============================================ */
+
+/* === PROGRESS BARS === */
+[data-theme="dark"] .progress-bar,
+[data-theme="dark"] [class*="bg-gray-100"],
+[data-theme="dark"] [class*="bg-gray-200"] {
+  background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme="dark"] .bg-emerald-50,
+[data-theme="dark"] .bg-green-50,
+[data-theme="dark"] .bg-teal-50 {
+  background-color: rgba(20, 184, 166, 0.15) !important;
+}
+
+[data-theme="dark"] .bg-amber-50,
+[data-theme="dark"] .bg-yellow-50,
+[data-theme="dark"] .bg-orange-50 {
+  background-color: rgba(251, 191, 36, 0.15) !important;
+}
+
+[data-theme="dark"] .bg-red-50,
+[data-theme="dark"] .bg-rose-50 {
+  background-color: rgba(248, 113, 113, 0.15) !important;
+}
+
+[data-theme="dark"] .bg-blue-50,
+[data-theme="dark"] .bg-indigo-50,
+[data-theme="dark"] .bg-cyan-50 {
+  background-color: rgba(96, 165, 250, 0.15) !important;
+}
+
+/* === LEADERBOARD PODIUM CARDS === */
+/* Gold/Winner card - ensure text is visible */
+[data-theme="dark"] .bg-amber-100,
+[data-theme="dark"] .bg-yellow-100,
+[data-theme="dark"] .bg-amber-200,
+[data-theme="dark"] .bg-yellow-200 {
+  background-color: rgba(251, 191, 36, 0.2) !important;
+}
+
+/* Force dark text on podium cards (they have gradient/colored backgrounds) */
+[data-theme="dark"] .bg-gradient-to-br,
+[data-theme="dark"] [class*="from-amber"],
+[data-theme="dark"] [class*="from-yellow"] {
+  color: #0A0A0A !important;
+}
+
+/* Specifically target podium card text */
+[data-theme="dark"] .bg-gradient-to-br .text-zinc-900,
+[data-theme="dark"] .bg-gradient-to-br .text-gray-900,
+[data-theme="dark"] .bg-gradient-to-br .text-black,
+[data-theme="dark"] [class*="from-amber"] .text-zinc-900,
+[data-theme="dark"] [class*="from-yellow"] .text-zinc-900 {
+  color: #0A0A0A !important;
+}
+
+/* Silver and Bronze podium cards */
+[data-theme="dark"] .bg-slate-100,
+[data-theme="dark"] .bg-slate-200,
+[data-theme="dark"] .bg-zinc-100,
+[data-theme="dark"] .bg-zinc-200 {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* === CATEGORY FILTER TAGS/PILLS === */
+[data-theme="dark"] .bg-zinc-900,
+[data-theme="dark"] .bg-gray-900,
+[data-theme="dark"] .bg-slate-900 {
+  background-color: var(--text-primary) !important;
+  color: var(--bg-primary) !important;
+}
+
+[data-theme="dark"] .bg-zinc-800,
+[data-theme="dark"] .bg-gray-800 {
+  background-color: #262626 !important;
+}
+
+/* Inactive filter tabs */
+[data-theme="dark"] [class*="bg-transparent"],
+[data-theme="dark"] .bg-gray-100\/50 {
+  background-color: transparent !important;
+}
+
+/* === CHALLENGE CARDS === */
+[data-theme="dark"] .bg-gradient-to-b,
+[data-theme="dark"] .bg-gradient-to-t,
+[data-theme="dark"] .bg-gradient-to-r,
+[data-theme="dark"] .bg-gradient-to-l {
+  background: var(--bg-secondary) !important;
+}
+
+/* Card with border styling */
+[data-theme="dark"] .card-minimal,
+[data-theme="dark"] [class*="rounded-lg"][class*="border"],
+[data-theme="dark"] [class*="rounded-xl"][class*="border"],
+[data-theme="dark"] [class*="rounded-2xl"][class*="border"] {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* === BADGES & TAGS === */
+/* Difficulty badges */
+[data-theme="dark"] .bg-green-100,
+[data-theme="dark"] .bg-emerald-100 {
+  background-color: rgba(74, 222, 128, 0.2) !important;
+}
+
+[data-theme="dark"] .bg-amber-100,
+[data-theme="dark"] .bg-yellow-100 {
+  background-color: rgba(251, 191, 36, 0.2) !important;
+}
+
+[data-theme="dark"] .bg-red-100,
+[data-theme="dark"] .bg-rose-100 {
+  background-color: rgba(248, 113, 113, 0.2) !important;
+}
+
+/* Category tag pills */
+[data-theme="dark"] .bg-zinc-100,
+[data-theme="dark"] .bg-neutral-100 {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* === TEXT VISIBILITY FIXES === */
+/* All grey text variants - make them lighter in dark mode */
+[data-theme="dark"] .text-gray-200,
+[data-theme="dark"] .text-zinc-200,
+[data-theme="dark"] .text-slate-200 {
+  color: #E5E5E5 !important;
+}
+
+[data-theme="dark"] .text-gray-100,
+[data-theme="dark"] .text-zinc-100,
+[data-theme="dark"] .text-slate-100 {
+  color: #F5F5F5 !important;
+}
+
+/* Placeholder text */
+[data-theme="dark"] ::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.7;
+}
+
+/* === SKILL MATRIX & SPECIAL CARDS === */
+[data-theme="dark"] .bg-gradient-to-br.from-zinc-900,
+[data-theme="dark"] .bg-zinc-900\/95,
+[data-theme="dark"] .bg-black\/90 {
+  background-color: #0A0A0A !important;
+}
+
+/* Skill matrix card text */
+[data-theme="dark"] .bg-zinc-900 .text-white,
+[data-theme="dark"] .bg-gray-900 .text-white {
+  color: #F5F5F5 !important;
+}
+
+/* === SIDEBAR NAVIGATION === */
+[data-theme="dark"] .text-gray-500 {
+  color: #A3A3A3 !important;
+}
+
+[data-theme="dark"] .bg-zinc-900.text-white {
+  background-color: var(--text-primary) !important;
+  color: var(--bg-primary) !important;
+}
+
+/* Active nav item */
+[data-theme="dark"] .bg-zinc-900 {
+  background-color: #F5F5F5 !important;
+  color: #0A0A0A !important;
+}
+
+/* === STAT CARDS === */
+[data-theme="dark"] .bg-gradient-to-br.from-zinc-50,
+[data-theme="dark"] .bg-gradient-to-br.from-gray-50 {
+  background: var(--bg-secondary) !important;
+}
+
+/* === INPUT FIELDS === */
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select:focus {
+  border-color: var(--accent) !important;
+}
+
+/* === MODALS & DROPDOWNS === */
+[data-theme="dark"] [role="dialog"],
+[data-theme="dark"] [role="menu"],
+[data-theme="dark"] [data-radix-popper-content-wrapper] {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Dropdown items */
+[data-theme="dark"] [role="menuitem"],
+[data-theme="dark"] [role="option"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [role="menuitem"]:hover,
+[data-theme="dark"] [role="option"]:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* === TABLES === */
+[data-theme="dark"] table,
+[data-theme="dark"] thead,
+[data-theme="dark"] tbody,
+[data-theme="dark"] tr,
+[data-theme="dark"] th,
+[data-theme="dark"] td {
+  background-color: transparent !important;
+  border-color: var(--border-light) !important;
+  color: inherit !important;
+}
+
+[data-theme="dark"] thead {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] tbody tr:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* === MISC ELEMENTS === */
+/* Circular progress / donut charts */
+[data-theme="dark"] .text-emerald-500,
+[data-theme="dark"] .text-green-500 {
+  color: #4ADE80 !important;
+}
+
+[data-theme="dark"] .text-amber-500,
+[data-theme="dark"] .text-yellow-500 {
+  color: #FBBF24 !important;
+}
+
+[data-theme="dark"] .text-red-500,
+[data-theme="dark"] .text-rose-500 {
+  color: #F87171 !important;
+}
+
+/* Tooltip backgrounds */
+[data-theme="dark"] [data-state="open"][data-side] {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Code blocks in dark mode */
+[data-theme="dark"] pre,
+[data-theme="dark"] code {
+  background-color: #1A1A1A !important;
+  color: #A3E635 !important;
+}
+
+/* Links */
+[data-theme="dark"] a:not([class]) {
+  color: var(--accent-light) !important;
+}
+
+/* === LEADERBOARD SPECIFIC === */
+/* Ensure rank numbers are visible */
+[data-theme="dark"] .text-2xl.font-bold,
+[data-theme="dark"] .text-3xl.font-bold,
+[data-theme="dark"] .text-4xl.font-bold {
+  color: var(--text-primary) !important;
+}
+
+/* User standing card */
+[data-theme="dark"] .bg-gradient-to-br.from-emerald-50 {
+  background: var(--bg-secondary) !important;
+}
+
+/* === FIX FOR SPECIFIC COMPONENTS === */
+/* Category skill selector */
+[data-theme="dark"] [class*="cursor-pointer"][class*="rounded"] {
+  color: var(--text-primary);
+}
+
+/* Deployment cards */
+[data-theme="dark"] .divide-y>div {
+  border-color: var(--border-light) !important;
+}
+
+/* Pro Access card gradient */
+[data-theme="dark"] .bg-gradient-to-r.from-amber-50 {
+  background: linear-gradient(to right, rgba(251, 191, 36, 0.1), transparent) !important;
+}
+
+/* ============================================
+   LEADERBOARD PODIUM - SPECIAL HANDLING
+   Keep podium cards light-colored for visibility
+   ============================================ */
+
+/* Winner podium (1st place) - keep yellow/gold theme */
+[data-theme="dark"] .bg-gradient-to-b.from-yellow-50 {
+  background: linear-gradient(to bottom, rgba(254, 249, 195, 0.95), rgba(255, 255, 255, 0.95)) !important;
+}
+
+[data-theme="dark"] .bg-gradient-to-b.from-yellow-50 .text-gray-900,
+[data-theme="dark"] .bg-gradient-to-b.from-yellow-50 .text-zinc-900 {
+  color: #18181B !important;
+}
+
+[data-theme="dark"] .bg-gradient-to-b.from-yellow-50 .text-yellow-600 {
+  color: #CA8A04 !important;
+}
+
+/* 2nd and 3rd place cards - keep light */
+[data-theme="dark"] .border-gray-100.bg-white,
+[data-theme="dark"] .border-orange-100.bg-white {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+[data-theme="dark"] .border-gray-100.bg-white .text-gray-900,
+[data-theme="dark"] .border-orange-100.bg-white .text-gray-900 {
+  color: #18181B !important;
+}
+
+[data-theme="dark"] .border-gray-100.bg-white .text-gray-500,
+[data-theme="dark"] .border-orange-100.bg-white .text-gray-500 {
+  color: #6B7280 !important;
+}
+
+/* Rank avatar circles */
+[data-theme="dark"] .bg-gray-200 {
+  background-color: #E5E5E5 !important;
+}
+
+[data-theme="dark"] .bg-yellow-400 {
+  background-color: #FACC15 !important;
+}
+
+[data-theme="dark"] .bg-orange-200 {
+  background-color: #FED7AA !important;
+}
+
+/* Leaderboard table list */
+[data-theme="dark"] .bg-gray-50\/50 {
+  background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="dark"] .divide-gray-50> :not([hidden])~ :not([hidden]) {
+  border-color: var(--border-light) !important;
+}
+
+/* ============================================
+   DASHBOARD SPECIFIC FIXES
+   ============================================ */
+
+/* Category skill cards */
+[data-theme="dark"] .cursor-pointer.bg-zinc-900 {
+  background-color: #F5F5F5 !important;
+  color: #18181B !important;
+}
+
+[data-theme="dark"] .cursor-pointer.bg-zinc-900 .text-white {
+  color: #18181B !important;
+}
+
+/* Progress bar track */
+[data-theme="dark"] .h-1.bg-gray-200,
+[data-theme="dark"] .h-2.bg-gray-200,
+[data-theme="dark"] [class*="h-"][class*="bg-gray-200"] {
+  background-color: #2A2A2A !important;
+}
+
+/* Skill Matrix card - keep dark themed */
+[data-theme="dark"] .bg-gradient-to-br.from-zinc-900.to-zinc-800 {
+  background: linear-gradient(to bottom right, #18181B, #27272A) !important;
+}
+
+/* ============================================
+   CHALLENGES PAGE SPECIFIC FIXES
+   ============================================ */
+
+/* Category filter pills - active state */
+[data-theme="dark"] button.bg-zinc-900 {
+  background-color: #F5F5F5 !important;
+  color: #18181B !important;
+}
+
+/* Category filter pills - inactive state */
+[data-theme="dark"] button:not(.bg-zinc-900) {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] button:not(.bg-zinc-900):hover {
+  color: var(--text-primary) !important;
+}
+
+/* Challenge cards */
+[data-theme="dark"] .group.cursor-pointer.border {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .group.cursor-pointer.border:hover {
+  border-color: var(--border-medium) !important;
+}
+
+/* Challenge card description text */
+[data-theme="dark"] .text-gray-600.line-clamp-2,
+[data-theme="dark"] .text-gray-500.line-clamp-2 {
+  color: var(--text-secondary) !important;
+}
+
+/* Challenge tag pills */
+[data-theme="dark"] .text-\[10px\].bg-gray-100 {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* Points display */
+[data-theme="dark"] .text-gray-400.uppercase {
+  color: var(--text-muted) !important;
+}
+
+/* ============================================
+   LOADING SCREENS
+   ============================================ */
+
+[data-theme="dark"] .min-h-screen.bg-white {
+  background-color: var(--bg-primary) !important;
+}
+
+/* ============================================
+   PROFILE & PUBLIC PROFILE FIXES
+   ============================================ */
+
+[data-theme="dark"] .bg-blue-50\/30 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+[data-theme="dark"] .bg-blue-100 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+[data-theme="dark"] .text-blue-700 {
+  color: #60A5FA !important;
+}
