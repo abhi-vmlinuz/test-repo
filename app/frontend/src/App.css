@@ -1942,3 +1942,368 @@ pre code {
 [data-theme="dark"] .text-sm.font-medium.text-gray-700 {
   color: var(--text-secondary) !important;
 }
+
+/* ============================================
+   GLOBAL TEXT COLOR FIXES FOR DARK MODE
+   These apply to common gray text classes
+   ============================================ */
+
+/* Primary text - gray-900 */
+[data-theme="dark"] .text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Secondary text - gray-700 */
+[data-theme="dark"] .text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+/* Tertiary text - gray-600 */
+[data-theme="dark"] .text-gray-600 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Muted text - gray-500 */
+[data-theme="dark"] .text-gray-500 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Very muted text - gray-400 */
+[data-theme="dark"] .text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Font mono mono-spaced text - score */
+[data-theme="dark"] .font-mono.text-gray-900,
+[data-theme="dark"] .font-mono.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* ============================================
+   ADMIN PAGE HEADINGS
+   ============================================ */
+
+/* Page headers h1, h2, h3 */
+[data-theme="dark"] h1.text-gray-900,
+[data-theme="dark"] h2.text-gray-900,
+[data-theme="dark"] h3.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] h1.font-bold.text-gray-900,
+[data-theme="dark"] h2.font-semibold.text-gray-900,
+[data-theme="dark"] h3.font-semibold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* H2 with specific classes */
+[data-theme="dark"] h2.font-semibold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* ============================================
+   IMAGE REGISTRY PAGE
+   ============================================ */
+
+/* Page header */
+[data-theme="dark"] .text-2xl.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Section headings */
+[data-theme="dark"] .font-semibold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Card containers */
+[data-theme="dark"] .bg-white.rounded-2xl.shadow-sm.border.border-gray-100 {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* GHCR border box */
+[data-theme="dark"] .border.border-gray-200.rounded-xl {
+  border-color: var(--border-light) !important;
+}
+
+/* GHCR header area */
+[data-theme="dark"] .bg-gray-50\/50 {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Username and token labels */
+[data-theme="dark"] .font-mono.text-sm.bg-gray-100 {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Form labels */
+[data-theme="dark"] label.text-sm.font-medium.text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] .block.text-sm.font-medium.text-gray-700 {
+  color: var(--text-secondary) !important;
+}
+
+/* source tabs bg */
+[data-theme="dark"] .p-1.bg-gray-100.rounded-lg {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Active tab */
+[data-theme="dark"] .bg-white.text-gray-900.shadow-sm {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============================================
+   STUDENT PORTAL PAGE
+   ============================================ */
+
+/* Course list items */
+[data-theme="dark"] .bg-white.border.border-gray-100.rounded-xl {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+}
+
+/* Course titles */
+[data-theme="dark"] .font-semibold.text-gray-800,
+[data-theme="dark"] .font-semibold.text-lg.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Course code badges */
+[data-theme="dark"] .bg-gray-800.text-white {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Modules count */
+[data-theme="dark"] .text-sm.text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Tab items */
+[data-theme="dark"] .text-gray-600:not(.text-gray-600.text-sm) {
+  color: var(--text-tertiary) !important;
+}
+
+/* ============================================
+   SUBMISSIONS PAGE
+   ============================================ */
+
+/* Filter buttons */
+[data-theme="dark"] .bg-gray-100.rounded-lg {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Active filter */
+[data-theme="dark"] .bg-white.shadow-sm.rounded-lg {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Table header and cells */
+[data-theme="dark"] table thead tr {
+  background-color: var(--bg-tertiary) !important;
+}
+
+[data-theme="dark"] table thead th {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] table tbody tr {
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] table tbody td {
+  color: var(--text-primary) !important;
+}
+
+/* Solved status */
+[data-theme="dark"] .text-emerald-600 {
+  color: #34D399 !important;
+}
+
+/* ============================================
+   CHALLENGES LIST (ADMIN)
+   ============================================ */
+
+/* "Yes" in Docker column */
+[data-theme="dark"] .text-emerald-500 {
+  color: #34D399 !important;
+}
+
+/* "No" text */
+[data-theme="dark"] td .text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Published badge */
+[data-theme="dark"] .bg-emerald-50.text-emerald-700 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34D399 !important;
+}
+
+/* Draft badge */
+[data-theme="dark"] .bg-gray-50.text-gray-600 {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-secondary) !important;
+}
+
+/* ============================================
+   CATEGORIES PAGE
+   ============================================ */
+
+/* Category card titles */
+[data-theme="dark"] .text-xl.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Category descriptions */
+[data-theme="dark"] .text-gray-500.text-sm {
+  color: var(--text-muted) !important;
+}
+
+/* ============================================
+   USERS PAGE - Enhanced
+   ============================================ */
+
+/* Username */
+[data-theme="dark"] p.font-medium.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Email */
+[data-theme="dark"] p.text-xs.text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Score */
+[data-theme="dark"] td.font-mono.font-bold.text-gray-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Joined date */
+[data-theme="dark"] td.text-sm.text-gray-500 {
+  color: var(--text-tertiary) !important;
+}
+
+/* ============================================
+   DASHBOARD - Enhanced
+   ============================================ */
+
+/* Welcome heading */
+[data-theme="dark"] h1.text-2xl.font-semibold.text-zinc-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Subheading description */
+[data-theme="dark"] p.text-sm.text-gray-500 {
+  color: var(--text-tertiary) !important;
+}
+
+/* Card title text */
+[data-theme="dark"] .text-sm.font-bold.text-zinc-900.uppercase {
+  color: var(--text-primary) !important;
+}
+
+/* Card label */
+[data-theme="dark"] .text-xs.font-medium.text-gray-500.uppercase.tracking-widest {
+  color: var(--text-muted) !important;
+}
+
+/* Card large value */
+[data-theme="dark"] .text-2xl.font-bold.text-zinc-900.font-mono.tracking-tight {
+  color: var(--text-primary) !important;
+}
+
+/* Challenge title in list */
+[data-theme="dark"] h4.font-semibold.text-sm.text-zinc-900 {
+  color: var(--text-primary) !important;
+}
+
+/* Challenge description in list */
+[data-theme="dark"] p.text-xs.text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+/* ============================================
+   NOTIFICATIONS DROPDOWN - Enhanced
+   ============================================ */
+
+[data-theme="dark"] .bg-white.rounded-xl.border.border-gray-200.shadow-xl {
+  background-color: var(--bg-primary) !important;
+  border-color: var(--border-light) !important;
+}
+
+[data-theme="dark"] .text-xs.font-bold.uppercase.tracking-wider.text-gray-500 {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] .text-sm.font-medium.text-zinc-900 {
+  color: var(--text-primary) !important;
+}
+
+/* ============================================
+   ALL INPUT FIELDS
+   ============================================ */
+
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-light) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* ============================================
+   BADGE & STATUS FIXES
+   ============================================ */
+
+/* Generic badges */
+[data-theme="dark"] .bg-gray-100 {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Color team badges */
+[data-theme="dark"] .bg-blue-100,
+[data-theme="dark"] .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+[data-theme="dark"] .bg-red-100,
+[data-theme="dark"] .bg-red-50 {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+[data-theme="dark"] .bg-green-100,
+[data-theme="dark"] .bg-green-50 {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+}
+
+[data-theme="dark"] .bg-amber-100,
+[data-theme="dark"] .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
+/* ============================================
+   FILE UPLOAD INPUTS
+   ============================================ */
+
+[data-theme="dark"] input[type="file"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] input[type="file"]::file-selector-button {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: none !important;
+}

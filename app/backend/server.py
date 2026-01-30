@@ -7286,7 +7286,7 @@ async def admin_nexus_config(current_user: dict = Depends(require_admin)):
             else:
                 # Return default config if Nexus endpoint not available
                 return {
-                    "default_spawn_mode": "loadbalancer",
+                    "default_spawn_mode": "hostport",
                     "available_modes": ["loadbalancer", "hostport"],
                     "clusters": [
                         {
@@ -7308,7 +7308,7 @@ async def admin_nexus_config(current_user: dict = Depends(require_admin)):
     except Exception as e:
         logger.warning(f"Failed to get config from Nexus: {e}")
         return {
-            "default_spawn_mode": "loadbalancer",
+            "default_spawn_mode": "hostport",
             "available_modes": ["loadbalancer", "hostport"],
             "clusters": [],
             "error": str(e)

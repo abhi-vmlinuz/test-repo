@@ -24,7 +24,7 @@ const AdminNexus = () => {
 
     // New Phase 2 state
     const [nodes, setNodes] = useState({ nodes: [], count: 0 });
-    const [nexusConfig, setNexusConfig] = useState({ default_spawn_mode: 'loadbalancer', available_modes: [], clusters: [] });
+    const [nexusConfig, setNexusConfig] = useState({ default_spawn_mode: 'hostport', available_modes: [], clusters: [] });
     const [portAllocations, setPortAllocations] = useState({ port_allocations: [] });
 
     // Pricing calculator inputs
@@ -43,7 +43,7 @@ const AdminNexus = () => {
                 axios.get(`${API}/admin/nexus/sessions`).catch(() => ({ data: { sessions: [] } })),
                 axios.get(`${API}/admin/nexus/history`).catch(() => ({ data: { sessions: [], summary: {}, daily_breakdown: [] } })),
                 axios.get(`${API}/admin/nexus/nodes`).catch(() => ({ data: { nodes: [], count: 0 } })),
-                axios.get(`${API}/admin/nexus/config`).catch(() => ({ data: { default_spawn_mode: 'loadbalancer', clusters: [] } })),
+                axios.get(`${API}/admin/nexus/config`).catch(() => ({ data: { default_spawn_mode: 'hostport', clusters: [] } })),
                 axios.get(`${API}/admin/nexus/ports`).catch(() => ({ data: { port_allocations: [] } }))
             ]);
             setStats(statsRes.data);
