@@ -196,6 +196,30 @@ const AdminChallenges = () => {
         }
     }, [showModal, formData.has_docker]);
 
+    // Check if docker image exists AFTER images are loaded
+    useEffect(() => {
+        if (!showModal || !editingChallenge || dockerImages.length === 0) {
+            return;
+        }
+
+        const dockerImage = editingChallenge.docker_image;
+        if (dockerImage && dockerImage.trim()) {
+            const normalizeImageName = (url: string) => {
+                // Remove tag (:latest, :v1, etc.)
+                const noTag = url.split(':')[0];
+                // Get just the image name (last part of path)
+                const parts = noTag.split('/');
+                return parts[parts.length - 1].toLowerCase();
+            };
+
+            const targetImageName = normalizeImageName(dockerImage);
+            const imageExists = dockerImages.some(
+                img => normalizeImageName(img.image) === targetImageName
+            );
+            setImageNotFoundWarning(!imageExists);
+        }
+    }, [dockerImages, showModal, editingChallenge]);
+
     const filteredChallenges = challenges.filter(c =>
         c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -281,25 +305,9 @@ const AdminChallenges = () => {
             is_multi_container: challenge.is_multi_container || false
         });
 
-        // Check if docker image exists in registry
-        // More lenient matching: extract just the image name (without tag) for comparison
-        if (challenge.docker_image && challenge.docker_image.trim()) {
-            const normalizeImageName = (url: string) => {
-                // Remove tag (:latest, :v1, etc.)
-                const noTag = url.split(':')[0];
-                // Get just the image name (last part of path)
-                const parts = noTag.split('/');
-                return parts[parts.length - 1].toLowerCase();
-            };
-
-            const targetImageName = normalizeImageName(challenge.docker_image);
-            const imageExists = dockerImages.some(
-                img => normalizeImageName(img.image) === targetImageName
-            );
-            setImageNotFoundWarning(!imageExists);
-        } else {
-            setImageNotFoundWarning(false);
-        }
+        // Image check is now done in useEffect after dockerImages are loaded
+        // Reset warning - the useEffect will update it once images load
+        setImageNotFoundWarning(false);
 
         setShowModal(true);
         fetchArtifacts(challenge.id);
