@@ -5713,15 +5713,15 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
         
         # Categories count (from public challenges)
         stats['total_categories'] = await conn.fetchval(
-            'SELECT COUNT(DISTINCT "categoryId") FROM ctf_public_challenges WHERE is_published = true'
+            'SELECT COUNT(DISTINCT "categoryId") FROM ctf_public_challenges WHERE "isPublished" = true'
         ) or 0
         
-        # Submissions stats (from public challenge submissions)
+        # Submissions stats (from public challenge progress)
         stats['total_submissions'] = await conn.fetchval(
-            'SELECT COUNT(*) FROM ctf_public_submissions'
+            'SELECT COUNT(*) FROM ctf_public_progress'
         ) or 0
         stats['correct_submissions'] = await conn.fetchval(
-            'SELECT COUNT(*) FROM ctf_public_submissions WHERE is_correct = true'
+            'SELECT COUNT(*) FROM ctf_public_progress WHERE solved = true'
         ) or 0
         
         # Top users by score (leaderboard style)
@@ -5734,15 +5734,15 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
         ''')
         stats['top_users'] = [dict(u) for u in top_users]
         
-        # Recent solves (from public challenge submissions)
+        # Recent solves (from public challenge progress)
         recent_solves = await conn.fetch('''
-            SELECT s.id, s.submitted_at as solved_at, s.score_earned,
+            SELECT p.id, p."solvedAt" as solved_at, p."scoreEarned" as score_earned,
                    u.name as username, c.title as challenge_title
-            FROM ctf_public_submissions s
-            JOIN users u ON s.user_id = u.id
-            JOIN ctf_public_challenges c ON s.challenge_id = c.id
-            WHERE s.is_correct = true
-            ORDER BY s.submitted_at DESC
+            FROM ctf_public_progress p
+            JOIN users u ON p."userId" = u.id
+            JOIN ctf_public_challenges c ON p."challengeId" = c.id
+            WHERE p.solved = true
+            ORDER BY p."solvedAt" DESC NULLS LAST
             LIMIT 5
         ''')
         stats['recent_solves'] = [dict(r) for r in recent_solves]
