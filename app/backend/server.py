@@ -5705,7 +5705,7 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
         stats['total_users'] = await conn.fetchval('SELECT COUNT(*) FROM users')
         stats['total_courses'] = await conn.fetchval('SELECT COUNT(*) FROM ctf_courses')
         stats['total_modules'] = await conn.fetchval('SELECT COUNT(*) FROM ctf_modules')
-        stats['total_challenges'] = await conn.fetchval('SELECT COUNT(*) FROM ctf_challenges')
+        stats['total_challenges'] = await conn.fetchval('SELECT COUNT(*) FROM ctf_public_challenges WHERE "isPublished" = true')
         stats['total_enrollments'] = await conn.fetchval('SELECT COUNT(*) FROM ctf_enrollments')
         stats['completed_challenges'] = await conn.fetchval(
             'SELECT COUNT(*) FROM ctf_progress WHERE "isCompleted" = true'
