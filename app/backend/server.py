@@ -5713,8 +5713,8 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
         
         # Categories count (from public challenges)
         stats['total_categories'] = await conn.fetchval(
-            'SELECT COUNT(DISTINCT category) FROM ctf_public_challenges WHERE is_published = true'
-        )
+            'SELECT COUNT(DISTINCT "categoryId") FROM ctf_public_challenges WHERE is_published = true'
+        ) or 0
         
         # Submissions stats (from public challenge submissions)
         stats['total_submissions'] = await conn.fetchval(
