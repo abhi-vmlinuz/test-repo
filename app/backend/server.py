@@ -5701,6 +5701,7 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
     async with pool.acquire() as conn:
         stats = {}
         
+        # Basic counts
         stats['total_users'] = await conn.fetchval('SELECT COUNT(*) FROM users')
         stats['total_courses'] = await conn.fetchval('SELECT COUNT(*) FROM ctf_courses')
         stats['total_modules'] = await conn.fetchval('SELECT COUNT(*) FROM ctf_modules')
@@ -5709,6 +5710,42 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
         stats['completed_challenges'] = await conn.fetchval(
             'SELECT COUNT(*) FROM ctf_progress WHERE "isCompleted" = true'
         )
+        
+        # Categories count (from public challenges)
+        stats['total_categories'] = await conn.fetchval(
+            'SELECT COUNT(DISTINCT category) FROM ctf_public_challenges WHERE is_published = true'
+        )
+        
+        # Submissions stats (from public challenge submissions)
+        stats['total_submissions'] = await conn.fetchval(
+            'SELECT COUNT(*) FROM ctf_public_submissions'
+        ) or 0
+        stats['correct_submissions'] = await conn.fetchval(
+            'SELECT COUNT(*) FROM ctf_public_submissions WHERE is_correct = true'
+        ) or 0
+        
+        # Top users by score (leaderboard style)
+        top_users = await conn.fetch('''
+            SELECT u.id, u.name as username, u.email, u."ctfScore" as score
+            FROM users u
+            WHERE u."ctfScore" > 0
+            ORDER BY u."ctfScore" DESC
+            LIMIT 5
+        ''')
+        stats['top_users'] = [dict(u) for u in top_users]
+        
+        # Recent solves (from public challenge submissions)
+        recent_solves = await conn.fetch('''
+            SELECT s.id, s.submitted_at as solved_at, s.score_earned,
+                   u.name as username, c.title as challenge_title
+            FROM ctf_public_submissions s
+            JOIN users u ON s.user_id = u.id
+            JOIN ctf_public_challenges c ON s.challenge_id = c.id
+            WHERE s.is_correct = true
+            ORDER BY s.submitted_at DESC
+            LIMIT 5
+        ''')
+        stats['recent_solves'] = [dict(r) for r in recent_solves]
         
         # Recent enrollments
         recent_enrollments = await conn.fetch('''
@@ -5721,6 +5758,19 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
             LIMIT 5
         ''')
         stats['recent_enrollments'] = [dict(r) for r in recent_enrollments]
+        
+        # Active containers from Nexus Engine
+        try:
+            nexus_url = os.getenv("NEXUS_ENGINE_URL", "http://localhost:8081")
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(f"{nexus_url}/api/v1/admin/stats")
+                if resp.status_code == 200:
+                    nexus_stats = resp.json()
+                    stats['active_containers'] = nexus_stats.get('active_sessions', 0)
+                else:
+                    stats['active_containers'] = 0
+        except Exception:
+            stats['active_containers'] = 0
         
         return stats
 
