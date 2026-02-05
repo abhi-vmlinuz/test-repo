@@ -153,82 +153,81 @@ const Challenges = ({ user, logout }) => {
           <p className="text-lg text-gray-500">Master cybersecurity through hands-on labs and simulations.</p>
         </div>
 
-        {/* Search & Filters */}
-        <div className="flex flex-col xl:flex-row gap-6">
-          {/* Search */}
-          <div className="relative flex-1 max-w-xl group">
-            {/* Clickable Search Icon */}
-            <button
-              type="button"
-              onClick={() => searchInputRef.current?.focus()}
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-100 transition-colors z-10"
-              tabIndex={-1}
-            >
-              <Search className="w-5 h-5 text-gray-400 group-focus-within:text-zinc-900 transition-colors" />
-            </button>
+        {/* Search Bar - Full Width */}
+        <div className="relative w-full group">
+          {/* Clickable Search Icon */}
+          <button
+            type="button"
+            onClick={() => searchInputRef.current?.focus()}
+            className="absolute left-5 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-gray-100 transition-colors z-10"
+            tabIndex={-1}
+          >
+            <Search className="w-5 h-5 text-gray-400 group-focus-within:text-zinc-900 transition-colors" />
+          </button>
 
-            <Input
-              ref={searchInputRef}
-              placeholder="Search challenges, tags, author, difficulty..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 pr-20 h-12 bg-white text-zinc-900 placeholder:text-gray-400 border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-zinc-900 focus:border-transparent shadow-sm"
-            />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search challenges, tags, author, difficulty..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ color: '#18181b' }}
+            className="w-full pl-14 pr-24 h-14 bg-white border border-gray-200 rounded-2xl text-lg focus:ring-2 focus:ring-zinc-900 focus:border-transparent shadow-sm focus:outline-none placeholder:text-gray-400"
+          />
 
-            {/* Clear Button & Keyboard Hint */}
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    searchInputRef.current?.focus();
-                  }}
-                  className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                  title="Clear search"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-              {!searchQuery && (
-                <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-xs font-mono text-gray-400 bg-gray-100 border border-gray-200 rounded">
-                  /
-                </kbd>
-              )}
-            </div>
+          {/* Clear Button & Keyboard Hint */}
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  searchInputRef.current?.focus();
+                }}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Clear search (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+            {!searchQuery && (
+              <kbd className="hidden sm:inline-flex items-center px-2.5 py-1 text-xs font-mono text-gray-400 bg-gray-100 border border-gray-200 rounded-lg">
+                /
+              </kbd>
+            )}
           </div>
+        </div>
 
-          {/* Category Filter */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 xl:pb-0 scrollbar-hide">
-            {/* All Button */}
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all border ${selectedCategory === 'all'
-                ? 'bg-zinc-900 text-white border-zinc-900 shadow-md'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                }`}
-            >
-              All Modules
-            </button>
+        {/* Category Filters */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          {/* All Button */}
+          <button
+            onClick={() => setSelectedCategory('all')}
+            className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all border ${selectedCategory === 'all'
+              ? 'bg-zinc-900 text-white border-zinc-900 shadow-md'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+          >
+            All Modules
+          </button>
 
-            {/* Categories */}
-            {categories.map((cat) => {
-              const Icon = iconMap[cat.icon] || Globe;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 border ${selectedCategory === cat.id
-                    ? 'bg-zinc-900 text-white border-zinc-900 shadow-md'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                >
-                  <Icon className="w-4 h-4" strokeWidth={1.5} />
-                  {cat.name}
-                </button>
-              );
-            })}
-          </div>
+          {/* Categories */}
+          {categories.map((cat) => {
+            const Icon = iconMap[cat.icon] || Globe;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all flex items-center gap-2 border ${selectedCategory === cat.id
+                  ? 'bg-zinc-900 text-white border-zinc-900 shadow-md'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+              >
+                <Icon className="w-4 h-4" strokeWidth={1.5} />
+                {cat.name}
+              </button>
+            );
+          })}
         </div>
 
         {/* Status Filter (Solved/Unsolved) */}
@@ -372,7 +371,7 @@ const Challenges = ({ user, logout }) => {
           </div>
         )}
       </motion.div>
-    </Layout>
+    </Layout >
   );
 };
 
