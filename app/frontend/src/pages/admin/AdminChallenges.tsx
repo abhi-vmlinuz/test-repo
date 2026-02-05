@@ -36,6 +36,7 @@ const AdminChallenges = () => {
     const [formData, setFormData] = useState({
         title: '',
         description: '',
+        author: '',  // Challenge builder/author name
         category_id: '',
         difficulty: 'easy',
         points: 100,
@@ -244,6 +245,7 @@ const AdminChallenges = () => {
         setFormData({
             title: '',
             description: '',
+            author: '',
             category_id: categories[0]?.id || '',
             difficulty: 'easy',
             points: 100,
@@ -283,6 +285,7 @@ const AdminChallenges = () => {
         setFormData({
             title: challenge.title,
             description: challenge.description,
+            author: challenge.author || '',
             category_id: challenge.category_id,
             difficulty: challenge.difficulty,
             points: challenge.points,
@@ -698,6 +701,18 @@ const AdminChallenges = () => {
                                     required
                                     placeholder="SQL Injection Basics"
                                 />
+                            </div>
+
+                            {/* Author */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Author / Builder</label>
+                                <Input
+                                    type="text"
+                                    value={formData.author}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, author: e.target.value }))}
+                                    placeholder="John Doe"
+                                />
+                                <p className="text-xs text-gray-400 mt-1">Name of the person who built this challenge</p>
                             </div>
 
                             {/* Description */}

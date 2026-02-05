@@ -150,6 +150,7 @@ class PublicChallengeCreate(BaseModel):
     difficulty: str = "medium"  # easy, medium, hard
     points: int = 100
     flag: str
+    author: Optional[str] = None  # Challenge builder/author name
     docker_image: Optional[str] = None
     docker_port: Optional[int] = None  # Deprecated - use ports instead
     ports: List[int] = []  # Ports to expose for players (e.g., [22, 80, 3000])
@@ -2722,12 +2723,12 @@ async def admin_create_challenge(data: PublicChallengeCreate, admin: dict = Depe
         await conn.execute('''
             INSERT INTO ctf_public_challenges (
                 id, "categoryId", title, description, difficulty, points,
-                flag, "dockerImage", "dockerCommand", hints, questions,
+                flag, author, "dockerImage", "dockerCommand", hints, questions,
                 tags, ports, "isPublished", solves, "createdAt", "updatedAt",
                 "hasDocker", "challengePackId", "isMultiContainer"
-            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, $14, 0, NOW(), NOW(), $15, $16, $17)
+            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, NOW(), NOW(), $16, $17, $18)
         ''', challenge_id, data.category_id, data.title, data.description,
-             data.difficulty.upper(), data.points, data.flag,
+             data.difficulty.upper(), data.points, data.flag, data.author,
              data.docker_image, None,  # dockerCommand deprecated
              json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published,
              has_docker, data.challenge_pack_id, data.is_multi_container)
@@ -2750,13 +2751,13 @@ async def admin_update_challenge(challenge_id: str, data: PublicChallengeCreate,
         await conn.execute('''
             UPDATE ctf_public_challenges SET
                 "categoryId" = $1, title = $2, description = $3, difficulty = $4::"CtfDifficulty",
-                points = $5, flag = $6, "dockerImage" = $7, "dockerCommand" = $8,
-                hints = $9, questions = $10, tags = $11, ports = $12, "isPublished" = $13,
-                "hasDocker" = $14, "challengePackId" = $15, "isMultiContainer" = $16,
+                points = $5, flag = $6, author = $7, "dockerImage" = $8, "dockerCommand" = $9,
+                hints = $10, questions = $11, tags = $12, ports = $13, "isPublished" = $14,
+                "hasDocker" = $15, "challengePackId" = $16, "isMultiContainer" = $17,
                 "updatedAt" = NOW()
-            WHERE id = $17
+            WHERE id = $18
         ''', data.category_id, data.title, data.description, data.difficulty.upper(),
-             data.points, data.flag, data.docker_image, None,  # dockerCommand deprecated
+             data.points, data.flag, data.author, data.docker_image, None,  # dockerCommand deprecated
              json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published,
              has_docker, data.challenge_pack_id, data.is_multi_container, challenge_id)
         
@@ -7450,6 +7451,16 @@ async def startup():
                 logger.info("Multi-container pack columns migration complete")
             except Exception as e:
                 logger.debug(f"Multi-container pack columns already exist or migration skipped: {e}")
+
+            # Migration: Add author column for challenge builder name
+            try:
+                await conn.execute('''
+                    ALTER TABLE ctf_public_challenges 
+                    ADD COLUMN IF NOT EXISTS author TEXT
+                ''')
+                logger.info("Author column migration complete")
+            except Exception as e:
+                logger.debug(f"Author column already exists or migration skipped: {e}")
 
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
