@@ -441,6 +441,15 @@ const ChallengeDetail = ({ user, logout }) => {
                   <CheckCircle2 className="w-4 h-4" />
                   <span>{challenge.solves} Solves</span>
                 </div>
+                {challenge.author && (
+                  <>
+                    <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">by</span>
+                      <span className="font-medium text-gray-700">{challenge.author}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="prose prose-sm max-w-none">

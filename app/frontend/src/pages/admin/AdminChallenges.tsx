@@ -598,10 +598,11 @@ const AdminChallenges = () => {
 
             {/* Challenges Table */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden overflow-x-auto">
-                <table className="w-full min-w-[800px]">
+                <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Title</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Author</th>
                             <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Category</th>
                             <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Difficulty</th>
                             <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Points</th>
@@ -616,6 +617,9 @@ const AdminChallenges = () => {
                                 <td className="px-6 py-4">
                                     <p className="font-medium text-gray-900">{challenge.title}</p>
                                     <p className="text-xs text-gray-400 truncate max-w-xs">{challenge.description.substring(0, 50)}...</p>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-600">
+                                    {challenge.author || <span className="text-gray-300 italic">—</span>}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-600">
                                     {getCategoryName(challenge.category_id)}
@@ -705,7 +709,7 @@ const AdminChallenges = () => {
 
                             {/* Author */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Author / Builder</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Author </label>
                                 <Input
                                     type="text"
                                     value={formData.author}
