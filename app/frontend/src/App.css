@@ -1004,6 +1004,28 @@ pre code {
   box-shadow: var(--shadow-md);
 }
 
+/* Mobile & Tablet: Move theme toggle to bottom-right to avoid navbar overlap */
+@media (max-width: 1024px) {
+  .theme-toggle {
+    top: auto;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 48px;
+    height: 48px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+  .theme-toggle {
+    bottom: 1rem;
+    right: 1rem;
+    width: 44px;
+    height: 44px;
+  }
+}
+
 .theme-toggle:hover {
   transform: scale(1.05);
   box-shadow: var(--shadow-lg);
