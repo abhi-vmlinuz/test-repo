@@ -25,6 +25,7 @@ const Challenges = ({ user, logout }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'solved' | 'unsolved'>('all');
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -115,9 +116,11 @@ const Challenges = ({ user, logout }) => {
         (statusFilter === 'solved' && solvedChallenges.has(c.id)) ||
         (statusFilter === 'unsolved' && !solvedChallenges.has(c.id));
 
-      return matchesCategory && matchesSearch && matchesStatus;
+      const matchesDifficulty = difficultyFilter === 'all' || c.difficulty?.toLowerCase() === difficultyFilter;
+
+      return matchesCategory && matchesSearch && matchesStatus && matchesDifficulty;
     });
-  }, [challenges, categories, selectedCategory, debouncedSearch, statusFilter, solvedChallenges]);
+  }, [challenges, categories, selectedCategory, debouncedSearch, statusFilter, difficultyFilter, solvedChallenges]);
 
   const getDifficultyStyle = (difficulty) => {
     switch (difficulty) {
@@ -168,7 +171,7 @@ const Challenges = ({ user, logout }) => {
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search challenges, tags, author, difficulty..."
+            placeholder="Search challenges, difficulty..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ color: '#18181b' }}
@@ -269,6 +272,52 @@ const Challenges = ({ user, logout }) => {
               {filteredChallenges.length} result{filteredChallenges.length !== 1 ? 's' : ''}
             </span>
           )}
+        </div>
+
+        {/* Difficulty Filter */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Difficulty:</span>
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setDifficultyFilter('all')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${difficultyFilter === 'all'
+                ? 'bg-white text-zinc-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setDifficultyFilter('easy')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'easy'
+                ? 'bg-white text-emerald-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-emerald-400" />
+              Easy
+            </button>
+            <button
+              onClick={() => setDifficultyFilter('medium')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'medium'
+                ? 'bg-white text-amber-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-amber-400" />
+              Medium
+            </button>
+            <button
+              onClick={() => setDifficultyFilter('hard')}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'hard'
+                ? 'bg-white text-red-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              <div className="w-2 h-2 rounded-full bg-red-400" />
+              Hard
+            </button>
+          </div>
         </div>
 
         {/* Categories Header / Count */}
