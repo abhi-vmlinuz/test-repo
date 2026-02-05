@@ -1705,7 +1705,7 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
         challenge = await conn.fetchrow('''
             SELECT id, "categoryId", title, description, difficulty,
                    points, "dockerImage", hints, questions, solves, flag, tags,
-                   "hasDocker", "challengePackId", "isMultiContainer"
+                   "hasDocker", "challengePackId", "isMultiContainer", author
             FROM ctf_public_challenges
             WHERE (id::text = $1 OR slug = $1) AND "isPublished" = true
         ''', challenge_id)
@@ -1751,6 +1751,7 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
             'category_id': challenge['categoryId'],
             'title': challenge['title'],
             'description': challenge['description'],
+            'author': challenge.get('author'),  # Challenge author/builder
             'difficulty': challenge['difficulty'].lower() if challenge['difficulty'] else 'medium',
             'points': challenge['points'],
             'docker_image': challenge['dockerImage'],
@@ -2684,6 +2685,7 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
                 'category_id': c['categoryId'],
                 'title': c['title'],
                 'description': c['description'],
+                'author': c.get('author'),  # Challenge author/builder
                 'difficulty': c['difficulty'].lower() if c['difficulty'] else 'medium',
                 'points': c['points'],
                 'total_points': total_points,  # Base + question points
