@@ -1889,18 +1889,33 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
         solved_questions.append(submission.question_index)
         total_earned = (progress['scoreEarned'] if progress else 0) + points_earned
         
+        # Determine if this is the first question solved (for activity log purposes)
+        # We mark solved=true on first question answer so user appears in activity log
+        is_first_solve = len(solved_questions) == 1
+        
         if progress:
-            await conn.execute('''
-                UPDATE ctf_public_progress SET
-                    "solvedQuestions" = $1, "scoreEarned" = $2, "updatedAt" = NOW()
-                WHERE id = $3
-            ''', solved_questions, total_earned, progress['id'])
+            if is_first_solve:
+                # First question solved - mark challenge as solved with timestamp
+                await conn.execute('''
+                    UPDATE ctf_public_progress SET
+                        solved = true, "solvedQuestions" = $1, "scoreEarned" = $2, 
+                        "solvedAt" = NOW(), "updatedAt" = NOW()
+                    WHERE id = $3
+                ''', solved_questions, total_earned, progress['id'])
+            else:
+                # Additional questions - just update score and questions
+                await conn.execute('''
+                    UPDATE ctf_public_progress SET
+                        "solvedQuestions" = $1, "scoreEarned" = $2, "updatedAt" = NOW()
+                    WHERE id = $3
+                ''', solved_questions, total_earned, progress['id'])
         else:
+            # New progress record - mark as solved with timestamp
             await conn.execute('''
                 INSERT INTO ctf_public_progress (
                     id, "userId", "challengeId", solved, "hintsUsed",
-                    "solvedQuestions", "scoreEarned", "createdAt", "updatedAt"
-                ) VALUES ($1, $2, $3, false, '{}', $4, $5, NOW(), NOW())
+                    "solvedQuestions", "scoreEarned", "solvedAt", "createdAt", "updatedAt"
+                ) VALUES ($1, $2, $3, true, '{}', $4, $5, NOW(), NOW(), NOW())
             ''', generate_uuid(), current_user['id'], challenge_id, 
                  solved_questions, total_earned)
         
