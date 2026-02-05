@@ -172,7 +172,7 @@ const Challenges = ({ user, logout }) => {
               placeholder="Search challenges, tags, author, difficulty..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 pr-20 h-12 bg-white border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-zinc-900 focus:border-transparent shadow-sm"
+              className="pl-12 pr-20 h-12 bg-white text-zinc-900 placeholder:text-gray-400 border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-zinc-900 focus:border-transparent shadow-sm"
             />
 
             {/* Clear Button & Keyboard Hint */}
