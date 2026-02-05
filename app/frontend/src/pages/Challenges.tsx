@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { API, toast } from '../App';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
-import { Globe, Key, Search, Binary, CheckCircle2, Container, Filter, Lightbulb, Trophy } from 'lucide-react';
+import { Globe, Key, Search, Binary, CheckCircle2, Container, Filter, Lightbulb, Trophy, X } from 'lucide-react';
 
 const iconMap = {
   'Globe': Globe,
@@ -23,9 +23,36 @@ const Challenges = ({ user, logout }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [solvedChallenges, setSolvedChallenges] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'solved' | 'unsolved'>('all');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Debounce search for performance
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Keyboard shortcut: Press "/" to focus search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      // Escape to clear and blur
+      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearchQuery('');
+        searchInputRef.current?.blur();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -56,16 +83,41 @@ const Challenges = ({ user, logout }) => {
     }
   };
 
-  // Filter by category, search, and solved status
-  const filteredChallenges = challenges.filter(c => {
-    const matchesCategory = selectedCategory === 'all' || c.category_id === selectedCategory;
-    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' ||
-      (statusFilter === 'solved' && solvedChallenges.has(c.id)) ||
-      (statusFilter === 'unsolved' && !solvedChallenges.has(c.id));
-    return matchesCategory && matchesSearch && matchesStatus;
-  });
+  // Advanced filter: search across title, description, tags, author, category name, difficulty
+  const filteredChallenges = useMemo(() => {
+    const query = debouncedSearch.toLowerCase().trim();
+
+    return challenges.filter(c => {
+      const matchesCategory = selectedCategory === 'all' || c.category_id === selectedCategory;
+
+      // Extended search across multiple fields
+      let matchesSearch = true;
+      if (query) {
+        const category = categories.find(cat => cat.id === c.category_id);
+        const categoryName = category?.name?.toLowerCase() || '';
+        const tags = (c.tags || []).join(' ').toLowerCase();
+        const author = (c.author || '').toLowerCase();
+        const title = c.title.toLowerCase();
+        const description = c.description.toLowerCase();
+        const difficulty = c.difficulty?.toLowerCase() || '';
+
+        // Search across all fields
+        matchesSearch =
+          title.includes(query) ||
+          description.includes(query) ||
+          tags.includes(query) ||
+          author.includes(query) ||
+          categoryName.includes(query) ||
+          difficulty.includes(query);
+      }
+
+      const matchesStatus = statusFilter === 'all' ||
+        (statusFilter === 'solved' && solvedChallenges.has(c.id)) ||
+        (statusFilter === 'unsolved' && !solvedChallenges.has(c.id));
+
+      return matchesCategory && matchesSearch && matchesStatus;
+    });
+  }, [challenges, categories, selectedCategory, debouncedSearch, statusFilter, solvedChallenges]);
 
   const getDifficultyStyle = (difficulty) => {
     switch (difficulty) {
@@ -104,14 +156,46 @@ const Challenges = ({ user, logout }) => {
         {/* Search & Filters */}
         <div className="flex flex-col xl:flex-row gap-6">
           {/* Search */}
-          <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div className="relative flex-1 max-w-xl group">
+            {/* Clickable Search Icon */}
+            <button
+              type="button"
+              onClick={() => searchInputRef.current?.focus()}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-100 transition-colors z-10"
+              tabIndex={-1}
+            >
+              <Search className="w-5 h-5 text-gray-400 group-focus-within:text-zinc-900 transition-colors" />
+            </button>
+
             <Input
-              placeholder="Search by name or category..."
+              ref={searchInputRef}
+              placeholder="Search challenges, tags, author, difficulty..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 h-12 bg-white border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-zinc-900 focus:border-transparent shadow-sm"
+              className="pl-12 pr-20 h-12 bg-white border-gray-200 rounded-xl text-base focus:ring-2 focus:ring-zinc-900 focus:border-transparent shadow-sm"
             />
+
+            {/* Clear Button & Keyboard Hint */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className="p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Clear search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              {!searchQuery && (
+                <kbd className="hidden sm:inline-flex items-center px-2 py-0.5 text-xs font-mono text-gray-400 bg-gray-100 border border-gray-200 rounded">
+                  /
+                </kbd>
+              )}
+            </div>
           </div>
 
           {/* Category Filter */}
