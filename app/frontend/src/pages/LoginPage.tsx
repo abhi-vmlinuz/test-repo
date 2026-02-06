@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     ArrowLeft, Eye, EyeOff, Mail, Lock, User,
-    ArrowRight, Globe, Github
+    ArrowRight, Globe, Github, AlertTriangle, Shield, X, Loader2
 } from 'lucide-react';
 import { FloatingElement } from '@/components/landing/FloatingElement';
 
@@ -22,17 +22,36 @@ const LoginPage = ({ setUser }) => {
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
+    // Session conflict state
+    const [sessionConflict, setSessionConflict] = useState<{
+        show: boolean;
+        sessionInfo?: any;
+        step: 'confirm' | 'otp';
+    }>({ show: false, step: 'confirm' });
+    const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
+    const [otpExpiry, setOtpExpiry] = useState(0);
+    const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
     useEffect(() => {
         setFormData({ username: '', email: '', password: '' });
         setShowForgotPassword(false);
     }, [isLogin]);
 
+    // OTP countdown timer
+    useEffect(() => {
+        if (otpExpiry > 0) {
+            const timer = setInterval(() => setOtpExpiry(prev => Math.max(0, prev - 1)), 1000);
+            return () => clearInterval(timer);
+        }
+    }, [otpExpiry]);
+
     // Listen for OAuth callbacks (GitHub and Google)
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
             if (event.data?.type === 'github-login-success' || event.data?.type === 'google-login-success') {
-                const { token, user } = event.data.data;
+                const { token, user, session_token } = event.data.data;
                 localStorage.setItem('token', token);
+                if (session_token) localStorage.setItem('session_token', session_token);
                 // Ensure username is set (OAuth might only return name)
                 const userData = {
                     ...user,
@@ -57,11 +76,108 @@ const LoginPage = ({ setUser }) => {
             const data = isLogin ? { email: formData.email, password: formData.password } : formData;
             const response = await axios.post(`${API}${endpoint}`, data);
             localStorage.setItem('token', response.data.token);
+            if (response.data.session_token) {
+                localStorage.setItem('session_token', response.data.session_token);
+            }
             setUser(response.data.user);
             toast.success(isLogin ? "Welcome back." : "Account created.");
             navigate('/dashboard');
-        } catch (error) {
+        } catch (error: any) {
+            // Handle session conflict (409)
+            if (error.response?.status === 409) {
+                const detail = error.response?.data?.detail;
+                if (detail?.code === 'SESSION_CONFLICT') {
+                    setSessionConflict({
+                        show: true,
+                        sessionInfo: detail.session_info,
+                        step: 'confirm'
+                    });
+                    return;
+                }
+            }
             toast.error(error.response?.data?.detail || 'Authentication failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleForceLogoutRequest = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post(`${API}/auth/force-logout/request`, {
+                email: formData.email,
+                password: formData.password
+            });
+            toast.success('Verification code sent!');
+            setSessionConflict(prev => ({ ...prev, step: 'otp' }));
+            setOtpExpiry(response.data.expires_in || 300);
+            setOtpCode(['', '', '', '', '', '']);
+            // Focus first OTP input
+            setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Failed to send verification code');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleOtpChange = (index: number, value: string) => {
+        if (!/^\d*$/.test(value)) return; // Only digits
+
+        const newOtp = [...otpCode];
+        newOtp[index] = value.slice(-1); // Only last digit
+        setOtpCode(newOtp);
+
+        // Auto-focus next input
+        if (value && index < 5) {
+            otpInputRefs.current[index + 1]?.focus();
+        }
+    };
+
+    const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+        if (e.key === 'Backspace' && !otpCode[index] && index > 0) {
+            otpInputRefs.current[index - 1]?.focus();
+        }
+    };
+
+    const handleOtpPaste = (e: React.ClipboardEvent) => {
+        e.preventDefault();
+        const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+        const newOtp = [...otpCode];
+        pasted.split('').forEach((char, i) => {
+            if (i < 6) newOtp[i] = char;
+        });
+        setOtpCode(newOtp);
+        if (pasted.length === 6) {
+            otpInputRefs.current[5]?.focus();
+        }
+    };
+
+    const handleVerifyOtp = async () => {
+        const code = otpCode.join('');
+        if (code.length !== 6) {
+            toast.error('Please enter the complete 6-digit code');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const response = await axios.post(`${API}/auth/force-logout/verify`, {
+                email: formData.email,
+                password: formData.password,
+                otp_code: code
+            });
+
+            localStorage.setItem('token', response.data.token);
+            if (response.data.session_token) {
+                localStorage.setItem('session_token', response.data.session_token);
+            }
+            setUser(response.data.user);
+            toast.success('Logged in successfully!');
+            setSessionConflict({ show: false, step: 'confirm' });
+            navigate('/dashboard');
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Invalid verification code');
         } finally {
             setLoading(false);
         }
@@ -113,8 +229,155 @@ const LoginPage = ({ setUser }) => {
         }
     };
 
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
     return (
         <div className="min-h-screen bg-white flex overflow-hidden relative selection:bg-zinc-900 selection:text-white">
+
+            {/* === SESSION CONFLICT MODAL === */}
+            <AnimatePresence>
+                {sessionConflict.show && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        onClick={() => setSessionConflict({ show: false, step: 'confirm' })}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                        >
+                            {/* Header */}
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200/50 px-6 py-5">
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                        <AlertTriangle className="w-6 h-6 text-amber-600" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900">Active Session Detected</h3>
+                                        <p className="text-sm text-gray-600 mt-0.5">This account is already logged in elsewhere</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setSessionConflict({ show: false, step: 'confirm' })}
+                                        className="ml-auto p-1.5 hover:bg-amber-100 rounded-lg transition-colors"
+                                    >
+                                        <X className="w-5 h-5 text-gray-500" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-6">
+                                {sessionConflict.step === 'confirm' ? (
+                                    <>
+                                        <div className="bg-gray-50 rounded-xl p-4 mb-6">
+                                            <div className="flex items-center gap-3 text-sm text-gray-600 mb-2">
+                                                <Shield className="w-4 h-4 text-gray-400" />
+                                                <span>Current active session:</span>
+                                            </div>
+                                            <div className="space-y-1.5 text-sm">
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">IP Address:</span>
+                                                    <span className="font-mono text-gray-900">{sessionConflict.sessionInfo?.ip_address || 'Unknown'}</span>
+                                                </div>
+                                                {sessionConflict.sessionInfo?.created_at && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-gray-500">Logged in:</span>
+                                                        <span className="text-gray-900">
+                                                            {new Date(sessionConflict.sessionInfo.created_at).toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <p className="text-sm text-gray-600 mb-6">
+                                            To prevent data conflicts, only one session is allowed at a time.
+                                            We'll send a verification code to your email to confirm it's you.
+                                        </p>
+
+                                        <div className="flex gap-3">
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => setSessionConflict({ show: false, step: 'confirm' })}
+                                                className="flex-1"
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                onClick={handleForceLogoutRequest}
+                                                disabled={loading}
+                                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                                            >
+                                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Force Logout & Login'}
+                                            </Button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="text-center mb-6">
+                                            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
+                                                <Mail className="w-8 h-8 text-emerald-600" />
+                                            </div>
+                                            <h4 className="text-lg font-semibold text-gray-900">Check your email</h4>
+                                            <p className="text-sm text-gray-500 mt-1">
+                                                We sent a 6-digit code to {formData.email?.slice(0, 3)}***@{formData.email?.split('@')[1]}
+                                            </p>
+                                        </div>
+
+                                        {/* OTP Input */}
+                                        <div className="flex justify-center gap-2 mb-4" onPaste={handleOtpPaste}>
+                                            {otpCode.map((digit, index) => (
+                                                <input
+                                                    key={index}
+                                                    ref={(el) => otpInputRefs.current[index] = el}
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    maxLength={1}
+                                                    value={digit}
+                                                    onChange={(e) => handleOtpChange(index, e.target.value)}
+                                                    onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                                                    className="w-12 h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                                                />
+                                            ))}
+                                        </div>
+
+                                        {/* Timer */}
+                                        {otpExpiry > 0 && (
+                                            <p className="text-center text-sm text-gray-500 mb-6">
+                                                Code expires in <span className="font-mono font-medium text-amber-600">{formatTime(otpExpiry)}</span>
+                                            </p>
+                                        )}
+
+                                        <Button
+                                            onClick={handleVerifyOtp}
+                                            disabled={loading || otpCode.join('').length !== 6}
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11"
+                                        >
+                                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify & Login'}
+                                        </Button>
+
+                                        <button
+                                            onClick={() => setSessionConflict(prev => ({ ...prev, step: 'confirm' }))}
+                                            className="w-full mt-3 text-sm text-gray-500 hover:text-gray-700"
+                                        >
+                                            ← Go back
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* === LEFT SIDE: HERO-STYLE CREATIVE === */}
             <div className="hidden lg:flex w-1/2 relative bg-gray-50/50 overflow-hidden items-center justify-center p-16 border-r border-gray-100">

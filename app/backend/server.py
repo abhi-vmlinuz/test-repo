@@ -36,6 +36,10 @@ import zipfile
 import shutil
 import tempfile
 import httpx
+import smtplib
+import secrets
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Optional Docker support
 try:
@@ -67,6 +71,18 @@ GITHUB_REDIRECT_URI = os.environ.get('GITHUB_REDIRECT_URI', 'https://ctf.zecurx.
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'https://ctf.zecurx.com/api/auth/google/callback')
+
+# SMTP Configuration (for OTP emails)
+SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASS = os.environ.get('SMTP_PASS', '')
+SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@zecurx.com')
+SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'ZecurX CTF')
+
+# Session Configuration
+SESSION_EXPIRY_HOURS = 24  # Sessions expire after 24 hours
+OTP_EXPIRY_MINUTES = 5     # OTP codes expire after 5 minutes
 
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -121,6 +137,18 @@ class UserUpdate(BaseModel):
     """Admin update user (ban/unban, change role)"""
     is_banned: Optional[bool] = None
     role: Optional[str] = None
+
+# Session & OTP Models
+class ForceLogoutRequest(BaseModel):
+    """Request to initiate force logout (sends OTP)"""
+    email: EmailStr
+    password: str
+
+class OTPVerifyRequest(BaseModel):
+    """Verify OTP and complete force logout"""
+    email: EmailStr
+    otp_code: str
+    password: str  # Re-verify password for security
 
 # Public CTF Models
 class Hint(BaseModel):
@@ -332,6 +360,190 @@ def time_ago(dt: datetime) -> str:
 
 
 # ===========================================
+# SESSION & OTP HELPERS
+# ===========================================
+
+def generate_otp() -> str:
+    """Generate a 6-digit OTP code"""
+    return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+
+def generate_session_token() -> str:
+    """Generate a secure session token"""
+    return secrets.token_urlsafe(32)
+
+async def send_otp_email(email: str, otp_code: str, username: str = "User") -> bool:
+    """Send OTP email for force logout verification"""
+    if not SMTP_USER or not SMTP_PASS:
+        logger.warning("SMTP not configured, OTP email skipped")
+        logger.info(f"OTP for {email}: {otp_code}")  # Log for dev purposes
+        return True  # Return True in dev mode
+    
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f'🔐 ZecurX CTF - Verification Code: {otp_code}'
+        msg['From'] = f'{SMTP_FROM_NAME} <{SMTP_FROM}>'
+        msg['To'] = email
+        
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f4f4f5; margin: 0; padding: 40px 20px;">
+            <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <div style="background: linear-gradient(135deg, #18181b 0%, #3f3f46 100%); padding: 32px; text-align: center;">
+                    <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">🔐 Session Verification</h1>
+                </div>
+                <div style="padding: 32px;">
+                    <p style="color: #52525b; font-size: 15px; margin: 0 0 24px;">Hi {username},</p>
+                    <p style="color: #52525b; font-size: 15px; margin: 0 0 24px;">
+                        Someone is trying to log into your account from a new device. 
+                        If this is you, use the verification code below to complete the login:
+                    </p>
+                    <div style="background: #f4f4f5; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+                        <div style="font-size: 36px; font-weight: 700; color: #18181b; letter-spacing: 8px; font-family: monospace;">
+                            {otp_code}
+                        </div>
+                        <p style="color: #71717a; font-size: 13px; margin: 12px 0 0;">
+                            Code expires in 5 minutes
+                        </p>
+                    </div>
+                    <p style="color: #71717a; font-size: 13px; margin: 0; padding-top: 16px; border-top: 1px solid #e4e4e7;">
+                        ⚠️ If this wasn't you, someone has your password. Please change it immediately.
+                    </p>
+                </div>
+                <div style="background: #fafafa; padding: 16px 32px; text-align: center; border-top: 1px solid #e4e4e7;">
+                    <p style="color: #a1a1aa; font-size: 12px; margin: 0;">
+                        ZecurX CTF Platform • ctf.zecurx.com
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        text_content = f'''
+        ZecurX CTF - Verification Code
+        
+        Hi {username},
+        
+        Someone is trying to log into your account from a new device.
+        Your verification code is: {otp_code}
+        
+        This code expires in 5 minutes.
+        
+        If this wasn't you, please change your password immediately.
+        '''
+        
+        msg.attach(MIMEText(text_content, 'plain'))
+        msg.attach(MIMEText(html_content, 'html'))
+        
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_FROM, email, msg.as_string())
+        
+        logger.info(f"OTP email sent to {email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send OTP email: {e}")
+        return False
+
+async def create_session(conn, user_id: str, session_token: str, request: Request = None) -> str:
+    """Create a new active session for user"""
+    ip_address = request.client.host if request else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")[:500] if request else "unknown"
+    
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=SESSION_EXPIRY_HOURS)
+    
+    await conn.execute('''
+        INSERT INTO ctf_active_sessions (user_id, session_token, ip_address, user_agent, expires_at)
+        VALUES ($1, $2, $3, $4, $5)
+    ''', user_id, session_token, ip_address, user_agent, expires_at)
+    
+    return session_token
+
+async def get_active_session(conn, user_id: str) -> Optional[dict]:
+    """Check if user has an active session"""
+    # Clean up expired sessions first
+    await conn.execute('''
+        UPDATE ctf_active_sessions 
+        SET is_active = false 
+        WHERE expires_at < NOW() AND is_active = true
+    ''')
+    
+    session = await conn.fetchrow('''
+        SELECT id, session_token, ip_address, user_agent, created_at, last_activity_at
+        FROM ctf_active_sessions
+        WHERE user_id = $1 AND is_active = true AND expires_at > NOW()
+        ORDER BY created_at DESC
+        LIMIT 1
+    ''', user_id)
+    
+    return dict(session) if session else None
+
+async def invalidate_user_sessions(conn, user_id: str) -> int:
+    """Invalidate all active sessions for a user (for force logout)"""
+    result = await conn.execute('''
+        UPDATE ctf_active_sessions 
+        SET is_active = false 
+        WHERE user_id = $1 AND is_active = true
+    ''', user_id)
+    
+    # Extract count from result (e.g., "UPDATE 3")
+    count = int(result.split()[-1]) if result else 0
+    logger.info(f"Invalidated {count} sessions for user {user_id}")
+    return count
+
+async def invalidate_session_by_token(conn, session_token: str) -> bool:
+    """Invalidate a specific session by token"""
+    result = await conn.execute('''
+        UPDATE ctf_active_sessions 
+        SET is_active = false 
+        WHERE session_token = $1 AND is_active = true
+    ''', session_token)
+    
+    return 'UPDATE 1' in result
+
+async def create_otp(conn, user_id: str, email: str, purpose: str = 'force_logout') -> str:
+    """Create and store OTP code"""
+    otp_code = generate_otp()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    
+    # Invalidate any existing OTPs for this user/purpose
+    await conn.execute('''
+        DELETE FROM ctf_otp_codes 
+        WHERE user_id = $1 AND purpose = $2 AND is_used = false
+    ''', user_id, purpose)
+    
+    await conn.execute('''
+        INSERT INTO ctf_otp_codes (user_id, email, code, purpose, expires_at)
+        VALUES ($1, $2, $3, $4, $5)
+    ''', user_id, email, otp_code, purpose, expires_at)
+    
+    return otp_code
+
+async def verify_otp(conn, user_id: str, otp_code: str, purpose: str = 'force_logout') -> bool:
+    """Verify OTP code"""
+    otp = await conn.fetchrow('''
+        SELECT id FROM ctf_otp_codes
+        WHERE user_id = $1 AND code = $2 AND purpose = $3 
+              AND is_used = false AND expires_at > NOW()
+    ''', user_id, otp_code, purpose)
+    
+    if otp:
+        # Mark as used
+        await conn.execute('''
+            UPDATE ctf_otp_codes SET is_used = true, used_at = NOW() WHERE id = $1
+        ''', otp['id'])
+        return True
+    
+    return False
+
+
+# ===========================================
 # MIDDLEWARE CLASSES
 # ===========================================
 
@@ -536,8 +748,8 @@ async def health():
 # ===========================================
 
 @api_router.post("/auth/login")
-async def login(credentials: UserLogin):
-    """Login with LMS credentials"""
+async def login(credentials: UserLogin, request: Request):
+    """Login with LMS credentials - Single session enforcement"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         user = await conn.fetchrow('''
@@ -591,6 +803,30 @@ async def login(credentials: UserLogin):
                     detail="This account does not have CTF platform access."
                 )
         
+        # ========================================
+        # SINGLE SESSION CHECK
+        # ========================================
+        active_session = await get_active_session(conn, user['id'])
+        
+        if active_session:
+            # User already has an active session
+            # Return 409 Conflict with session info
+            session_info = {
+                'ip_address': active_session.get('ip_address', 'unknown'),
+                'created_at': active_session.get('created_at').isoformat() if active_session.get('created_at') else None,
+                'last_activity': active_session.get('last_activity_at').isoformat() if active_session.get('last_activity_at') else None
+            }
+            raise HTTPException(
+                status_code=409,  # Conflict
+                detail={
+                    'code': 'SESSION_CONFLICT',
+                    'message': 'This account is already logged in on another device.',
+                    'session_info': session_info,
+                    'user_id': user['id'],  # Needed for force logout
+                    'email': user['email']
+                }
+            )
+        
         # Map roles to CTF display roles
         role_map = {
             'SUPERADMIN': 'superadmin', 
@@ -599,10 +835,17 @@ async def login(credentials: UserLogin):
             'STUDENT': 'student',  # Students with LMS CTF enrollment
             'CTF_USER': 'user'
         }
+        
+        # Create JWT token
         token = create_token(user['id'])
+        
+        # Create session token for tracking
+        session_token = generate_session_token()
+        await create_session(conn, user['id'], session_token, request)
         
         return {
             'token': token,
+            'session_token': session_token,  # Return for logout purposes
             'user': {
                 'id': user['id'],
                 'name': user['name'],
@@ -614,6 +857,134 @@ async def login(credentials: UserLogin):
                 'avatar_url': user['avatar_url']
             }
         }
+
+
+@api_router.post("/auth/force-logout/request")
+async def request_force_logout(data: ForceLogoutRequest):
+    """Request OTP to force logout existing session"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Verify user exists and password is correct
+        user = await conn.fetchrow('''
+            SELECT u.id, u.name, u.email, u.password
+            FROM users u
+            WHERE LOWER(u.email) = LOWER($1)
+        ''', data.email)
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not verify_password(data.password, user['password']):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Check if there's actually an active session
+        active_session = await get_active_session(conn, user['id'])
+        if not active_session:
+            raise HTTPException(
+                status_code=400, 
+                detail="No active session found. You can login directly."
+            )
+        
+        # Generate and send OTP
+        otp_code = await create_otp(conn, user['id'], user['email'], 'force_logout')
+        email_sent = await send_otp_email(user['email'], otp_code, user['name'] or 'User')
+        
+        if not email_sent:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to send verification email. Please try again."
+            )
+        
+        return {
+            'success': True,
+            'message': f"Verification code sent to {user['email'][:3]}***{user['email'].split('@')[0][-1]}@{user['email'].split('@')[1]}",
+            'expires_in': OTP_EXPIRY_MINUTES * 60  # In seconds
+        }
+
+
+@api_router.post("/auth/force-logout/verify")
+async def verify_force_logout(data: OTPVerifyRequest, request: Request):
+    """Verify OTP and complete force logout + new login"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Verify user and password again (security)
+        user = await conn.fetchrow('''
+            SELECT u.id, u.name, u.email, u.password,
+                   u."ctfScore" as score, u.avatar_url,
+                   r.type as role_type
+            FROM users u
+            JOIN "Role" r ON u."roleId" = r.id
+            WHERE LOWER(u.email) = LOWER($1)
+        ''', data.email)
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        if not verify_password(data.password, user['password']):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Verify OTP
+        is_valid = await verify_otp(conn, user['id'], data.otp_code, 'force_logout')
+        if not is_valid:
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid or expired verification code"
+            )
+        
+        # Invalidate all existing sessions
+        await invalidate_user_sessions(conn, user['id'])
+        
+        # Create new session for this device
+        token = create_token(user['id'])
+        session_token = generate_session_token()
+        await create_session(conn, user['id'], session_token, request)
+        
+        # Map roles
+        role_map = {
+            'SUPERADMIN': 'superadmin', 
+            'ADMIN': 'admin', 
+            'INSTRUCTOR': 'admin',
+            'STUDENT': 'student',
+            'CTF_USER': 'user'
+        }
+        
+        logger.info(f"Force logout completed for user {user['email']} from {request.client.host}")
+        
+        return {
+            'success': True,
+            'token': token,
+            'session_token': session_token,
+            'user': {
+                'id': user['id'],
+                'name': user['name'],
+                'username': user['name'],
+                'email': user['email'],
+                'score': user['score'] or 0,
+                'role': role_map.get(user['role_type'], 'user'),
+                'role_type': user['role_type'],
+                'avatar_url': user['avatar_url']
+            }
+        }
+
+
+@api_router.post("/auth/logout")
+async def logout(request: Request, current_user: dict = Depends(get_current_user)):
+    """Logout and invalidate session"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get session token from request body or invalidate all user sessions
+        try:
+            body = await request.json()
+            session_token = body.get('session_token')
+            if session_token:
+                await invalidate_session_by_token(conn, session_token)
+            else:
+                await invalidate_user_sessions(conn, current_user['id'])
+        except:
+            # If no body, invalidate all sessions
+            await invalidate_user_sessions(conn, current_user['id'])
+        
+        return {'success': True, 'message': 'Logged out successfully'}
 
 
 @api_router.get("/auth/me")
