@@ -233,91 +233,96 @@ const Challenges = ({ user, logout }) => {
           })}
         </div>
 
-        {/* Status Filter (Solved/Unsolved) */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Status:</span>
-          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${statusFilter === 'all'
-                ? 'bg-white text-zinc-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setStatusFilter('unsolved')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${statusFilter === 'unsolved'
-                ? 'bg-white text-amber-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
-              Unsolved
-            </button>
-            <button
-              onClick={() => setStatusFilter('solved')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${statusFilter === 'solved'
-                ? 'bg-white text-emerald-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              <CheckCircle2 className="w-3 h-3" />
-              Solved
-            </button>
+        {/* Status & Difficulty Filters Row */}
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+          {/* Status Filter */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Status:</span>
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${statusFilter === 'all'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setStatusFilter('unsolved')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${statusFilter === 'unsolved'
+                  ? 'bg-white text-amber-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                Unsolved
+              </button>
+              <button
+                onClick={() => setStatusFilter('solved')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${statusFilter === 'solved'
+                  ? 'bg-white text-emerald-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                Solved
+              </button>
+            </div>
           </div>
-          {statusFilter !== 'all' && (
+
+          {/* Difficulty Filter */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Difficulty:</span>
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setDifficultyFilter('all')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${difficultyFilter === 'all'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setDifficultyFilter('easy')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'easy'
+                  ? 'bg-white text-emerald-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                Easy
+              </button>
+              <button
+                onClick={() => setDifficultyFilter('medium')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'medium'
+                  ? 'bg-white text-amber-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                Medium
+              </button>
+              <button
+                onClick={() => setDifficultyFilter('hard')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'hard'
+                  ? 'bg-white text-red-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                Hard
+              </button>
+            </div>
+          </div>
+
+          {/* Results count */}
+          {(statusFilter !== 'all' || difficultyFilter !== 'all') && (
             <span className="text-xs text-gray-400">
               {filteredChallenges.length} result{filteredChallenges.length !== 1 ? 's' : ''}
             </span>
           )}
-        </div>
-
-        {/* Difficulty Filter */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Difficulty:</span>
-          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
-            <button
-              onClick={() => setDifficultyFilter('all')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${difficultyFilter === 'all'
-                ? 'bg-white text-zinc-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setDifficultyFilter('easy')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'easy'
-                ? 'bg-white text-emerald-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-emerald-400" />
-              Easy
-            </button>
-            <button
-              onClick={() => setDifficultyFilter('medium')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'medium'
-                ? 'bg-white text-amber-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-amber-400" />
-              Medium
-            </button>
-            <button
-              onClick={() => setDifficultyFilter('hard')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${difficultyFilter === 'hard'
-                ? 'bg-white text-red-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              <div className="w-2 h-2 rounded-full bg-red-400" />
-              Hard
-            </button>
-          </div>
         </div>
 
         {/* Categories Header / Count */}
