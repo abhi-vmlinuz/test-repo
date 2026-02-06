@@ -15,6 +15,7 @@ import ChallengeDetail from '@/pages/ChallengeDetail';
 import Leaderboard from '@/pages/Leaderboard';
 import Profile from '@/pages/Profile';
 import PublicProfile from '@/pages/PublicProfile';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 
 // Static/Info Pages
 import AboutUs from '@/pages/AboutUs';
@@ -121,6 +122,7 @@ function App() {
           {/* Public routes */}
           <Route path="/" element={user ? <Navigate to="/dashboard" /> : <LandingPage />} />
           <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <LoginPage setUser={setUser} />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/pricing" element={<PricingPage user={user} />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/careers" element={<Careers />} />

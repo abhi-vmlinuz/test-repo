@@ -183,14 +183,20 @@ const LoginPage = ({ setUser }) => {
         }
     };
 
-    const handleForgotPassword = (e) => {
+    const handleForgotPassword = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setTimeout(() => {
-            toast.success("Reset instructions sent.");
+        try {
+            await axios.post(`${API}/auth/password-reset/request`, {
+                email: formData.email
+            });
+            toast.success('Reset instructions sent to your email!');
             setShowForgotPassword(false);
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Failed to send reset email');
+        } finally {
             setLoading(false);
-        }, 1500);
+        }
     };
 
     const handleGoogleLogin = async () => {
@@ -256,10 +262,10 @@ const LoginPage = ({ setUser }) => {
                             className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
                         >
                             {/* Header */}
-                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200/50 px-6 py-5">
+                            <div className="bg-gradient-to-r from-zinc-50 to-gray-100 border-b border-zinc-200/50 px-6 py-5">
                                 <div className="flex items-start gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                                        <AlertTriangle className="w-6 h-6 text-amber-600" />
+                                    <div className="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center flex-shrink-0">
+                                        <Shield className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-900">Active Session Detected</h3>
@@ -267,7 +273,7 @@ const LoginPage = ({ setUser }) => {
                                     </div>
                                     <button
                                         onClick={() => setSessionConflict({ show: false, step: 'confirm' })}
-                                        className="ml-auto p-1.5 hover:bg-amber-100 rounded-lg transition-colors"
+                                        className="ml-auto p-1.5 hover:bg-zinc-100 rounded-lg transition-colors"
                                     >
                                         <X className="w-5 h-5 text-gray-500" />
                                     </button>
@@ -315,7 +321,7 @@ const LoginPage = ({ setUser }) => {
                                             <Button
                                                 onClick={handleForceLogoutRequest}
                                                 disabled={loading}
-                                                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+                                                className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white"
                                             >
                                                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Force Logout & Login'}
                                             </Button>
@@ -324,8 +330,8 @@ const LoginPage = ({ setUser }) => {
                                 ) : (
                                     <>
                                         <div className="text-center mb-6">
-                                            <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-                                                <Mail className="w-8 h-8 text-emerald-600" />
+                                            <div className="w-16 h-16 rounded-full bg-zinc-100 flex items-center justify-center mx-auto mb-4">
+                                                <Mail className="w-8 h-8 text-zinc-700" />
                                             </div>
                                             <h4 className="text-lg font-semibold text-gray-900">Check your email</h4>
                                             <p className="text-sm text-gray-500 mt-1">
@@ -345,7 +351,7 @@ const LoginPage = ({ setUser }) => {
                                                     value={digit}
                                                     onChange={(e) => handleOtpChange(index, e.target.value)}
                                                     onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                                                    className="w-12 h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                                                    className="w-12 h-14 text-center text-xl font-bold border-2 border-gray-200 rounded-xl focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/20 outline-none transition-all"
                                                 />
                                             ))}
                                         </div>
@@ -353,14 +359,14 @@ const LoginPage = ({ setUser }) => {
                                         {/* Timer */}
                                         {otpExpiry > 0 && (
                                             <p className="text-center text-sm text-gray-500 mb-6">
-                                                Code expires in <span className="font-mono font-medium text-amber-600">{formatTime(otpExpiry)}</span>
+                                                Code expires in <span className="font-mono font-medium text-zinc-700">{formatTime(otpExpiry)}</span>
                                             </p>
                                         )}
 
                                         <Button
                                             onClick={handleVerifyOtp}
                                             disabled={loading || otpCode.join('').length !== 6}
-                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11"
+                                            className="w-full bg-zinc-900 hover:bg-zinc-800 text-white h-11"
                                         >
                                             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify & Login'}
                                         </Button>

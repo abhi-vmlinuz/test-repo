@@ -83,6 +83,8 @@ SMTP_FROM_NAME = os.environ.get('SMTP_FROM_NAME', 'ZecurX CTF')
 # Session Configuration
 SESSION_EXPIRY_HOURS = 24  # Sessions expire after 24 hours
 OTP_EXPIRY_MINUTES = 5     # OTP codes expire after 5 minutes
+PASSWORD_RESET_EXPIRY_MINUTES = 60  # Password reset tokens expire after 60 minutes
+
 
 # Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -543,6 +545,150 @@ async def verify_otp(conn, user_id: str, otp_code: str, purpose: str = 'force_lo
     return False
 
 
+def generate_reset_token() -> str:
+    """Generate a secure password reset token (URL-safe)"""
+    return secrets.token_urlsafe(32)
+
+
+async def create_password_reset_token(conn, user_id: str, email: str) -> str:
+    """Create and store password reset token"""
+    token = generate_reset_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_EXPIRY_MINUTES)
+    
+    # Invalidate any existing reset tokens for this user
+    await conn.execute('''
+        DELETE FROM ctf_otp_codes 
+        WHERE user_id = $1 AND purpose = 'password_reset' AND is_used = false
+    ''', user_id)
+    
+    # Store token (using ctf_otp_codes table with purpose = 'password_reset')
+    await conn.execute('''
+        INSERT INTO ctf_otp_codes (user_id, email, code, purpose, expires_at)
+        VALUES ($1, $2, $3, 'password_reset', $4)
+    ''', user_id, email, token, expires_at)
+    
+    return token
+
+
+async def verify_reset_token(conn, token: str) -> Optional[dict]:
+    """Verify password reset token and return user info"""
+    result = await conn.fetchrow('''
+        SELECT o.id, o.user_id, o.email, u.name
+        FROM ctf_otp_codes o
+        JOIN users u ON u.id = o.user_id
+        WHERE o.code = $1 AND o.purpose = 'password_reset'
+              AND o.is_used = false AND o.expires_at > NOW()
+    ''', token)
+    
+    return dict(result) if result else None
+
+
+async def consume_reset_token(conn, token: str) -> bool:
+    """Mark reset token as used"""
+    result = await conn.execute('''
+        UPDATE ctf_otp_codes SET is_used = true, used_at = NOW()
+        WHERE code = $1 AND purpose = 'password_reset' AND is_used = false
+    ''', token)
+    return 'UPDATE 1' in result
+
+
+def send_password_reset_email(to_email: str, user_name: str, reset_token: str) -> bool:
+    """Send password reset email with token link"""
+    if not SMTP_USER or not SMTP_PASS:
+        logger.warning("SMTP not configured - cannot send password reset email")
+        return False
+    
+    try:
+        reset_url = f"https://ctf.zecurx.com/reset-password?token={reset_token}"
+        
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'Reset Your ZecurX Password'
+        msg['From'] = f"{SMTP_FROM_NAME} <{SMTP_FROM}>"
+        msg['To'] = to_email
+        
+        text_content = f"""
+Hi {user_name},
+
+You requested to reset your password for your ZecurX CTF account.
+
+Click the link below to reset your password:
+{reset_url}
+
+This link will expire in 60 minutes.
+
+If you didn't request this, you can safely ignore this email.
+
+- The ZecurX Team
+        """.strip()
+        
+        html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f5f5f5;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+        <tr>
+            <td style="padding: 40px 30px; text-align: center; background-color: #09090b;">
+                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;">ZecurX CTF</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 40px 30px;">
+                <h2 style="margin: 0 0 20px 0; color: #09090b; font-size: 20px;">Reset Your Password</h2>
+                <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                    Hi {user_name},
+                </p>
+                <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                    You requested to reset your password for your ZecurX CTF account. Click the button below to set a new password:
+                </p>
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td style="text-align: center;">
+                            <a href="{reset_url}" style="display: inline-block; padding: 14px 32px; background-color: #09090b; color: #ffffff; text-decoration: none; font-weight: 600; font-size: 16px; border-radius: 8px;">
+                                Reset Password
+                            </a>
+                        </td>
+                    </tr>
+                </table>
+                <p style="color: #888888; font-size: 14px; line-height: 1.6; margin: 30px 0 0 0;">
+                    This link will expire in <strong>60 minutes</strong>.
+                </p>
+                <p style="color: #888888; font-size: 14px; line-height: 1.6; margin: 10px 0 0 0;">
+                    If you didn't request this, you can safely ignore this email.
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 20px 30px; text-align: center; background-color: #fafafa; border-top: 1px solid #eaeaea;">
+                <p style="color: #888888; font-size: 12px; margin: 0;">
+                    © 2026 ZecurX. All rights reserved.
+                </p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+        """.strip()
+        
+        msg.attach(MIMEText(text_content, 'plain'))
+        msg.attach(MIMEText(html_content, 'html'))
+        
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+        
+        logger.info(f"Password reset email sent to {to_email}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+        return False
+
+
 # ===========================================
 # MIDDLEWARE CLASSES
 # ===========================================
@@ -987,8 +1133,116 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
         return {'success': True, 'message': 'Logged out successfully'}
 
 
+# Password Reset Request Model
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+
+@api_router.post("/auth/password-reset/request")
+async def request_password_reset(data: PasswordResetRequest):
+    """Request password reset - sends email with reset link"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Find user by email
+        user = await conn.fetchrow('''
+            SELECT id, name, email FROM users
+            WHERE LOWER(email) = LOWER($1)
+        ''', data.email)
+        
+        # Always return success to prevent email enumeration attacks
+        if not user:
+            logger.info(f"Password reset requested for non-existent email: {data.email}")
+            return {
+                'success': True,
+                'message': 'If an account exists with this email, you will receive reset instructions.'
+            }
+        
+        # Create reset token
+        token = await create_password_reset_token(conn, user['id'], user['email'])
+        
+        # Send email
+        email_sent = send_password_reset_email(user['email'], user['name'], token)
+        
+        if not email_sent:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to send reset email. Please try again later."
+            )
+        
+        logger.info(f"Password reset requested for user {user['email']}")
+        
+        return {
+            'success': True,
+            'message': 'If an account exists with this email, you will receive reset instructions.'
+        }
+
+
+@api_router.get("/auth/password-reset/verify")
+async def verify_password_reset_token(token: str):
+    """Verify if a password reset token is valid"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        result = await verify_reset_token(conn, token)
+        
+        if not result:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired reset link. Please request a new one."
+            )
+        
+        return {
+            'valid': True,
+            'email': result['email'][:3] + '***@' + result['email'].split('@')[1]
+        }
+
+
+@api_router.post("/auth/password-reset/confirm")
+async def confirm_password_reset(data: PasswordResetConfirm):
+    """Confirm password reset with token and new password"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Verify token
+        token_data = await verify_reset_token(conn, data.token)
+        
+        if not token_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired reset link. Please request a new one."
+            )
+        
+        # Hash new password with Argon2 (LMS format)
+        ph = argon2.PasswordHasher()
+        hashed_password = ph.hash(data.new_password)
+        
+        # Update password
+        await conn.execute('''
+            UPDATE users SET password = $1 WHERE id = $2
+        ''', hashed_password, token_data['user_id'])
+        
+        # Consume token
+        await consume_reset_token(conn, data.token)
+        
+        # Invalidate all sessions for this user (security)
+        await invalidate_user_sessions(conn, token_data['user_id'])
+        
+        logger.info(f"Password reset completed for user {token_data['email']}")
+        
+        return {
+            'success': True,
+            'message': 'Password has been reset successfully. Please log in with your new password.'
+        }
+
+
+
+
 @api_router.get("/auth/me")
 async def get_me(current_user: dict = Depends(get_current_user)):
+
     """Get current user info"""
     return current_user
 
