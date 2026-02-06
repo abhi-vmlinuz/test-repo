@@ -537,6 +537,9 @@ const LoginPage = ({ setUser }) => {
                                             className="bg-white"
                                         />
                                     </div>
+                                    <p className="text-xs text-gray-400 bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                                        🔒 For security, you'll see a success message whether or not an account exists with this email.
+                                    </p>
                                     <div className="flex gap-3">
                                         <Button type="button" variant="outline" onClick={() => setShowForgotPassword(false)} className="flex-1">Cancel</Button>
                                         <Button type="submit" disabled={loading} className="flex-1 bg-zinc-900 text-white hover:bg-gray-800">Send Link</Button>
