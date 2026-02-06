@@ -476,6 +476,15 @@ async def get_active_session(conn, user_id: str) -> Optional[dict]:
         WHERE expires_at < NOW() AND is_active = true
     ''')
     
+    # Also invalidate stale sessions (no activity for 2+ hours)
+    # This prevents false positives from abandoned sessions
+    await conn.execute('''
+        UPDATE ctf_active_sessions 
+        SET is_active = false 
+        WHERE is_active = true 
+        AND last_activity_at < NOW() - INTERVAL '2 hours'
+    ''')
+    
     session = await conn.fetchrow('''
         SELECT id, session_token, ip_address, user_agent, created_at, last_activity_at
         FROM ctf_active_sessions
@@ -485,6 +494,7 @@ async def get_active_session(conn, user_id: str) -> Optional[dict]:
     ''', user_id)
     
     return dict(session) if session else None
+
 
 async def invalidate_user_sessions(conn, user_id: str) -> int:
     """Invalidate all active sessions for a user (for force logout)"""
@@ -825,6 +835,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                     social_links = json.loads(user['social_links']) if isinstance(user['social_links'], str) else (user['social_links'] or {})
                 except:
                     pass
+            
+            # Update session last_activity_at (heartbeat to keep session alive)
+            await conn.execute('''
+                UPDATE ctf_active_sessions 
+                SET last_activity_at = NOW() 
+                WHERE user_id = $1 AND is_active = true
+            ''', user_id)
             
             role_map = {
                 'SUPERADMIN': 'superadmin', 
