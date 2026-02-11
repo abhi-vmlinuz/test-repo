@@ -8191,7 +8191,7 @@ async def ensure_feature_flags_table():
 
 
 @api_router.get("/features")
-async def get_active_features(current_user: Optional[dict] = Depends(get_optional_user)):
+async def get_active_features(current_user: Optional[dict] = Depends(get_current_user_optional)):
     """Get features accessible to the current user.
     - Everyone sees 'enabled' features.
     - Only superadmin sees 'beta' features.
