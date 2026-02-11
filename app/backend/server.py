@@ -889,6 +889,35 @@ async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     return current_user
 
 
+async def require_superadmin(current_user: dict = Depends(get_current_user)) -> dict:
+    """Require superadmin role only"""
+    if current_user.get('role') != 'superadmin':
+        raise HTTPException(status_code=403, detail="Superadmin access required")
+    return current_user
+
+
+async def require_feature(feature_key: str, current_user: dict) -> bool:
+    """Check if a feature is accessible by the current user.
+    Returns True if accessible, raises 403 if not."""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        flag = await conn.fetchrow(
+            'SELECT status FROM feature_flags WHERE key = $1', feature_key
+        )
+        if not flag:
+            return True  # Unknown features default to accessible
+
+        status = flag['status']
+        if status == 'enabled':
+            return True
+        elif status == 'beta':
+            if current_user.get('role') != 'superadmin':
+                raise HTTPException(status_code=403, detail="Feature not available")
+            return True
+        else:
+            raise HTTPException(status_code=403, detail="Feature not available")
+
+
 # ===========================================
 # BASIC ROUTES
 # ===========================================
@@ -8127,6 +8156,148 @@ async def startup():
     
     # Start background janitor for Nexus
     asyncio.create_task(nexus_cleanup_janitor_task())
+
+
+# ===========================================
+# FEATURE FLAGS (Superadmin Only)
+# ===========================================
+
+class FeatureFlagCreate(BaseModel):
+    key: str
+    name: str
+    description: str = ""
+    status: str = "disabled"  # disabled | beta | enabled
+
+class FeatureFlagUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None  # disabled | beta | enabled
+
+
+async def ensure_feature_flags_table():
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS feature_flags (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                key TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'disabled' CHECK (status IN ('disabled', 'beta', 'enabled')),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        ''')
+
+
+@api_router.get("/features")
+async def get_active_features(current_user: Optional[dict] = Depends(get_optional_user)):
+    """Get features accessible to the current user.
+    - Everyone sees 'enabled' features.
+    - Only superadmin sees 'beta' features.
+    - 'disabled' features are hidden from everyone.
+    """
+    await ensure_feature_flags_table()
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch('SELECT key, name, description, status FROM feature_flags')
+
+        is_superadmin = current_user and current_user.get('role') == 'superadmin'
+        features = {}
+        for row in rows:
+            if row['status'] == 'enabled':
+                features[row['key']] = {
+                    'name': row['name'],
+                    'description': row['description'],
+                    'status': row['status'],
+                    'beta': False
+                }
+            elif row['status'] == 'beta' and is_superadmin:
+                features[row['key']] = {
+                    'name': row['name'],
+                    'description': row['description'],
+                    'status': row['status'],
+                    'beta': True
+                }
+            # 'disabled' features are never returned
+
+        return features
+
+
+@api_router.get("/admin/features")
+async def list_feature_flags(admin: dict = Depends(require_superadmin)):
+    """List all feature flags (superadmin only)"""
+    await ensure_feature_flags_table()
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            'SELECT id, key, name, description, status, created_at, updated_at FROM feature_flags ORDER BY created_at DESC'
+        )
+        return [dict(r) for r in rows]
+
+
+@api_router.post("/admin/features")
+async def create_feature_flag(flag: FeatureFlagCreate, admin: dict = Depends(require_superadmin)):
+    """Create a new feature flag (superadmin only)"""
+    if flag.status not in ('disabled', 'beta', 'enabled'):
+        raise HTTPException(status_code=400, detail="Status must be: disabled, beta, or enabled")
+
+    await ensure_feature_flags_table()
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow('SELECT id FROM feature_flags WHERE key = $1', flag.key)
+        if existing:
+            raise HTTPException(status_code=409, detail="Feature flag with this key already exists")
+
+        row = await conn.fetchrow('''
+            INSERT INTO feature_flags (key, name, description, status)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, key, name, description, status, created_at, updated_at
+        ''', flag.key, flag.name, flag.description, flag.status)
+
+        logger.info(f"Feature flag created: {flag.key} ({flag.status}) by {admin.get('username')}")
+        return dict(row)
+
+
+@api_router.put("/admin/features/{flag_key}")
+async def update_feature_flag(flag_key: str, update: FeatureFlagUpdate, admin: dict = Depends(require_superadmin)):
+    """Update a feature flag (superadmin only)"""
+    if update.status and update.status not in ('disabled', 'beta', 'enabled'):
+        raise HTTPException(status_code=400, detail="Status must be: disabled, beta, or enabled")
+
+    await ensure_feature_flags_table()
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow('SELECT * FROM feature_flags WHERE key = $1', flag_key)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Feature flag not found")
+
+        new_name = update.name if update.name is not None else existing['name']
+        new_desc = update.description if update.description is not None else existing['description']
+        new_status = update.status if update.status is not None else existing['status']
+
+        row = await conn.fetchrow('''
+            UPDATE feature_flags SET name = $1, description = $2, status = $3, updated_at = NOW()
+            WHERE key = $4
+            RETURNING id, key, name, description, status, created_at, updated_at
+        ''', new_name, new_desc, new_status, flag_key)
+
+        logger.info(f"Feature flag updated: {flag_key} -> {new_status} by {admin.get('username')}")
+        return dict(row)
+
+
+@api_router.delete("/admin/features/{flag_key}")
+async def delete_feature_flag(flag_key: str, admin: dict = Depends(require_superadmin)):
+    """Delete a feature flag (superadmin only)"""
+    await ensure_feature_flags_table()
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute('DELETE FROM feature_flags WHERE key = $1', flag_key)
+        if result == 'DELETE 0':
+            raise HTTPException(status_code=404, detail="Feature flag not found")
+
+        logger.info(f"Feature flag deleted: {flag_key} by {admin.get('username')}")
+        return {"message": f"Feature flag '{flag_key}' deleted"}
 
 
 @app.on_event("shutdown")

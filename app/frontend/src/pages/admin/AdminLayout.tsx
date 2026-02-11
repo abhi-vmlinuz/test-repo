@@ -3,7 +3,7 @@ import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { toast } from '../../App';
 import {
     LayoutDashboard, Flag, FolderOpen, Users, FileText,
-    LogOut, Shield, ChevronRight, GraduationCap, Bell, Menu, X, Zap, Cloud, Package
+    LogOut, Shield, ChevronRight, GraduationCap, Bell, Menu, X, Zap, Cloud, Package, FlaskConical
 } from 'lucide-react';
 import CreativeBackground from '../../components/CreativeBackground';
 
@@ -30,6 +30,9 @@ const AdminLayout = ({ user, logout }) => {
         { id: 'student-portal', icon: GraduationCap, label: 'Student Portal', path: '/admin/student-portal' },
         { id: 'registry', icon: Package, label: 'Image Registry', path: '/admin/registry' },
         { id: 'nexus', icon: Cloud, label: 'Nexus Engine', path: '/admin/nexus' },
+        ...(user?.role === 'superadmin' ? [
+            { id: 'feature-flags', icon: FlaskConical, label: 'Feature Flags', path: '/admin/feature-flags' },
+        ] : []),
     ];
 
     const isActive = (path) => {
