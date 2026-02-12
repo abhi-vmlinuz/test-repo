@@ -11,6 +11,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
+import TerminalComponent from '@/components/TerminalComponent';
+import BetaFeature from '@/components/BetaFeature';
+
+// Conductor URL: set via VITE_CONDUCTOR_URL for production (Cloudflare Tunnel)
+const CONDUCTOR_URL = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
 
 const ChallengeDetail = ({ user, logout }) => {
   const { id } = useParams();
@@ -38,6 +43,70 @@ const ChallengeDetail = ({ user, logout }) => {
   const [visibleHints, setVisibleHints] = useState<number[]>([]); // Track which unlocked hints are currently visible
 
   // Persist startingDocker state to sessionStorage
+
+  // Terminal State
+  const [terminalVmId, setTerminalVmId] = useState<string | null>(null);
+  const [startingTerminal, setStartingTerminal] = useState(false);
+  const [showOsModal, setShowOsModal] = useState(false);
+  const [selectedDistro, setSelectedDistro] = useState('kali');
+  const [availableDistros, setAvailableDistros] = useState<{ name: string, default: boolean }[]>([]);
+
+  const fetchDistros = async () => {
+    try {
+      const res = await axios.get(`${CONDUCTOR_URL}/api/v1/distros`);
+      if (res.data.success) {
+        setAvailableDistros(res.data.data);
+        const defaultDistro = res.data.data.find(d => d.default);
+        if (defaultDistro) setSelectedDistro(defaultDistro.name);
+      }
+    } catch (e) {
+      console.error("Failed to fetch distros:", e);
+      // Fallback if conductor offline
+      setAvailableDistros([{ name: 'kali', default: true }, { name: 'ubuntu', default: false }]);
+    }
+  };
+
+  const handleOpenTerminalModal = () => {
+    fetchDistros();
+    setShowOsModal(true);
+  };
+
+  const handleStartTerminal = async () => {
+    setStartingTerminal(true);
+    try {
+      // Get artifact URLs to inject
+      const artifactUrls = artifacts.map(a => `${API}/artifacts/download/${a.id}`);
+
+      const res = await axios.post(`${CONDUCTOR_URL}/api/v1/vms`, {
+        challenge_id: id,
+        user_id: user?.id || 'anonymous',
+        distro: selectedDistro,
+        artifacts: artifactUrls
+      });
+
+      if (res.data.success) {
+        setTerminalVmId(res.data.data.id);
+        setShowOsModal(false);
+        toast.success(`Terminal environment started (${selectedDistro})`);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to start terminal environment. Is the conductor running?");
+    } finally {
+      setStartingTerminal(false);
+    }
+  };
+
+  const handleStopTerminal = async () => {
+    if (!terminalVmId) return;
+    try {
+      await axios.delete(`${CONDUCTOR_URL}/api/v1/vms/${terminalVmId}`);
+      setTerminalVmId(null);
+      toast.info("Terminal session ended");
+    } catch (e) {
+      console.error(e);
+    }
+  };
   useEffect(() => {
     if (startingDocker) {
       sessionStorage.setItem(`docker-starting-${id}`, 'true');
@@ -407,7 +476,7 @@ const ChallengeDetail = ({ user, logout }) => {
       <div className="grid lg:grid-cols-12 gap-8 relative">
 
         {/* Main Content Column */}
-        <div className="lg:col-span-8 space-y-8">
+        <div className={`${terminalVmId ? 'lg:col-span-6 h-[calc(100vh-8rem)] overflow-y-auto pr-2' : 'lg:col-span-8'} space-y-8 transition-all duration-300`}>
 
           {/* Header Card */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`bg-white rounded-2xl border ${isSolved ? 'border-emerald-200 shadow-emerald-50' : 'border-gray-200'} shadow-sm overflow-hidden relative`}>
@@ -760,111 +829,217 @@ const ChallengeDetail = ({ user, logout }) => {
 
         </div>
 
-        {/* Sidebar Column */}
-        <div className="lg:col-span-4 space-y-8">
 
-          {/* Intel / Hints Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden sticky top-24">
-            <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-amber-500" />
-                <h2 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">Hints</h2>
+        {/* Terminal Column */}
+        {terminalVmId && (
+          <div className="lg:col-span-6 h-[calc(100vh-8rem)] sticky top-24">
+            <TerminalComponent
+              vmId={terminalVmId}
+              onClose={handleStopTerminal}
+            />
+          </div>
+        )}
+
+        {/* Sidebar Column - Hide when terminal is open to make space */}
+        {!terminalVmId && (
+          <div className="lg:col-span-4 space-y-8">
+
+            {/* Internal Terminal Launch Card (Beta) */}
+            <BetaFeature name="firecracker_terminal">
+              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 shadow-xl overflow-hidden relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                <div className="p-6 relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center border border-zinc-700 shadow-inner">
+                      <Terminal className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 uppercase text-[10px] tracking-wider font-bold">
+                      Beta Access
+                    </Badge>
+                  </div>
+
+                  <h3 className="text-white font-bold text-lg mb-2">Internal Terminal</h3>
+                  <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+                    Launch a pro-grade Kali Linux environment directly in your browser. No VPN required.
+                  </p>
+
+                  <Button
+                    onClick={handleOpenTerminalModal}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold border-0 shadow-lg shadow-emerald-900/20"
+                  >
+                    <Play className="w-4 h-4 mr-2 fill-current" />
+                    Launch Terminal
+                  </Button>
+                </div>
               </div>
-            </div>
+            </BetaFeature>
 
-            <div className="p-0">
-              {challenge.hints && challenge.hints.length > 0 ? (
-                <div className="divide-y divide-gray-100">
-                  {challenge.hints.map((hint, index) => {
-                    const isVisible = visibleHints.includes(index);
-                    return (
-                      <div key={index} className="p-4">
-                        <div
-                          className="flex items-center justify-between cursor-pointer group"
-                          onClick={() => {
-                            if (isVisible) {
-                              setVisibleHints(prev => prev.filter(i => i !== index));
-                            } else {
-                              setVisibleHints(prev => [...prev, index]);
-                            }
-                          }}
-                        >
-                          <span className="font-bold text-sm text-gray-700">Hint #{index + 1}</span>
-                          <button
-                            className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-400 group-hover:text-gray-600"
-                            title={isVisible ? 'Hide hint' : 'Show hint'}
+            {/* Intel / Hints Card */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden sticky top-24">
+              <div className="bg-gray-50/50 px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-amber-500" />
+                  <h2 className="text-sm font-bold text-zinc-900 uppercase tracking-wide">Hints</h2>
+                </div>
+              </div>
+
+              <div className="p-0">
+                {challenge.hints && challenge.hints.length > 0 ? (
+                  <div className="divide-y divide-gray-100">
+                    {challenge.hints.map((hint, index) => {
+                      const isVisible = visibleHints.includes(index);
+                      return (
+                        <div key={index} className="p-4">
+                          <div
+                            className="flex items-center justify-between cursor-pointer group"
+                            onClick={() => {
+                              if (isVisible) {
+                                setVisibleHints(prev => prev.filter(i => i !== index));
+                              } else {
+                                setVisibleHints(prev => [...prev, index]);
+                              }
+                            }}
                           >
-                            {isVisible ? (
-                              <EyeOff className="w-4 h-4" />
-                            ) : (
-                              <Eye className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-
-                        {isVisible && (
-                          <div className="mt-3 bg-amber-50/50 p-3 rounded-lg border border-amber-100 text-sm text-gray-700 animate-in fade-in slide-in-from-top-1 duration-200">
-                            {hint.text}
+                            <span className="font-bold text-sm text-gray-700">Hint #{index + 1}</span>
+                            <button
+                              className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-400 group-hover:text-gray-600"
+                              title={isVisible ? 'Hide hint' : 'Show hint'}
+                            >
+                              {isVisible ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <p className="text-gray-400 text-sm italic">No hints available for this challenge.</p>
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Challenge IP for Docker challenges */}
-          {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container) && dockerInstance && (
+                          {isVisible && (
+                            <div className="mt-3 bg-amber-50/50 p-3 rounded-lg border border-amber-100 text-sm text-gray-700 animate-in fade-in slide-in-from-top-1 duration-200">
+                              {hint.text}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <p className="text-gray-400 text-sm italic">No hints available for this challenge.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Challenge IP for Docker challenges */}
+            {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container) && dockerInstance && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Challenge IP</h3>
+                <div
+                  className="bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-gray-100 transition-colors border border-gray-200"
+                  onClick={() => {
+                    navigator.clipboard.writeText(dockerInstance.target_ip);
+                    toast.success('IP copied!');
+                  }}
+                >
+                  <p className="text-gray-900 font-mono text-xl font-bold text-center">{dockerInstance.target_ip}</p>
+                  <p className="text-gray-400 text-xs text-center mt-2">Click to copy</p>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Time left:</span>
+                  <span className={`font-mono font-medium ${remainingTime.mins < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
+                    {remainingTime.mins}m {remainingTime.secs}s
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Tags Card */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Challenge IP</h3>
-              <div
-                className="bg-gray-50 rounded-lg p-4 cursor-pointer hover:bg-gray-100 transition-colors border border-gray-200"
-                onClick={() => {
-                  navigator.clipboard.writeText(dockerInstance.target_ip);
-                  toast.success('IP copied!');
-                }}
-              >
-                <p className="text-gray-900 font-mono text-xl font-bold text-center">{dockerInstance.target_ip}</p>
-                <p className="text-gray-400 text-xs text-center mt-2">Click to copy</p>
-              </div>
-              <div className="mt-4 flex items-center justify-between text-sm">
-                <span className="text-gray-500">Time left:</span>
-                <span className={`font-mono font-medium ${remainingTime.mins < 20 ? 'text-amber-600' : 'text-gray-700'}`}>
-                  {remainingTime.mins}m {remainingTime.secs}s
-                </span>
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Challenge Tags</h3>
+              <div className="flex flex-wrap gap-2">
+                {challenge.category_name && (
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
+                    {challenge.category_name}
+                  </Badge>
+                )}
+                <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
+                  {challenge.difficulty}
+                </Badge>
+                {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container) && (
+                  <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
+                    Lab
+                  </Badge>
+                )}
               </div>
             </div>
-          )}
 
-          {/* Tags Card */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Challenge Tags</h3>
-            <div className="flex flex-wrap gap-2">
-              {challenge.category_name && (
-                <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
-                  {challenge.category_name}
-                </Badge>
-              )}
-              <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
-                {challenge.difficulty}
-              </Badge>
-              {(challenge.docker_image || challenge.has_docker || challenge.is_multi_container) && (
-                <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
-                  Lab
-                </Badge>
-              )}
-            </div>
           </div>
-
-        </div>
+        )}
 
       </div>
+      {/* OS Picker Modal */}
+      {showOsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-zinc-200"
+          >
+            <div className="p-6 border-b border-zinc-100">
+              <h3 className="text-xl font-bold text-zinc-900">Start Terminal Environment</h3>
+              <p className="text-sm text-zinc-500 mt-1">Select an operating system to launch.</p>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 gap-3">
+                {availableDistros.map(distro => (
+                  <button
+                    key={distro.name}
+                    onClick={() => setSelectedDistro(distro.name)}
+                    className={`flex items-center justify-between p-4 rounded-lg border transition-all ${selectedDistro === distro.name
+                      ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500'
+                      : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                      }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedDistro === distro.name ? 'bg-emerald-100 text-emerald-600' : 'bg-zinc-100 text-zinc-500'
+                        }`}>
+                        <Terminal className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <p className={`font-bold capitalize ${selectedDistro === distro.name ? 'text-emerald-900' : 'text-zinc-900'}`}>
+                          {distro.name} Linux
+                        </p>
+                        <p className="text-xs text-zinc-500">Standard Environment</p>
+                      </div>
+                    </div>
+                    {selectedDistro === distro.name && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
+                  </button>
+                ))}
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex gap-3 text-sm text-amber-800">
+                <Lightbulb className="w-5 h-5 flex-shrink-0 text-amber-600" />
+                <p>This will launch a temporary VM. Artifacts from this challenge will be automatically injected into <code>/root/</code>.</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-zinc-50 border-t border-zinc-100 flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setShowOsModal(false)}>Cancel</Button>
+              <Button
+                onClick={handleStartTerminal}
+                className="bg-zinc-900 text-white hover:bg-zinc-800"
+                disabled={startingTerminal}
+              >
+                {startingTerminal ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                Launch Environment
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
     </Layout>
   );
 };

@@ -40,6 +40,7 @@ import AdminNotifications from '@/pages/admin/AdminNotifications';
 import AdminNexus from '@/pages/admin/AdminNexus';
 import AdminImageRegistry from '@/pages/admin/AdminImageRegistry';
 import AdminFeatureFlags from '@/pages/admin/AdminFeatureFlags';
+import TerminalPage from '@/pages/TerminalPage';
 
 import { FeatureProvider } from '@/contexts/FeatureContext';
 
@@ -145,6 +146,7 @@ function App() {
             <Route path="/leaderboard" element={user ? <Leaderboard user={user} logout={logout} /> : <Navigate to="/login" />} />
             <Route path="/profile" element={user ? <Profile user={user} logout={logout} setUser={setUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:userId" element={user ? <PublicProfile user={user} logout={logout} /> : <Navigate to="/login" />} />
+            <Route path="/terminal/:vmId" element={user ? <TerminalPage /> : <Navigate to="/login" />} />
 
 
             {/* Admin routes */}
