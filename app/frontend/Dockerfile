@@ -16,9 +16,12 @@ ARG CACHEBUST=1
 # Copy source code
 COPY . .
 
-# Build argument for API URL
+# Build arguments for environment URLs
 ARG VITE_BACKEND_URL
 ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
+
+ARG VITE_CONDUCTOR_URL
+ENV VITE_CONDUCTOR_URL=$VITE_CONDUCTOR_URL
 
 # Build the application
 RUN npm run build
