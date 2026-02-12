@@ -97,8 +97,18 @@ function App() {
     setLoading(false);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // Invalidate session in backend DB first (fire-and-forget)
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      await axios.post(`${API}/auth/logout`,
+        sessionToken ? { session_token: sessionToken } : {}
+      );
+    } catch {
+      // Continue with local logout even if backend call fails
+    }
     localStorage.removeItem('token');
+    localStorage.removeItem('session_token');
     setUser(null);
     toast.success('Logged out successfully');
   };
