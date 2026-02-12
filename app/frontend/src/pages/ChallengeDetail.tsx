@@ -473,10 +473,10 @@ const ChallengeDetail = ({ user, logout }) => {
         </button>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-8 relative">
+      <div className={`${terminalVmId ? '-mx-6 lg:-mx-10 px-6 lg:px-6 grid grid-cols-1 lg:grid-cols-2 gap-4' : 'grid lg:grid-cols-12 gap-8'} relative`}>
 
         {/* Main Content Column */}
-        <div className={`${terminalVmId ? 'lg:col-span-6 h-[calc(100vh-8rem)] overflow-y-auto pr-2' : 'lg:col-span-8'} space-y-8 transition-all duration-300`}>
+        <div className={`${terminalVmId ? 'h-[calc(100vh-6rem)] overflow-y-auto pr-2 scrollbar-thin' : 'lg:col-span-8'} space-y-8 transition-all duration-300`}>
 
           {/* Header Card */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`bg-white rounded-2xl border ${isSolved ? 'border-emerald-200 shadow-emerald-50' : 'border-gray-200'} shadow-sm overflow-hidden relative`}>
@@ -832,7 +832,7 @@ const ChallengeDetail = ({ user, logout }) => {
 
         {/* Terminal Column */}
         {terminalVmId && (
-          <div className="lg:col-span-6 h-[calc(100vh-8rem)] sticky top-24">
+          <div className="h-[calc(100vh-6rem)] sticky top-20">
             <TerminalComponent
               vmId={terminalVmId}
               onClose={handleStopTerminal}
