@@ -109,8 +109,11 @@ function App() {
     }
     localStorage.removeItem('token');
     localStorage.removeItem('session_token');
+    window.dispatchEvent(new Event('token-changed'));
     setUser(null);
     toast.success('Logged out successfully');
+    // Redirect to login page
+    window.location.href = '/login';
   };
 
   // Check if user is admin

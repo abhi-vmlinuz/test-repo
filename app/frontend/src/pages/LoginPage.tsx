@@ -52,6 +52,7 @@ const LoginPage = ({ setUser }) => {
                 const { token, user, session_token } = event.data.data;
                 localStorage.setItem('token', token);
                 if (session_token) localStorage.setItem('session_token', session_token);
+                window.dispatchEvent(new Event('token-changed'));
                 // Ensure username is set (OAuth might only return name)
                 const userData = {
                     ...user,
@@ -79,6 +80,7 @@ const LoginPage = ({ setUser }) => {
             if (response.data.session_token) {
                 localStorage.setItem('session_token', response.data.session_token);
             }
+            window.dispatchEvent(new Event('token-changed'));
             setUser(response.data.user);
             toast.success(isLogin ? "Welcome back." : "Account created.");
             navigate('/dashboard');
@@ -172,6 +174,7 @@ const LoginPage = ({ setUser }) => {
             if (response.data.session_token) {
                 localStorage.setItem('session_token', response.data.session_token);
             }
+            window.dispatchEvent(new Event('token-changed'));
             setUser(response.data.user);
             toast.success('Logged in successfully!');
             setSessionConflict({ show: false, step: 'confirm' });

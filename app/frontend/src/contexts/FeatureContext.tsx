@@ -48,8 +48,25 @@ export const FeatureProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    // Re-fetch features whenever localStorage token changes (login/logout)
+    // Listen for storage events + re-check on interval for same-tab changes
     useEffect(() => {
         fetchFeatures();
+
+        // Listen for cross-tab storage changes
+        const handleStorage = (e: StorageEvent) => {
+            if (e.key === 'token') fetchFeatures();
+        };
+        window.addEventListener('storage', handleStorage);
+
+        // Also listen for custom event dispatched after login/logout in same tab
+        const handleTokenChange = () => fetchFeatures();
+        window.addEventListener('token-changed', handleTokenChange);
+
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+            window.removeEventListener('token-changed', handleTokenChange);
+        };
     }, []);
 
     const isEnabled = (key: string): boolean => {
