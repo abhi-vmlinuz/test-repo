@@ -7975,6 +7975,44 @@ async def admin_nexus_billing(current_user: dict = Depends(require_admin)):
             return {"history": []}
 
 
+@api_router.get("/admin/nexus/bigquery-billing")
+async def admin_nexus_bigquery_billing(
+    days: int = 30,
+    current_user: dict = Depends(require_admin)
+):
+    """
+    Get real GCP billing data from BigQuery via Nexus Engine.
+    Proxies to Nexus Engine /api/v1/admin/billing endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{NEXUS_ENGINE_URL}/api/v1/admin/billing",
+                params={"days": days},
+                timeout=30.0
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            elif resp.status_code == 503:
+                return {
+                    "error": "BigQuery billing not configured on Nexus Engine",
+                    "message": "Service account credentials may not be set up",
+                    "summary": {"total_cost": 0, "net_cost": 0, "currency": "USD", "projected_monthly": 0},
+                    "daily_breakdown": [],
+                    "service_breakdown": [],
+                    "top_skus": []
+                }
+            else:
+                logger.warning(f"Nexus billing returned {resp.status_code}: {resp.text}")
+                return {"error": f"Nexus Engine returned {resp.status_code}"}
+    except httpx.TimeoutException:
+        return {"error": "Nexus Engine billing request timed out"}
+    except Exception as e:
+        logger.error(f"BigQuery billing proxy error: {e}")
+        return {"error": str(e)}
+
+
+
 @api_router.get("/admin/nexus/nodes")
 async def admin_nexus_nodes(current_user: dict = Depends(require_admin)):
     """

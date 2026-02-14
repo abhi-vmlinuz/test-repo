@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import BillingTab from './BillingTab';
 
 const AdminNexus = () => {
     const [stats, setStats] = useState({ active_sessions: 0, total_pods: 0, total_sessions_today: 0, estimated_cost_today: 0 });
@@ -875,139 +876,9 @@ const AdminNexus = () => {
                 </div>
             )}
 
-            {/* Billing Tab */}
+            {/* Billing Tab - BigQuery GCP Cost Tracking */}
             {activeTab === 'billing' && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Cost Calculator - WHITE THEME */}
-                    <Card className="border border-gray-200 bg-white">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <Calculator className="w-5 h-5 text-gray-500" />
-                                Cost Calculator
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-medium text-gray-700 mb-2 block">Hours per Day</label>
-                                    <Input
-                                        type="number"
-                                        value={hours}
-                                        onChange={(e) => setHours(Number(e.target.value))}
-                                        className="bg-gray-50 border-gray-200"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-gray-700 mb-2 block">Concurrent Users</label>
-                                    <Input
-                                        type="number"
-                                        value={concurrent}
-                                        onChange={(e) => setConcurrent(Number(e.target.value))}
-                                        className="bg-gray-50 border-gray-200"
-                                    />
-                                </div>
-                            </div>
-
-                            <Button onClick={calculatePricing} className="w-full bg-zinc-900 hover:bg-black text-white">
-                                <Calculator className="w-4 h-4 mr-2" />
-                                Calculate Costs
-                            </Button>
-
-                            {pricing && (
-                                <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                    <h4 className="font-semibold text-zinc-900 mb-4">Cost Breakdown</h4>
-
-                                    <div className="space-y-3 text-sm">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-600 flex items-center gap-2">
-                                                <Cpu className="w-4 h-4" /> vCPU (0.25 core)
-                                            </span>
-                                            <span className="font-medium">${pricing.pricing?.breakdown?.['vcpu_0.25'] || '0.0079'}/hr</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-600 flex items-center gap-2">
-                                                <HardDrive className="w-4 h-4" /> Memory (0.5 GB)
-                                            </span>
-                                            <span className="font-medium">${pricing.pricing?.breakdown?.['memory_0.5gb'] || '0.0017'}/hr</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-gray-600 flex items-center gap-2">
-                                                <Network className="w-4 h-4" /> LoadBalancer
-                                            </span>
-                                            <span className="font-medium">${pricing.pricing?.breakdown?.loadbalancer || '0.025'}/hr</span>
-                                        </div>
-
-                                        <div className="border-t border-gray-200 pt-3 mt-3">
-                                            <div className="flex justify-between items-center text-lg">
-                                                <span className="font-semibold text-zinc-900">Per Instance</span>
-                                                <span className="font-bold text-blue-600">${pricing.pricing?.per_instance_per_hour || '0.035'}/hr</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4 mt-6">
-                                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                                            <p className="text-sm text-blue-600">Daily Estimate</p>
-                                            <p className="text-2xl font-bold text-blue-700">${pricing.estimate?.total_cost_usd || '0.00'}</p>
-                                            <p className="text-xs text-blue-500">{pricing.estimate?.total_instance_hours || '0'} hrs</p>
-                                        </div>
-                                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
-                                            <p className="text-sm text-purple-600">Monthly Projection</p>
-                                            <p className="text-2xl font-bold text-purple-700">${pricing.monthly_projection?.monthly_cost_usd || '0.00'}</p>
-                                            <p className="text-xs text-purple-500">30 days</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Billing History */}
-                    <Card className="border border-gray-200 bg-white">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-lg">
-                                <Calendar className="w-5 h-5 text-gray-500" />
-                                Billing History
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {(history.daily_breakdown || []).length > 0 ? (
-                                <>
-                                    <div className="space-y-3">
-                                        {(history.daily_breakdown || []).map((day, idx) => (
-                                            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                <div>
-                                                    <p className="font-medium text-zinc-900">{day.date}</p>
-                                                    <p className="text-sm text-gray-500">{day.sessions} sessions</p>
-                                                </div>
-                                                <p className="text-lg font-semibold text-zinc-900">${day.cost.toFixed(2)}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div className="mt-6 p-4 bg-zinc-900 rounded-lg text-white">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm text-gray-300">Total This Period</p>
-                                                <p className="text-3xl font-bold">${totalBillingCost.toFixed(2)}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-gray-300">Total Sessions</p>
-                                                <p className="text-2xl font-bold">{totalSessions}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="py-8 text-center">
-                                    <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                                    <p className="text-gray-400">No billing data yet</p>
-                                    <p className="text-sm text-gray-300">Usage history will appear here</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </div>
+                <BillingTab API={API} />
             )}
 
             {/* Settings Tab */}
