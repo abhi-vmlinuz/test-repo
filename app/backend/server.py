@@ -2310,7 +2310,7 @@ async def get_challenges(
     query = '''
         SELECT 
             c.id, c."categoryId", c.title, c.description, c.difficulty, 
-            c.points, c."dockerImage", c.hints, c.questions, c.solves, c."isPublished", c.tags,
+            c.points, c."dockerImage", c.hints, c.questions, c.solves, c."isPublished", c.tags, c."hasDocker",
             EXISTS(
                 SELECT 1 FROM ctf_public_progress p 
                 WHERE p."challengeId" = c.id AND p."userId" = $1 AND p.solved = true
@@ -2360,6 +2360,7 @@ async def get_challenges(
                 'total_points': total_points,  # Base + questions
                 'is_solved': ch['is_solved'],
                 'docker_image': ch['dockerImage'],
+                'has_docker': ch.get('hasDocker', False),
                 'hints': hints,
                 'questions': questions,
                 'tags': tags,

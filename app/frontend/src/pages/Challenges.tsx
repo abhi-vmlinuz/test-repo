@@ -402,7 +402,7 @@ const Challenges = ({ user, logout }) => {
                     </div>
 
                     {/* Docker Badge if applicable */}
-                    {challenge.docker_image && (
+                    {(challenge.docker_image || challenge.has_docker) && (
                       <div className="absolute top-4 right-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-1 rounded-full border border-blue-100 flex items-center gap-1">
                         <Container className="w-3 h-3" /> DOCKERIZED
                       </div>
