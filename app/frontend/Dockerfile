@@ -34,7 +34,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 # Accept conductor URL as runtime env for NGINX proxy
 ARG VITE_CONDUCTOR_URL
-ENV CONDUCTOR_PROXY_URL=${VITE_CONDUCTOR_URL}
+ENV CONDUCTOR_PROXY_URL=${VITE_CONDUCTOR_URL:-http://localhost:8081}
 
 COPY <<'NGINXEOF' /etc/nginx/templates/default.conf.template
 server {
