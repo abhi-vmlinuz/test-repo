@@ -8396,7 +8396,7 @@ async def get_all_active_sessions(admin: dict = Depends(require_superadmin)):
 
 
 @api_router.delete("/admin/sessions/active/{session_id}")
-async def force_logout_session(session_id: int, admin: dict = Depends(require_superadmin)):
+async def force_logout_session(session_id: str, admin: dict = Depends(require_superadmin)):
     """Force logout a specific session (superadmin only)"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
