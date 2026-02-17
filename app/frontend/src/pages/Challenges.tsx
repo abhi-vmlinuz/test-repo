@@ -7,14 +7,23 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
-import { Globe, Key, Search, Binary, CheckCircle2, Container, Filter, Lightbulb, Trophy, X } from 'lucide-react';
+import { Globe, Key, Search, Binary, CheckCircle2, Container, Filter, Lightbulb, Trophy, X, Shield, Lock, Code, Database, Server, Terminal, Wifi, Bug, Fingerprint } from 'lucide-react';
 
-const iconMap = {
+const iconMap: Record<string, any> = {
   'Globe': Globe,
   'Key': Key,
   'Search': Search,
   'Binary': Binary,
-  'Lightbulb': Lightbulb  // General Skills
+  'Lightbulb': Lightbulb,
+  'Shield': Shield,
+  'Lock': Lock,
+  'Code': Code,
+  'Database': Database,
+  'Server': Server,
+  'Terminal': Terminal,
+  'Wifi': Wifi,
+  'Bug': Bug,
+  'Fingerprint': Fingerprint
 };
 
 const Challenges = ({ user, logout }) => {
