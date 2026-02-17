@@ -8339,6 +8339,76 @@ async def delete_feature_flag(flag_key: str, admin: dict = Depends(require_super
         return {"message": f"Feature flag '{flag_key}' deleted"}
 
 
+
+# ===========================================
+# ADMIN: SESSION MANAGEMENT (Superadmin Only)
+# ===========================================
+
+@api_router.get("/admin/sessions/active")
+async def get_all_active_sessions(admin: dict = Depends(require_superadmin)):
+    """Get all active sessions across all users (superadmin only)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Clean up expired sessions first
+        await conn.execute('''
+            UPDATE ctf_active_sessions 
+            SET is_active = false 
+            WHERE expires_at < NOW() AND is_active = true
+        ''')
+        
+        # Also clean up stale sessions (2+ hours inactive)
+        await conn.execute('''
+            UPDATE ctf_active_sessions 
+            SET is_active = false 
+            WHERE is_active = true 
+            AND last_activity_at < NOW() - INTERVAL '2 hours'
+        ''')
+        
+        sessions = await conn.fetch('''
+            SELECT 
+                s.id, s.user_id, s.ip_address, s.user_agent, 
+                s.created_at, s.last_activity_at, s.expires_at,
+                u.name as user_name, u.email as user_email, u.avatar_url
+            FROM ctf_active_sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.is_active = true
+            ORDER BY s.last_activity_at DESC
+        ''')
+        
+        # Helper to parse datetime
+        def fmt(dt): return dt.isoformat() if dt else None
+            
+        return [
+            {
+                "id": str(s['id']),
+                "user_id": str(s['user_id']),
+                "user_name": s['user_name'],
+                "user_email": s['user_email'],
+                "user_avatar": s['avatar_url'],
+                "ip_address": s['ip_address'],
+                "user_agent": s['user_agent'],
+                "created_at": fmt(s['created_at']),
+                "last_activity_at": fmt(s['last_activity_at']),
+                "expires_at": fmt(s['expires_at']),
+            }
+            for s in sessions
+        ]
+
+
+@api_router.delete("/admin/sessions/active/{session_id}")
+async def force_logout_session(session_id: int, admin: dict = Depends(require_superadmin)):
+    """Force logout a specific session (superadmin only)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute('UPDATE ctf_active_sessions SET is_active = false WHERE id = $1', session_id)
+        
+        if result == 'UPDATE 0':
+            raise HTTPException(status_code=404, detail="Session not found or already inactive")
+            
+        logger.info(f"Superadmin {admin['username']} terminated session {session_id}")
+        return {"success": True, "message": "Session terminated successfully"}
+
+
 @app.on_event("shutdown")
 async def shutdown():
     logger.info("Shutting down...")

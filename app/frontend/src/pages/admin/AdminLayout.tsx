@@ -32,6 +32,7 @@ const AdminLayout = ({ user, logout }) => {
         { id: 'nexus', icon: Cloud, label: 'Nexus Engine', path: '/admin/nexus' },
         ...(user?.role === 'superadmin' ? [
             { id: 'feature-flags', icon: FlaskConical, label: 'Feature Flags', path: '/admin/feature-flags' },
+            { id: 'active-sessions', icon: Shield, label: 'Active Sessions', path: '/admin/sessions' },
         ] : []),
     ];
 

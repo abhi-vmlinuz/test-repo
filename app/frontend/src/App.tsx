@@ -40,6 +40,7 @@ import AdminNotifications from '@/pages/admin/AdminNotifications';
 import AdminNexus from '@/pages/admin/AdminNexus';
 import AdminImageRegistry from '@/pages/admin/AdminImageRegistry';
 import AdminFeatureFlags from '@/pages/admin/AdminFeatureFlags';
+import AdminActiveSessions from '@/pages/admin/AdminActiveSessions';
 import TerminalPage from '@/pages/TerminalPage';
 
 import { FeatureProvider } from '@/contexts/FeatureContext';
@@ -177,7 +178,10 @@ function App() {
               <Route path="nexus" element={<AdminNexus user={user} logout={logout} />} />
               <Route path="registry" element={<AdminImageRegistry />} />
               {user?.role === 'superadmin' && (
-                <Route path="feature-flags" element={<AdminFeatureFlags user={user} />} />
+                <>
+                  <Route path="feature-flags" element={<AdminFeatureFlags user={user} />} />
+                  <Route path="sessions" element={<AdminActiveSessions />} />
+                </>
               )}
             </Route>
 
