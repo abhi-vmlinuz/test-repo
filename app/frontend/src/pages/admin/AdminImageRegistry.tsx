@@ -509,7 +509,7 @@ const AdminImageRegistry = () => {
                                 <Input
                                     value={ghcrConfig.username}
                                     onChange={(e) => setGhcrConfig(prev => ({ ...prev, username: e.target.value }))}
-                                    placeholder="e.g., Abhizzz123"
+                                    placeholder="e.g., abhi-vmlinuz"
                                 />
                             </div>
                             <div>
