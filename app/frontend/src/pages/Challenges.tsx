@@ -35,6 +35,7 @@ const Challenges = ({ user, logout }) => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'solved' | 'unsolved'>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'docker'>('all');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -127,9 +128,11 @@ const Challenges = ({ user, logout }) => {
 
       const matchesDifficulty = difficultyFilter === 'all' || c.difficulty?.toLowerCase() === difficultyFilter;
 
-      return matchesCategory && matchesSearch && matchesStatus && matchesDifficulty;
+      const matchesType = typeFilter === 'all' || (typeFilter === 'docker' && (c.docker_image || c.has_docker));
+
+      return matchesCategory && matchesSearch && matchesStatus && matchesDifficulty && matchesType;
     });
-  }, [challenges, categories, selectedCategory, debouncedSearch, statusFilter, difficultyFilter, solvedChallenges]);
+  }, [challenges, categories, selectedCategory, debouncedSearch, statusFilter, difficultyFilter, typeFilter, solvedChallenges]);
 
   const getDifficultyStyle = (difficulty) => {
     switch (difficulty) {
@@ -326,8 +329,34 @@ const Challenges = ({ user, logout }) => {
             </div>
           </div>
 
+          {/* Type Filter */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Type:</span>
+            <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setTypeFilter('all')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${typeFilter === 'all'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setTypeFilter('docker')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${typeFilter === 'docker'
+                  ? 'bg-white text-sky-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+                  }`}
+              >
+                <Container className="w-3 h-3" />
+                Docker
+              </button>
+            </div>
+          </div>
+
           {/* Results count */}
-          {(statusFilter !== 'all' || difficultyFilter !== 'all') && (
+          {(statusFilter !== 'all' || difficultyFilter !== 'all' || typeFilter !== 'all') && (
             <span className="text-xs text-gray-400">
               {filteredChallenges.length} result{filteredChallenges.length !== 1 ? 's' : ''}
             </span>
