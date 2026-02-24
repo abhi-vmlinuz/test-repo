@@ -81,7 +81,7 @@ async def generate_og_image(challenge_id: str):
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow("""
-            SELECT c.*, cat.name as category_name, cat.color as category_color
+            SELECT c.*, cat.name as category_name
             FROM ctf_public_challenges c
             LEFT JOIN categories cat ON c."categoryId" = cat.id
             WHERE c.id = $1
