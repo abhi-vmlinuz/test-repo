@@ -3,7 +3,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies including Docker CLI and Git
+# Install system dependencies including Docker CLI, Git, and fonts for OG images
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
     git \
+    fonts-dejavu-core \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
     && chmod a+r /etc/apt/keyrings/docker.gpg \
@@ -32,6 +33,9 @@ COPY . .
 
 # Note: Running as root to access Docker socket
 # In production with Docker socket mounted, this is required
+
+# Create OG image cache directory
+RUN mkdir -p /app/og-cache/categories
 
 # Expose port (FastAPI runs on 4000 in production)
 EXPOSE 4000
