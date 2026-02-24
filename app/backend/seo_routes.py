@@ -10,7 +10,7 @@ from server import Database
 logger = logging.getLogger(__name__)
 seo_router = APIRouter(prefix="/seo", tags=["SEO"])
 
-@seo_router.get("/challenge/{challenge_id}", response_class=HTMLResponse)
+@seo_router.api_route("/challenge/{challenge_id}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def seo_challenge(challenge_id: str):
     """Serve static HTML with OG tags for social media bots"""
     pool = await Database.get_pool()
@@ -75,7 +75,7 @@ async def seo_challenge(challenge_id: str):
         return HTMLResponse(content=html_content)
 
 
-@seo_router.get("/og-image/{challenge_id}")
+@seo_router.api_route("/og-image/{challenge_id}", methods=["GET", "HEAD"])
 async def generate_og_image(challenge_id: str):
     """Dynamically generate an Open Graph preview image for a challenge using Pillow"""
     pool = await Database.get_pool()
