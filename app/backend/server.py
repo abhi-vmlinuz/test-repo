@@ -787,7 +787,10 @@ async def serve_upload(file_path: str):
 
 
 
+from seo_routes import seo_router
+
 api_router = APIRouter(prefix="/api")
+app.include_router(seo_router, prefix="/api")
 security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
 

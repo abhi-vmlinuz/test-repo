@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip, Eye, EyeOff, Share2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import TerminalComponent from '@/components/TerminalComponent';
 import BetaFeature from '@/components/BetaFeature';
@@ -167,6 +167,23 @@ const ChallengeDetail = ({ user, logout }) => {
       clearInterval(pollInterval);
     };
   }, [startingDocker, id]);
+
+  const handleShare = () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({
+        title: `${challenge?.title || 'Challenge'} - ZecurX CTF`,
+        text: `Think you can solve this? Check out ${challenge?.title} on ZecurX CTF!`,
+        url: url
+      }).catch(err => {
+        navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+      });
+    } else {
+      navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard!");
+    }
+  };
 
   // Timer to update remaining time with seconds
   useEffect(() => {
@@ -495,9 +512,19 @@ const ChallengeDetail = ({ user, logout }) => {
             <div className="p-8">
               <div className="flex justify-between items-start mb-4">
                 <h1 className="text-3xl font-extrabold text-zinc-900 tracking-tight leading-tight">{challenge.title}</h1>
-                <Badge variant="outline" className={`${getDifficultyStyle(challenge.difficulty)} px-3 py-1 font-bold uppercase tracking-wider border`}>
-                  {challenge.difficulty}
-                </Badge>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleShare}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-500 hover:text-zinc-900 hover:border-gray-300 hover:bg-gray-50 transition-all shadow-sm"
+                    title="Share Challenge"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Share
+                  </button>
+                  <Badge variant="outline" className={`${getDifficultyStyle(challenge.difficulty)} px-3 py-1 font-bold uppercase tracking-wider border`}>
+                    {challenge.difficulty}
+                  </Badge>
+                </div>
               </div>
 
               <div className="flex items-center gap-6 text-sm text-gray-500 mb-6">

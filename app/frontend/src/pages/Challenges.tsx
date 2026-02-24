@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
-import { Globe, Key, Search, Binary, CheckCircle2, Container, Filter, Lightbulb, Trophy, X, Shield, Lock, Code, Database, Server, Terminal, Wifi, Bug, Fingerprint } from 'lucide-react';
+import { Globe, Key, Search, Binary, CheckCircle2, Container, Filter, Lightbulb, Trophy, X, Shield, Lock, Code, Database, Server, Terminal, Wifi, Bug, Fingerprint, Share2 } from 'lucide-react';
 
 const iconMap: Record<string, any> = {
   'Globe': Globe,
@@ -133,6 +133,25 @@ const Challenges = ({ user, logout }) => {
       return matchesCategory && matchesSearch && matchesStatus && matchesDifficulty && matchesType;
     });
   }, [challenges, categories, selectedCategory, debouncedSearch, statusFilter, difficultyFilter, typeFilter, solvedChallenges]);
+
+  const handleShare = (e, challengeId, title) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/challenges/${challengeId}`;
+    if (navigator.share) {
+      navigator.share({
+        title: `${title} - ZecurX CTF`,
+        text: `Think you can solve this? Check out ${title} on ZecurX CTF!`,
+        url: url
+      }).catch(err => {
+        // Fallback to copy if user cancels or error
+        navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+      });
+    } else {
+      navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard!");
+    }
+  };
 
   const getDifficultyStyle = (difficulty) => {
     switch (difficulty) {
@@ -396,13 +415,25 @@ const Challenges = ({ user, logout }) => {
 
                   <CardContent className="p-6 flex flex-col h-full">
                     {/* Card Header */}
-                    <div className="flex items-start justify-between mb-5">
+                    <div className="flex items-start justify-between mb-5 relative group/header">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${isSolved ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-zinc-600 group-hover:bg-zinc-900 group-hover:text-white'}`}>
                         {isSolved ? <CheckCircle2 className="w-6 h-6" /> : <Icon className="w-6 h-6" strokeWidth={1.5} />}
                       </div>
-                      <Badge variant="outline" className={`${getDifficultyStyle(challenge.difficulty)} px-2.5 py-1 text-[10px] uppercase font-bold tracking-wide border`}>
-                        {challenge.difficulty}
-                      </Badge>
+
+                      <div className="flex items-center gap-2">
+                        {/* Hover Share Button */}
+                        <button
+                          onClick={(e) => handleShare(e, challenge.id, challenge.title)}
+                          className="opacity-0 group-hover/header:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-gray-100 text-gray-400 hover:text-zinc-900 z-10"
+                          title="Share Challenge"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+
+                        <Badge variant="outline" className={`${getDifficultyStyle(challenge.difficulty)} px-2.5 py-1 text-[10px] uppercase font-bold tracking-wide border`}>
+                          {challenge.difficulty}
+                        </Badge>
+                      </div>
                     </div>
 
                     {/* Content */}
