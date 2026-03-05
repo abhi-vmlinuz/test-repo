@@ -5655,8 +5655,8 @@ async def admin_create_challenge_with_docker(
         if docker_client:
             try:
                 # Use GitHub Container Registry (GHCR) for image storage
-                # Images are stored at: ghcr.io/abhi-vmlinuz/ctf-challenges/{short-id}
-                ghcr_username = os.environ.get('GHCR_USERNAME', 'abhi-vmlinuz')
+                # Images are stored at: ghcr.io/<owner>/ctf-challenges/{short-id}
+                ghcr_username = os.environ.get('GHCR_USERNAME', 'zecurx')
                 ghcr_token = os.environ.get('GHCR_TOKEN')  # GitHub PAT with packages:write
                 
                 short_id = challenge_id[:8].lower()
@@ -5790,7 +5790,7 @@ async def admin_update_challenge_with_docker(
         if docker_client:
             try:
                 # Use GitHub Container Registry (GHCR)
-                ghcr_username = os.environ.get('GHCR_USERNAME', 'abhi-vmlinuz')
+                ghcr_username = os.environ.get('GHCR_USERNAME', 'zecurx')
                 ghcr_token = os.environ.get('GHCR_TOKEN')
                 
                 short_id = challenge_id[:8].lower()
