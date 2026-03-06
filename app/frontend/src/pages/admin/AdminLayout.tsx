@@ -59,7 +59,7 @@ const AdminLayout = ({ user, logout }) => {
                 <div className="mb-10 px-2">
                     <Link to="/" className="flex items-center gap-3 group">
                         <div className="relative">
-                            <img src="/logo.svg" alt="ZecurX" className="w-8 h-8 object-contain" />
+                            <img src="/logo.png" alt="ZecurX" className="w-8 h-8 object-contain" />
                         </div>
                         <div>
                             <span className="block text-lg font-bold tracking-tight text-zinc-900 leading-none">ZecurX LABS</span>
@@ -124,7 +124,7 @@ const AdminLayout = ({ user, logout }) => {
             {/* Mobile Header */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 flex items-center justify-between px-4">
                 <Link to="/" className="flex items-center gap-2">
-                    <img src="/logo.svg" alt="ZecurX" className="w-7 h-7 object-contain" />
+                    <img src="/logo.png" alt="ZecurX" className="w-7 h-7 object-contain" />
                     <div>
                         <span className="block text-lg font-bold tracking-tight text-zinc-900 leading-none">ZecurX LABS</span>
                         <span className="text-[10px] uppercase font-bold text-red-600 tracking-wider">Admin</span>

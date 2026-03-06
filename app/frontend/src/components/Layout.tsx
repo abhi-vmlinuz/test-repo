@@ -34,7 +34,7 @@ const Layout = ({ user, children, logout }) => {
                 <div className="mb-10 px-2">
                     <Link to="/" className="flex items-center gap-3 group">
                         <div className="relative">
-                            <img src="/logo.svg" alt="ZecurX" className="w-8 h-8 object-contain" />
+                            <img src="/logo.png" alt="ZecurX" className="w-8 h-8 object-contain" />
                         </div>
                         <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX LABS</span>
                     </Link>
@@ -98,7 +98,7 @@ const Layout = ({ user, children, logout }) => {
             {/* Mobile Header */}
             <div className="lg:hidden fixed top-0 left-0 right-0 h-16 backdrop-blur-md border-b z-50 flex items-center justify-between px-4" style={{ backgroundColor: 'var(--bg-primary)', borderColor: 'var(--border-light)' }}>
                 <Link to="/" className="flex items-center gap-2">
-                    <img src="/logo.svg" alt="ZecurX" className="w-7 h-7 object-contain" />
+                    <img src="/logo.png" alt="ZecurX" className="w-7 h-7 object-contain" />
                     <span className="text-lg font-bold tracking-tight text-zinc-900">ZecurX LABS</span>
                 </Link>
                 <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-500">

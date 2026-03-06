@@ -82,7 +82,7 @@ export const Navbar = () => {
                     {/* Logo */}
                     <Link to="/" className="flex items-center gap-2 group z-50" onClick={() => window.scrollTo(0, 0)}>
                         <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden transition-transform group-hover:scale-110">
-                            <img src="/logo.svg" alt="ZecurX Labs Logo" className="w-full h-full object-cover" />
+                            <img src="/logo.png" alt="ZecurX Labs Logo" className="w-full h-full object-cover" />
                         </div>
                         <span className={`text-xl font-bold tracking-tighter ${logoColor}`}>
                             ZecurX<span className="text-gray-400">.Labs</span>
