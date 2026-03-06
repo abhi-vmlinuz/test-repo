@@ -6996,7 +6996,7 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
 # (Container orchestration for CTF challenges)
 # ===========================================
 
-NEXUS_ENGINE_URL = os.environ.get('NEXUS_ENGINE_URL', 'http://172.235.15.209:8081')
+NEXUS_ENGINE_URL = os.environ.get('NEXUS_ENGINE_URL', 'http://65.21.191.184:8081')
 
 # Nexus session storage (user_id -> session_id mapping)
 nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}
