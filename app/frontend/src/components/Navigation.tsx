@@ -29,7 +29,7 @@ const Navigation = ({ user, logout }) => {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/dashboard" className="flex items-center gap-3" data-testid="nav-logo">
-            <img src="/logo.png" alt="ZecurX" className="w-7 h-7" />
+            <img src="/logo.svg" alt="ZecurX" className="w-7 h-7" />
             <span className="text-xl font-semibold text-gray-900 tracking-tight">ZecurX LABS</span>
           </Link>
 

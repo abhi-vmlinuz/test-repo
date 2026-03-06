@@ -156,7 +156,7 @@ const Footer = () => {
                     <div className="flex flex-col md:flex-row items-end justify-between border-t border-zinc-800 pt-8 mt-12 bg-zinc-950/80 backdrop-blur-sm">
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center gap-2">
-                                <img src="/logo.png" alt="ZecurX" className="w-8 h-8 opacity-80" />
+                                <img src="/logo.svg" alt="ZecurX" className="w-8 h-8 opacity-80" />
                                 <span className="text-xl font-bold tracking-tight">ZecurX LABS</span>
                             </div>
                             <p className="text-zinc-500 text-sm">
