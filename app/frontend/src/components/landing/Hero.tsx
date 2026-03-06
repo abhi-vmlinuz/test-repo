@@ -17,7 +17,7 @@ export const Hero = () => {
         <section ref={containerRef} className="relative w-full min-h-[100vh] flex flex-col items-center justify-between py-24 overflow-hidden bg-white">
             {/* Background Grid & Noise */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]"></div>
-            <div className="absolute inset-0 bg-noise opacity-40 pointer-events-none mix-blend-overlay"></div>
+            <div className="absolute inset-0 bg-noise opacity-40 pointer-events-none"></div>
 
             <div className="relative z-10 w-full max-w-[90rem] mx-auto px-4 md:px-8 text-center flex-grow flex flex-col justify-center">
                 {/* Floating "Physical" Cyber Props - High Fidelity Vinyl Stickers */}
@@ -31,7 +31,7 @@ export const Hero = () => {
                         {/* Main Content */}
                         <div className="relative w-72 bg-[#0f0f0f] text-left rounded-lg shadow-[0_4px_12px_rgba(0,0,0,0.3)] font-mono text-[10px] overflow-hidden transform -rotate-2 select-none ring-1 ring-black/5">
                             {/* Gloss Overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-white/5 to-transparent pointer-events-none z-20 mix-blend-overlay"></div>
+                            <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-white/5 to-transparent pointer-events-none z-20"></div>
 
                             {/* Title Bar */}
                             <div className="flex px-4 py-3 bg-[#1a1a1a] items-center border-b border-gray-800/50">
@@ -273,7 +273,7 @@ export const Hero = () => {
                         <div className="relative w-auto inline-block bg-white rounded-lg">
                             <div className="w-32 h-10 bg-gray-900 rounded-md flex items-center px-1 border border-gray-800 shadow-inner overflow-hidden">
                                 {/* Gloss Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none z-20 rounded-md mix-blend-overlay"></div>
+                                <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none z-20 rounded-md"></div>
                                 {/* USB Connector */}
                                 <div className="w-8 h-6 bg-gray-300 rounded-sm bg-gradient-to-b from-gray-100 to-gray-400 mr-1 border-r border-gray-400 grid grid-cols-2 gap-[2px] place-content-center">
                                     <div className="w-1.5 h-3 border border-gray-400/50"></div>

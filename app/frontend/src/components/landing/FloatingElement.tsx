@@ -63,7 +63,7 @@ export const FloatingElement = ({
 
     if (hideOnScroll) {
         return (
-            <div ref={ref} className={cn("relative will-change-transform z-10", className)}>
+            <div ref={ref} className={cn("relative will-change-transform transform-gpu z-10", className)}>
                 <motion.div style={{ y: yHero, opacity: opacityHero, scale: scaleHero }}>
                     {/* Initial Entry for Hero */}
                     <motion.div
@@ -85,7 +85,7 @@ export const FloatingElement = ({
 
     // PARALLAX MODE RENDER
     return (
-        <div ref={ref} className={cn("relative will-change-transform z-10", className)}>
+        <div ref={ref} className={cn("relative will-change-transform transform-gpu z-10", className)}>
             <motion.div style={{ y: springParallaxY }}>
                 {/* Fade in when entering viewport */}
                 <motion.div
