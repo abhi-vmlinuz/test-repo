@@ -3,11 +3,12 @@ import axios from 'axios';
 import { API, toast } from '../../App';
 import {
     GraduationCap, Plus, Edit, Trash2, BookOpen, Users, Key, X, Save, Clock,
-    ChevronDown, ChevronRight, UserPlus, Copy, UserMinus, Link
+    ChevronDown, ChevronRight, UserPlus, Copy, UserMinus, Link, HelpCircle
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import AdminQuizManagement from './AdminQuizManagement';
 
 const AdminStudentPortal = ({ user: currentAdmin }) => {
     const [activeTab, setActiveTab] = useState('courses');
@@ -265,6 +266,7 @@ const AdminStudentPortal = ({ user: currentAdmin }) => {
     const tabs = [
         { id: 'courses', label: 'Courses & Modules', icon: BookOpen },
         { id: 'challenges', label: 'Student Challenges', icon: GraduationCap },
+        { id: 'quizzes', label: 'Quizzes', icon: HelpCircle },
         { id: 'enroll', label: 'Enroll Users', icon: UserPlus },
         { id: 'enrollments', label: 'Enrollments', icon: Users }
     ];
@@ -473,6 +475,10 @@ const AdminStudentPortal = ({ user: currentAdmin }) => {
                         )}
                     </div>
                 </div>
+            )}
+
+            {activeTab === 'quizzes' && (
+                <AdminQuizManagement user={currentAdmin} />
             )}
 
             {activeTab === 'enroll' && (

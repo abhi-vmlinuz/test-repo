@@ -53,6 +53,7 @@ import StudentCourse from '@/pages/student/StudentCourse';
 import StudentModule from '@/pages/student/StudentModule';
 import StudentChallenge from '@/pages/student/StudentChallenge';
 import StudentAchievements from '@/pages/student/StudentAchievements';
+import StudentQuiz from '@/pages/student/StudentQuiz';
 import StudentProgress from '@/pages/student/StudentProgress';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -193,6 +194,8 @@ function App() {
               <Route path="course/:courseId" element={<StudentCourse user={user} />} />
               <Route path="module/:moduleId" element={<StudentModule user={user} />} />
               <Route path="challenge/:challengeId" element={<StudentChallenge user={user} />} />
+              <Route path="module/:moduleId/quiz" element={<StudentQuiz user={user} />} />
+              <Route path="course/:courseId/final-quiz" element={<StudentQuiz user={user} />} />
               <Route path="progress" element={<StudentProgress user={user} />} />
               <Route path="achievements" element={<StudentAchievements user={user} />} />
             </Route>

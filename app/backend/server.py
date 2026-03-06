@@ -6746,6 +6746,462 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
 
 
 # ===========================================
+# ADMIN: MODULE QUIZ MANAGEMENT
+# ===========================================
+
+@api_router.get("/admin/lms-modules/{course_id}")
+async def admin_get_lms_modules(course_id: str, admin: dict = Depends(require_admin)):
+    """Get all LMS modules for a course (for quiz management)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        modules = await conn.fetch('''
+            SELECT m.id, m.title, m."orderIndex", m."isPublished",
+                   mq.id as quiz_id, mq.title as quiz_title, mq.is_published as quiz_published,
+                   (SELECT COUNT(*) FROM module_quiz_questions WHERE quiz_id = mq.id) as question_count
+            FROM modules m
+            LEFT JOIN module_quizzes mq ON mq.module_id = m.id::text AND mq.is_final_quiz = FALSE
+            WHERE m."courseId" = $1
+            ORDER BY m."orderIndex"
+        ''', course_id)
+        return [dict(m) for m in modules]
+
+
+@api_router.get("/admin/all-quizzes")
+async def admin_get_all_quizzes(admin: dict = Depends(require_admin)):
+    """Get all quizzes across all courses"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        quizzes = await conn.fetch('''
+            SELECT mq.*, m.title as module_title, c.title as course_title,
+                   (SELECT COUNT(*) FROM module_quiz_questions WHERE quiz_id = mq.id) as question_count
+            FROM module_quizzes mq
+            LEFT JOIN modules m ON m.id::text = mq.module_id
+            LEFT JOIN courses c ON c.id::text = mq.course_id
+            ORDER BY mq.created_at DESC
+        ''')
+        return [{**dict(q), 'id': str(q['id'])} for q in quizzes]
+
+
+@api_router.post("/admin/modules/{module_id}/quiz")
+async def admin_create_or_update_quiz(module_id: str, data: dict, admin: dict = Depends(require_admin)):
+    """Create or update a module quiz"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        existing = await conn.fetchrow(
+            'SELECT id FROM module_quizzes WHERE module_id = $1 AND is_final_quiz = FALSE', module_id
+        )
+        if existing:
+            await conn.execute('''
+                UPDATE module_quizzes SET title = $1, description = $2, time_limit = $3,
+                    passing_percentage = $4, is_published = $5, updated_at = NOW()
+                WHERE id = $6
+            ''', data.get('title', 'Module Quiz'), data.get('description', ''),
+                data.get('time_limit', 3600), data.get('passing_percentage', 80),
+                data.get('is_published', False), existing['id'])
+            return {'id': str(existing['id']), 'updated': True}
+        else:
+            # Get course_id from LMS modules table
+            module = await conn.fetchrow('SELECT "courseId" FROM modules WHERE id = $1', module_id)
+            course_id = str(module['courseId']) if module else data.get('course_id')
+            quiz = await conn.fetchrow('''
+                INSERT INTO module_quizzes (module_id, course_id, title, description, time_limit,
+                    passing_percentage, is_published)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id
+            ''', module_id, course_id, data.get('title', 'Module Quiz'),
+                data.get('description', ''), data.get('time_limit', 3600),
+                data.get('passing_percentage', 80), data.get('is_published', False))
+            return {'id': str(quiz['id']), 'created': True}
+
+
+@api_router.get("/admin/modules/{module_id}/quiz")
+async def admin_get_module_quiz(module_id: str, admin: dict = Depends(require_admin)):
+    """Get module quiz with questions"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        quiz = await conn.fetchrow(
+            'SELECT * FROM module_quizzes WHERE module_id = $1 AND is_final_quiz = FALSE', module_id
+        )
+        if not quiz:
+            return {'quiz': None, 'questions': []}
+
+        questions = await conn.fetch(
+            'SELECT * FROM module_quiz_questions WHERE quiz_id = $1 ORDER BY order_index', quiz['id']
+        )
+        return {
+            'quiz': {**dict(quiz), 'id': str(quiz['id'])},
+            'questions': [{**dict(q), 'id': str(q['id']), 'quiz_id': str(q['quiz_id']),
+                          'options': json.loads(q['options']) if isinstance(q['options'], str) else q['options']}
+                         for q in questions]
+        }
+
+
+@api_router.post("/admin/quizzes/{quiz_id}/questions")
+async def admin_add_question(quiz_id: str, data: dict, admin: dict = Depends(require_admin)):
+    """Add a question to a quiz"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        max_order = await conn.fetchval(
+            'SELECT COALESCE(MAX(order_index), 0) FROM module_quiz_questions WHERE quiz_id = $1', uuid.UUID(quiz_id)
+        )
+        question = await conn.fetchrow('''
+            INSERT INTO module_quiz_questions (quiz_id, question_type, question_text, options,
+                correct_answer, explanation, order_index)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
+        ''', uuid.UUID(quiz_id), data.get('question_type', 'multiple_choice'),
+            data['question_text'], json.dumps(data.get('options', [])),
+            data['correct_answer'], data.get('explanation', ''), max_order + 1)
+        return {'id': str(question['id'])}
+
+
+@api_router.put("/admin/quizzes/{quiz_id}/questions/{question_id}")
+async def admin_update_question(quiz_id: str, question_id: str, data: dict, admin: dict = Depends(require_admin)):
+    """Update a quiz question"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        updates = []
+        values = []
+        idx = 1
+        field_mapping = {
+            'question_type': 'question_type',
+            'question_text': 'question_text',
+            'correct_answer': 'correct_answer',
+            'explanation': 'explanation',
+            'order_index': 'order_index',
+        }
+        for key, col in field_mapping.items():
+            if key in data:
+                updates.append(f'{col} = ${idx}')
+                values.append(data[key])
+                idx += 1
+        if 'options' in data:
+            updates.append(f'options = ${idx}')
+            values.append(json.dumps(data['options']))
+            idx += 1
+        if updates:
+            values.append(uuid.UUID(question_id))
+            await conn.execute(
+                f'UPDATE module_quiz_questions SET {", ".join(updates)} WHERE id = ${idx}', *values
+            )
+        return {'success': True}
+
+
+@api_router.delete("/admin/quizzes/{quiz_id}/questions/{question_id}")
+async def admin_delete_question(quiz_id: str, question_id: str, admin: dict = Depends(require_admin)):
+    """Delete a quiz question"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute('DELETE FROM module_quiz_questions WHERE id = $1', uuid.UUID(question_id))
+        return {'success': True}
+
+
+@api_router.patch("/admin/quizzes/{quiz_id}/publish")
+async def admin_toggle_quiz_publish(quiz_id: str, admin: dict = Depends(require_admin)):
+    """Toggle quiz publish status"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            'UPDATE module_quizzes SET is_published = NOT is_published, updated_at = NOW() WHERE id = $1',
+            uuid.UUID(quiz_id)
+        )
+        return {'success': True}
+
+
+# ===========================================
+# STUDENT: QUIZ TAKING
+# ===========================================
+
+@api_router.get("/student/modules/{module_id}/quiz")
+async def student_get_module_quiz(module_id: str, current_user: dict = Depends(get_current_user)):
+    """Get quiz for a module (without correct answers)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        quiz = await conn.fetchrow(
+            'SELECT * FROM module_quizzes WHERE module_id = $1 AND is_published = TRUE AND is_final_quiz = FALSE',
+            module_id
+        )
+        if not quiz:
+            return {'quiz': None}
+
+        questions = await conn.fetch(
+            'SELECT id, question_type, question_text, options, order_index FROM module_quiz_questions WHERE quiz_id = $1 ORDER BY order_index',
+            quiz['id']
+        )
+
+        # Get user's previous attempts
+        attempts = await conn.fetch(
+            'SELECT attempt_number, score, max_score, percentage, passed, completed_at, time_spent FROM module_quiz_attempts WHERE quiz_id = $1 AND user_id = $2 ORDER BY attempt_number',
+            quiz['id'], current_user['id']
+        )
+
+        # Calculate points per question (equally divided)
+        total_questions = len(questions)
+        points_per_question = round(100 / total_questions, 2) if total_questions > 0 else 0
+
+        return {
+            'quiz': {
+                'id': str(quiz['id']),
+                'title': quiz['title'],
+                'description': quiz['description'],
+                'time_limit': quiz['time_limit'],
+                'passing_percentage': quiz['passing_percentage'],
+                'total_questions': total_questions,
+                'points_per_question': points_per_question,
+            },
+            'questions': [{
+                'id': str(q['id']),
+                'question_type': q['question_type'],
+                'question_text': q['question_text'],
+                'options': json.loads(q['options']) if isinstance(q['options'], str) else q['options'],
+                'order_index': q['order_index'],
+            } for q in questions],
+            'attempts': [dict(a) for a in attempts],
+        }
+
+
+@api_router.post("/student/quizzes/{quiz_id}/start")
+async def student_start_quiz(quiz_id: str, current_user: dict = Depends(get_current_user)):
+    """Start a quiz attempt"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        quiz = await conn.fetchrow('SELECT * FROM module_quizzes WHERE id = $1', uuid.UUID(quiz_id))
+        if not quiz:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+
+        # Check cooldown for final quiz
+        if quiz['is_final_quiz']:
+            last_attempt = await conn.fetchrow('''
+                SELECT cooldown_until, attempt_number FROM module_quiz_attempts
+                WHERE quiz_id = $1 AND user_id = $2
+                ORDER BY attempt_number DESC LIMIT 1
+            ''', uuid.UUID(quiz_id), current_user['id'])
+
+            if last_attempt and last_attempt['cooldown_until']:
+                from datetime import datetime
+                if datetime.now() < last_attempt['cooldown_until']:
+                    raise HTTPException(
+                        status_code=429,
+                        detail=f"Cooldown active until {last_attempt['cooldown_until'].isoformat()}"
+                    )
+
+            if last_attempt and last_attempt['attempt_number'] >= 3:
+                # Check if cooldown has passed (3 retries used, 8hr cooldown)
+                if last_attempt['cooldown_until'] and datetime.now() >= last_attempt['cooldown_until']:
+                    # Reset: allow retries again by treating it as a fresh set
+                    pass
+                elif last_attempt['cooldown_until']:
+                    raise HTTPException(status_code=429, detail="Maximum retries reached. Wait for cooldown.")
+
+        # Get next attempt number
+        max_attempt = await conn.fetchval(
+            'SELECT COALESCE(MAX(attempt_number), 0) FROM module_quiz_attempts WHERE quiz_id = $1 AND user_id = $2',
+            uuid.UUID(quiz_id), current_user['id']
+        )
+
+        total_questions = await conn.fetchval(
+            'SELECT COUNT(*) FROM module_quiz_questions WHERE quiz_id = $1', uuid.UUID(quiz_id)
+        )
+        max_score = 30 if quiz['is_final_quiz'] else 100
+
+        attempt = await conn.fetchrow('''
+            INSERT INTO module_quiz_attempts (quiz_id, user_id, attempt_number, max_score, started_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            RETURNING id, started_at
+        ''', uuid.UUID(quiz_id), current_user['id'], max_attempt + 1, max_score)
+
+        return {
+            'attempt_id': str(attempt['id']),
+            'attempt_number': max_attempt + 1,
+            'started_at': attempt['started_at'].isoformat(),
+            'time_limit': quiz['time_limit'],
+        }
+
+
+@api_router.post("/student/quizzes/{quiz_id}/submit")
+async def student_submit_quiz(quiz_id: str, data: dict, current_user: dict = Depends(get_current_user)):
+    """Submit quiz answers and get score"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempt_id = data.get('attempt_id')
+        answers = data.get('answers', {})  # {question_id: selected_answer}
+
+        attempt = await conn.fetchrow(
+            'SELECT * FROM module_quiz_attempts WHERE id = $1 AND user_id = $2',
+            uuid.UUID(attempt_id), current_user['id']
+        )
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Attempt not found")
+        if attempt['completed_at']:
+            raise HTTPException(status_code=400, detail="Attempt already submitted")
+
+        quiz = await conn.fetchrow('SELECT * FROM module_quizzes WHERE id = $1', uuid.UUID(quiz_id))
+        questions = await conn.fetch(
+            'SELECT id, correct_answer FROM module_quiz_questions WHERE quiz_id = $1', uuid.UUID(quiz_id)
+        )
+
+        total_questions = len(questions)
+        if total_questions == 0:
+            raise HTTPException(status_code=400, detail="No questions in quiz")
+
+        max_score = 30 if quiz['is_final_quiz'] else 100
+        points_per_question = max_score / total_questions
+        correct_count = 0
+        results = {}
+
+        for q in questions:
+            q_id = str(q['id'])
+            user_answer = answers.get(q_id, '')
+            is_correct = user_answer.strip().lower() == q['correct_answer'].strip().lower()
+            if is_correct:
+                correct_count += 1
+            results[q_id] = {'correct': is_correct, 'user_answer': user_answer}
+
+        score = round(correct_count * points_per_question, 2)
+        percentage = round((correct_count / total_questions) * 100, 2)
+        passed = percentage >= quiz['passing_percentage']
+
+        from datetime import datetime, timedelta
+        time_spent = int((datetime.now() - attempt['started_at']).total_seconds())
+
+        # Set cooldown for final quiz if attempt #3 fails
+        cooldown_until = None
+        if quiz['is_final_quiz'] and not passed and attempt['attempt_number'] >= 3:
+            cooldown_until = datetime.now() + timedelta(hours=8)
+
+        await conn.execute('''
+            UPDATE module_quiz_attempts SET
+                answers = $1, score = $2, max_score = $3, percentage = $4,
+                passed = $5, completed_at = NOW(), time_spent = $6, cooldown_until = $7
+            WHERE id = $8
+        ''', json.dumps(answers), int(score), max_score, percentage,
+            passed, time_spent, cooldown_until, uuid.UUID(attempt_id))
+
+        return {
+            'score': score,
+            'max_score': max_score,
+            'percentage': percentage,
+            'passed': passed,
+            'correct_count': correct_count,
+            'total_questions': total_questions,
+            'time_spent': time_spent,
+            'results': results,
+            'cooldown_until': cooldown_until.isoformat() if cooldown_until else None,
+        }
+
+
+@api_router.get("/student/quizzes/{quiz_id}/results")
+async def student_get_quiz_results(quiz_id: str, current_user: dict = Depends(get_current_user)):
+    """Get past attempt results"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempts = await conn.fetch('''
+            SELECT * FROM module_quiz_attempts
+            WHERE quiz_id = $1 AND user_id = $2
+            ORDER BY attempt_number
+        ''', uuid.UUID(quiz_id), current_user['id'])
+
+        return {
+            'attempts': [{
+                'id': str(a['id']),
+                'attempt_number': a['attempt_number'],
+                'score': a['score'],
+                'max_score': a['max_score'],
+                'percentage': float(a['percentage']),
+                'passed': a['passed'],
+                'time_spent': a['time_spent'],
+                'started_at': a['started_at'].isoformat() if a['started_at'] else None,
+                'completed_at': a['completed_at'].isoformat() if a['completed_at'] else None,
+                'cooldown_until': a['cooldown_until'].isoformat() if a['cooldown_until'] else None,
+            } for a in attempts]
+        }
+
+
+@api_router.get("/student/courses/{course_id}/final-quiz")
+async def student_get_final_quiz(course_id: str, current_user: dict = Depends(get_current_user)):
+    """Get or generate the final quiz for a course (pulls random questions from all modules)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Check if final quiz already exists
+        final_quiz = await conn.fetchrow(
+            'SELECT * FROM module_quizzes WHERE course_id = $1 AND is_final_quiz = TRUE', course_id
+        )
+
+        if not final_quiz:
+            # Auto-generate final quiz from all module quiz questions
+            module_quizzes = await conn.fetch(
+                'SELECT id FROM module_quizzes WHERE course_id = $1 AND is_final_quiz = FALSE AND is_published = TRUE',
+                course_id
+            )
+            if not module_quizzes:
+                return {'quiz': None, 'message': 'No module quizzes available yet'}
+
+            quiz_ids = [q['id'] for q in module_quizzes]
+            all_questions = await conn.fetch('''
+                SELECT * FROM module_quiz_questions WHERE quiz_id = ANY($1) ORDER BY random()
+            ''', quiz_ids)
+
+            if len(all_questions) < 5:
+                return {'quiz': None, 'message': 'Not enough questions across modules for a final quiz'}
+
+            # Create the final quiz
+            final_quiz = await conn.fetchrow('''
+                INSERT INTO module_quizzes (module_id, course_id, title, description, time_limit,
+                    passing_percentage, max_attempts, is_final_quiz, is_published)
+                VALUES ($1, $2, $3, $4, 3600, 80, 3, TRUE, TRUE)
+                RETURNING *
+            ''', 'final', course_id, 'Final Assessment',
+                'Comprehensive assessment covering all modules. You need 80% to pass.')
+
+            # Copy random questions into the final quiz
+            for idx, q in enumerate(all_questions):
+                await conn.execute('''
+                    INSERT INTO module_quiz_questions (quiz_id, question_type, question_text,
+                        options, correct_answer, explanation, order_index)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ''', final_quiz['id'], q['question_type'], q['question_text'],
+                    q['options'] if isinstance(q['options'], str) else json.dumps(q['options']),
+                    q['correct_answer'], q['explanation'], idx + 1)
+
+        # Fetch questions (without answers)
+        questions = await conn.fetch(
+            'SELECT id, question_type, question_text, options, order_index FROM module_quiz_questions WHERE quiz_id = $1 ORDER BY order_index',
+            final_quiz['id']
+        )
+
+        # Get attempts
+        attempts = await conn.fetch(
+            'SELECT attempt_number, score, max_score, percentage, passed, completed_at, time_spent, cooldown_until FROM module_quiz_attempts WHERE quiz_id = $1 AND user_id = $2 ORDER BY attempt_number',
+            final_quiz['id'], current_user['id']
+        )
+
+        total_questions = len(questions)
+        points_per_question = round(30 / total_questions, 2) if total_questions > 0 else 0
+
+        return {
+            'quiz': {
+                'id': str(final_quiz['id']),
+                'title': final_quiz['title'],
+                'description': final_quiz['description'],
+                'time_limit': final_quiz['time_limit'],
+                'passing_percentage': final_quiz['passing_percentage'],
+                'max_attempts': final_quiz['max_attempts'],
+                'total_questions': total_questions,
+                'points_per_question': points_per_question,
+                'is_final_quiz': True,
+            },
+            'questions': [{
+                'id': str(q['id']),
+                'question_type': q['question_type'],
+                'question_text': q['question_text'],
+                'options': json.loads(q['options']) if isinstance(q['options'], str) else q['options'],
+                'order_index': q['order_index'],
+            } for q in questions],
+            'attempts': [dict(a) for a in attempts],
+        }
+
+
+# ===========================================
 # ADMIN: ENROLLMENT MANAGEMENT
 # ===========================================
 
@@ -8191,6 +8647,67 @@ async def startup():
                 logger.info("Author column migration complete")
             except Exception as e:
                 logger.debug(f"Author column already exists or migration skipped: {e}")
+
+            # Migration: Create Module Quiz tables for Coursera-style quiz module
+            try:
+                await conn.execute('''
+                    CREATE TABLE IF NOT EXISTS module_quizzes (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        module_id TEXT NOT NULL,
+                        course_id TEXT,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        time_limit INTEGER NOT NULL DEFAULT 3600,
+                        passing_percentage INTEGER NOT NULL DEFAULT 80,
+                        max_attempts INTEGER,
+                        is_final_quiz BOOLEAN DEFAULT FALSE,
+                        is_published BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                ''')
+                await conn.execute('''
+                    CREATE TABLE IF NOT EXISTS module_quiz_questions (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        quiz_id UUID NOT NULL REFERENCES module_quizzes(id) ON DELETE CASCADE,
+                        question_type TEXT NOT NULL CHECK (question_type IN ('multiple_choice', 'true_false')),
+                        question_text TEXT NOT NULL,
+                        options JSONB NOT NULL DEFAULT '[]'::jsonb,
+                        correct_answer TEXT NOT NULL,
+                        explanation TEXT,
+                        order_index INTEGER NOT NULL DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                ''')
+                await conn.execute('''
+                    CREATE TABLE IF NOT EXISTS module_quiz_attempts (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        quiz_id UUID NOT NULL REFERENCES module_quizzes(id) ON DELETE CASCADE,
+                        user_id TEXT NOT NULL,
+                        attempt_number INTEGER NOT NULL DEFAULT 1,
+                        answers JSONB NOT NULL DEFAULT '{}'::jsonb,
+                        score INTEGER NOT NULL DEFAULT 0,
+                        max_score INTEGER NOT NULL DEFAULT 100,
+                        percentage DECIMAL(5,2) NOT NULL DEFAULT 0,
+                        passed BOOLEAN DEFAULT FALSE,
+                        started_at TIMESTAMP DEFAULT NOW(),
+                        completed_at TIMESTAMP,
+                        time_spent INTEGER DEFAULT 0,
+                        cooldown_until TIMESTAMP,
+                        UNIQUE(quiz_id, user_id, attempt_number)
+                    )
+                ''')
+                # Create indexes
+                await conn.execute('''
+                    CREATE INDEX IF NOT EXISTS idx_quiz_module ON module_quizzes(module_id);
+                    CREATE INDEX IF NOT EXISTS idx_quiz_course ON module_quizzes(course_id);
+                    CREATE INDEX IF NOT EXISTS idx_quiz_questions_quiz ON module_quiz_questions(quiz_id);
+                    CREATE INDEX IF NOT EXISTS idx_quiz_attempts_quiz ON module_quiz_attempts(quiz_id);
+                    CREATE INDEX IF NOT EXISTS idx_quiz_attempts_user ON module_quiz_attempts(user_id);
+                ''')
+                logger.info("Module quiz tables migration complete")
+            except Exception as e:
+                logger.debug(f"Module quiz tables already exist or migration skipped: {e}")
 
     except Exception as e:
         logger.error(f"Database connection failed: {e}")
