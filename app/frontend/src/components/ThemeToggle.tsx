@@ -16,6 +16,7 @@ const ThemeToggle = ({ isAuthenticated = false }: ThemeToggleProps) => {
         if (!isAuthenticated) {
             setTheme('light');
             document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.classList.remove('dark');
             return;
         }
 
@@ -25,12 +26,16 @@ const ThemeToggle = ({ isAuthenticated = false }: ThemeToggleProps) => {
         if (savedTheme) {
             setTheme(savedTheme);
             document.documentElement.setAttribute('data-theme', savedTheme);
+            if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
         } else {
             // Check system preference
             const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
             const initialTheme: Theme = prefersDark ? 'dark' : 'light';
             setTheme(initialTheme);
             document.documentElement.setAttribute('data-theme', initialTheme);
+            if (prefersDark) document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
         }
     }, [isAuthenticated]);
 
@@ -38,6 +43,8 @@ const ThemeToggle = ({ isAuthenticated = false }: ThemeToggleProps) => {
         const newTheme: Theme = theme === 'light' ? 'dark' : 'light';
         setTheme(newTheme);
         document.documentElement.setAttribute('data-theme', newTheme);
+        if (newTheme === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
         localStorage.setItem('zecurx-theme', newTheme);
     };
 
