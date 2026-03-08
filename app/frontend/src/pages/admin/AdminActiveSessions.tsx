@@ -82,7 +82,7 @@ const AdminActiveSessions = () => {
                     </span>
                     <button
                         onClick={fetchSessions}
-                        className="p-2.5 text-gray-500 hover:text-zinc-900 hover:bg-gray-100 rounded-xl transition-all border border-transparent hover:border-gray-200"
+                        className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-zinc-900 hover:bg-gray-100 dark:bg-zinc-800 rounded-xl transition-all border border-transparent hover:border-gray-200 dark:border-zinc-700"
                         title="Refresh"
                     >
                         <Monitor className="w-5 h-5" />
@@ -97,7 +97,7 @@ const AdminActiveSessions = () => {
                 </div>
                 <input
                     type="text"
-                    className="block w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-zinc-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900 transition-all shadow-sm group-hover:shadow-md"
+                    className="block w-full pl-11 pr-4 py-3.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl text-zinc-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900 transition-all shadow-sm dark:shadow-none group-hover:shadow-md"
                     placeholder="Search by user, email, or IP address..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -105,11 +105,11 @@ const AdminActiveSessions = () => {
             </div>
 
             {/* Table Card */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm dark:shadow-none overflow-hidden flex flex-col">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-gray-50/50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-medium">
+                            <tr className="bg-gray-50 dark:bg-zinc-800/50/50 border-b border-gray-100 dark:border-zinc-800 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 font-medium">
                                 <th className="px-6 py-4 font-semibold">User Identity</th>
                                 <th className="px-6 py-4 font-semibold">Network Info</th>
                                 <th className="px-6 py-4 font-semibold">Timestamps</th>
@@ -123,14 +123,14 @@ const AdminActiveSessions = () => {
                                         <td colSpan={4} className="px-6 py-12 text-center">
                                             <div className="flex flex-col items-center justify-center gap-3">
                                                 <div className="w-8 h-8 border-2 border-zinc-900 border-t-transparent rounded-full animate-spin"></div>
-                                                <p className="text-gray-500 text-sm">Loading session data...</p>
+                                                <p className="text-gray-500 dark:text-gray-400 text-sm">Loading session data...</p>
                                             </div>
                                         </td>
                                     </tr>
                                 ) : filteredSessions.length === 0 ? (
-                                    <tr className="bg-gray-50/30">
+                                    <tr className="bg-gray-50 dark:bg-zinc-800/50/30">
                                         <td colSpan={4} className="px-6 py-12 text-center">
-                                            <p className="text-gray-500 font-medium">No active sessions found matching your search.</p>
+                                            <p className="text-gray-500 dark:text-gray-400 font-medium">No active sessions found matching your search.</p>
                                         </td>
                                     </tr>
                                 ) : (
@@ -142,14 +142,14 @@ const AdminActiveSessions = () => {
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, scale: 0.95 }}
                                             transition={{ duration: 0.2 }}
-                                            className="group hover:bg-gray-50/80 transition-colors"
+                                            className="group hover:bg-gray-50 dark:bg-zinc-800/50/80 transition-colors"
                                         >
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-4">
                                                     <div className="relative">
                                                         <img
                                                             src={session.user_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user_name || 'U')}&background=18181b&color=fff`}
-                                                            className="w-10 h-10 rounded-xl object-cover border border-gray-100 shadow-sm"
+                                                            className="w-10 h-10 rounded-xl object-cover border border-gray-100 dark:border-zinc-800 shadow-sm dark:shadow-none"
                                                             alt=""
                                                             onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user_name || 'U')}&background=18181b&color=fff`; }}
                                                         />
@@ -157,7 +157,7 @@ const AdminActiveSessions = () => {
                                                     </div>
                                                     <div>
                                                         <div className="font-semibold text-zinc-900">{session.user_name || 'Unknown'}</div>
-                                                        <div className="text-xs text-gray-500 font-mono mt-0.5">{session.user_email}</div>
+                                                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{session.user_email}</div>
                                                     </div>
                                                 </div>
                                             </td>

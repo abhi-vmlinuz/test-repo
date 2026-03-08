@@ -130,7 +130,7 @@ const BillingTab = ({ API }: BillingTabProps) => {
             <div className="flex items-center justify-center py-20">
                 <div className="text-center">
                     <RefreshCw className="w-8 h-8 mx-auto mb-3 text-blue-500 animate-spin" />
-                    <p className="text-gray-500">Loading BigQuery billing data...</p>
+                    <p className="text-gray-500 dark:text-gray-400">Loading BigQuery billing data...</p>
                     <p className="text-xs text-gray-400 mt-1">Querying GCP cost export</p>
                 </div>
             </div>
@@ -146,19 +146,19 @@ const BillingTab = ({ API }: BillingTabProps) => {
                         <DollarSign className="w-5 h-5 text-emerald-500" />
                         GCP Cost Analytics
                     </h2>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                         Real billing data from BigQuery • Project: zecurx-nexus
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
+                    <div className="flex gap-1 p-1 bg-gray-100 dark:bg-zinc-800 rounded-lg">
                         {periodOptions.map((opt) => (
                             <button
                                 key={opt.value}
                                 onClick={() => setDays(opt.value)}
                                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${days === opt.value
-                                    ? 'bg-white text-zinc-900 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
+                                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 shadow-sm dark:shadow-none'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
                                     }`}
                             >
                                 {opt.label}
@@ -190,11 +190,11 @@ const BillingTab = ({ API }: BillingTabProps) => {
             {summary && !error && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                        <Card className="border border-gray-200 bg-white">
+                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
                             <CardContent className="pt-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-500">Total Cost</p>
+                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</p>
                                         <p className="text-3xl font-bold text-zinc-900 mt-1">
                                             {formatCurrency(summary.total_cost)}
                                         </p>
@@ -211,11 +211,11 @@ const BillingTab = ({ API }: BillingTabProps) => {
                     </motion.div>
 
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                        <Card className="border border-gray-200 bg-white">
+                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
                             <CardContent className="pt-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-500">Credits Applied</p>
+                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Credits Applied</p>
                                         <p className="text-3xl font-bold text-emerald-600 mt-1">
                                             {formatCurrency(Math.abs(summary.total_credits))}
                                         </p>
@@ -232,11 +232,11 @@ const BillingTab = ({ API }: BillingTabProps) => {
                     </motion.div>
 
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                        <Card className="border border-gray-200 bg-white">
+                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
                             <CardContent className="pt-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-500">Avg Daily Cost</p>
+                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Avg Daily Cost</p>
                                         <p className="text-3xl font-bold text-zinc-900 mt-1">
                                             {formatCurrency(summary.avg_daily_cost)}
                                         </p>
@@ -260,11 +260,11 @@ const BillingTab = ({ API }: BillingTabProps) => {
                     </motion.div>
 
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                        <Card className="border border-gray-200 bg-white">
+                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
                             <CardContent className="pt-6">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-500">Monthly Projection</p>
+                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Monthly Projection</p>
                                         <p className="text-3xl font-bold text-zinc-900 mt-1">
                                             {formatCurrency(summary.projected_monthly)}
                                         </p>
@@ -284,9 +284,9 @@ const BillingTab = ({ API }: BillingTabProps) => {
 
             {/* Daily Cost Chart */}
             {dailyData.length > 0 && (
-                <Card className="border border-gray-200 bg-white shadow-sm overflow-hidden">
-                    <CardHeader className="border-b border-gray-50 bg-gray-50/30">
-                        <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 uppercase tracking-wider">
+                <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-sm dark:shadow-none overflow-hidden">
+                    <CardHeader className="border-b border-gray-50 bg-gray-50 dark:bg-zinc-800/50/30">
+                        <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                             <Calendar className="w-4 h-4 text-blue-500" />
                             Daily Cost Breakdown ({days} Days)
                         </CardTitle>
@@ -354,7 +354,7 @@ const BillingTab = ({ API }: BillingTabProps) => {
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
-                        <div className="flex items-center gap-6 mt-4 text-xs text-gray-500">
+                        <div className="flex items-center gap-6 mt-4 text-xs text-gray-500 dark:text-gray-400">
                             <div className="flex items-center gap-2">
                                 <div className="w-3 h-0.5 bg-blue-500 rounded"></div>
                                 Gross Cost
@@ -372,9 +372,9 @@ const BillingTab = ({ API }: BillingTabProps) => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Service Breakdown */}
                 {services.length > 0 && (
-                    <Card className="border border-gray-200 bg-white">
+                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 uppercase tracking-wider">
+                            <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                                 <Layers className="w-4 h-4 text-blue-500" />
                                 Cost by Service
                             </CardTitle>
@@ -415,13 +415,13 @@ const BillingTab = ({ API }: BillingTabProps) => {
                             </div>
                             <div className="space-y-2 max-h-48 overflow-y-auto">
                                 {services.map((svc, idx) => (
-                                    <div key={idx} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-gray-50">
+                                    <div key={idx} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-gray-50 dark:bg-zinc-800/50">
                                         <div className="flex items-center gap-2 min-w-0">
                                             <div
                                                 className="w-3 h-3 rounded-full flex-shrink-0"
                                                 style={{ backgroundColor: SERVICE_COLORS[idx % SERVICE_COLORS.length] }}
                                             />
-                                            <span className="text-sm text-gray-700 truncate">{svc.service}</span>
+                                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{svc.service}</span>
                                         </div>
                                         <div className="flex items-center gap-3 flex-shrink-0">
                                             <Badge variant="outline" className="text-[10px] font-mono">
@@ -440,9 +440,9 @@ const BillingTab = ({ API }: BillingTabProps) => {
 
                 {/* Top SKUs */}
                 {topSKUs.length > 0 && (
-                    <Card className="border border-gray-200 bg-white">
+                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 uppercase tracking-wider">
+                            <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
                                 <BarChart3 className="w-4 h-4 text-amber-500" />
                                 Top Cost Items (SKUs)
                             </CardTitle>
@@ -497,19 +497,19 @@ const BillingTab = ({ API }: BillingTabProps) => {
                             <div className="overflow-x-auto max-h-48">
                                 <table className="w-full text-xs">
                                     <thead>
-                                        <tr className="border-b border-gray-200">
-                                            <th className="text-left py-2 px-2 font-medium text-gray-500">SKU</th>
-                                            <th className="text-left py-2 px-2 font-medium text-gray-500">Service</th>
-                                            <th className="text-right py-2 px-2 font-medium text-gray-500">Cost</th>
+                                        <tr className="border-b border-gray-200 dark:border-zinc-700">
+                                            <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-400">SKU</th>
+                                            <th className="text-left py-2 px-2 font-medium text-gray-500 dark:text-gray-400">Service</th>
+                                            <th className="text-right py-2 px-2 font-medium text-gray-500 dark:text-gray-400">Cost</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {topSKUs.map((sku, idx) => (
-                                            <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50">
-                                                <td className="py-2 px-2 text-gray-700 max-w-[200px] truncate" title={sku.sku}>
+                                            <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50 dark:bg-zinc-800/50">
+                                                <td className="py-2 px-2 text-gray-700 dark:text-gray-300 max-w-[200px] truncate" title={sku.sku}>
                                                     {sku.sku}
                                                 </td>
-                                                <td className="py-2 px-2 text-gray-500">{sku.service}</td>
+                                                <td className="py-2 px-2 text-gray-500 dark:text-gray-400">{sku.service}</td>
                                                 <td className="py-2 px-2 text-right font-mono font-semibold text-zinc-900">
                                                     {formatCurrency(sku.cost, 4)}
                                                 </td>

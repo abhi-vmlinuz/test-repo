@@ -51,7 +51,7 @@ const AdminUsers = ({ user: currentAdmin }) => {
             case 'admin':
                 return <Badge className="bg-indigo-100 text-indigo-700" variant={undefined}><Shield className="w-3 h-3 mr-1" />Admin</Badge>;
             default:
-                return <Badge className="bg-gray-100 text-gray-600" variant={undefined}>User</Badge>;
+                return <Badge className="bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400" variant={undefined}>User</Badge>;
         }
     };
 
@@ -164,8 +164,8 @@ const AdminUsers = ({ user: currentAdmin }) => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Users</h1>
-                    <p className="text-gray-500 mt-1">{users.length} registered users</p>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Users</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">{users.length} registered users</p>
                 </div>
             </div>
 
@@ -182,28 +182,28 @@ const AdminUsers = ({ user: currentAdmin }) => {
             </div>
 
             {/* Users Table */}
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-visible">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 overflow-visible">
                 <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-100">
+                    <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-zinc-800">
                         <tr>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">User</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Role</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Score</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Status</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Joined</th>
-                            <th className="text-right px-6 py-4 text-sm font-semibold text-gray-600">Actions</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">User</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Role</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Score</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Status</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Joined</th>
+                            <th className="text-right px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredUsers.map(u => (
-                            <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
+                            <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50 dark:bg-zinc-800/50">
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500">
+                                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500 dark:text-gray-400">
                                             {u.username.substring(0, 2).toUpperCase()}
                                         </div>
                                         <div>
-                                            <p className="font-medium text-gray-900">{u.username}</p>
+                                            <p className="font-medium text-gray-900 dark:text-gray-100">{u.username}</p>
                                             <p className="text-xs text-gray-400">{u.email}</p>
                                         </div>
                                     </div>
@@ -211,7 +211,7 @@ const AdminUsers = ({ user: currentAdmin }) => {
                                 <td className="px-6 py-4">
                                     {getRoleBadge(u.role || 'user')}
                                 </td>
-                                <td className="px-6 py-4 font-mono font-bold text-gray-900">{u.score || 0}</td>
+                                <td className="px-6 py-4 font-mono font-bold text-gray-900 dark:text-gray-100">{u.score || 0}</td>
                                 <td className="px-6 py-4">
                                     {u.is_banned ? (
                                         <Badge className="bg-red-100 text-red-700" variant={undefined}>Banned</Badge>
@@ -219,7 +219,7 @@ const AdminUsers = ({ user: currentAdmin }) => {
                                         <Badge className="bg-emerald-100 text-emerald-700" variant={undefined}>Active</Badge>
                                     )}
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-500">
+                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                                     {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
                                 </td>
                                 <td className="px-6 py-4">
@@ -234,35 +234,35 @@ const AdminUsers = ({ user: currentAdmin }) => {
                                             <button
                                                 onClick={(e) => toggleDropdown(u.id, e)}
                                                 className={`p-2 rounded-lg transition-colors ${openDropdown === u.id
-                                                    ? 'bg-gray-200 text-gray-700'
-                                                    : 'text-gray-400 hover:bg-gray-100'
+                                                    ? 'bg-gray-200 text-gray-700 dark:text-gray-300'
+                                                    : 'text-gray-400 hover:bg-gray-100 dark:bg-zinc-800'
                                                     }`}
                                             >
                                                 <ChevronDown className={`w-4 h-4 transition-transform ${openDropdown === u.id ? 'rotate-180' : ''
                                                     }`} />
                                             </button>
                                             {openDropdown === u.id && (
-                                                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg py-2 w-48 z-50">
+                                                <div className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-lg py-2 w-48 z-50">
                                                     <button
                                                         onClick={() => handleBanToggle(u)}
-                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:bg-zinc-800/50 flex items-center gap-2"
                                                     >
                                                         <Ban className="w-4 h-4" />
                                                         {u.is_banned ? 'Unban User' : 'Ban User'}
                                                     </button>
                                                     <button
                                                         onClick={() => handleResetProgress(u)}
-                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600"
+                                                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:bg-zinc-800/50 flex items-center gap-2 text-red-600"
                                                     >
                                                         <RotateCcw className="w-4 h-4" />
                                                         Reset Progress
                                                     </button>
                                                     {currentAdmin?.role === 'superadmin' && u.role !== 'superadmin' && (
                                                         <>
-                                                            <hr className="my-2 border-gray-100" />
+                                                            <hr className="my-2 border-gray-100 dark:border-zinc-800" />
                                                             <button
                                                                 onClick={() => handleRoleChange(u, u.role === 'admin' ? 'user' : 'admin')}
-                                                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                                                                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:bg-zinc-800/50 flex items-center gap-2"
                                                             >
                                                                 <UserCog className="w-4 h-4" />
                                                                 {u.role === 'admin' ? 'Remove Admin' : 'Make Admin'}
@@ -273,7 +273,7 @@ const AdminUsers = ({ user: currentAdmin }) => {
                                                     {/* Delete Option - Restricted */}
                                                     {(currentAdmin?.role === 'superadmin' || u.role === 'user') && u.role !== 'superadmin' && (
                                                         <>
-                                                            <hr className="my-2 border-gray-100" />
+                                                            <hr className="my-2 border-gray-100 dark:border-zinc-800" />
                                                             <button
                                                                 onClick={() => handleDeleteUser(u)}
                                                                 className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 flex items-center gap-2 text-red-600 font-medium"
@@ -304,20 +304,20 @@ const AdminUsers = ({ user: currentAdmin }) => {
             {
                 showUserDetail && selectedUser && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
-                        <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                            <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+                        <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                            <div className="border-b border-gray-100 dark:border-zinc-800 px-6 py-4 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500">
+                                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center font-bold text-gray-500 dark:text-gray-400">
                                         {selectedUser.username.substring(0, 2).toUpperCase()}
                                     </div>
                                     <div>
-                                        <h2 className="text-xl font-bold text-gray-900">{selectedUser.username}</h2>
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{selectedUser.username}</h2>
                                         <p className="text-gray-400">{selectedUser.email}</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => setShowUserDetail(false)}
-                                    className="p-2 hover:bg-gray-100 rounded-lg"
+                                    className="p-2 hover:bg-gray-100 dark:bg-zinc-800 rounded-lg"
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
@@ -326,28 +326,28 @@ const AdminUsers = ({ user: currentAdmin }) => {
                             <div className="p-6">
                                 {/* Stats */}
                                 <div className="grid grid-cols-3 gap-4 mb-6">
-                                    <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                        <p className="text-2xl font-bold text-gray-900">{selectedUser.score || 0}</p>
+                                    <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{selectedUser.score || 0}</p>
                                         <p className="text-xs text-gray-400">Total Score</p>
                                     </div>
-                                    <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                        <p className="text-2xl font-bold text-gray-900">{selectedUser.solved_challenges?.length || 0}</p>
+                                    <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{selectedUser.solved_challenges?.length || 0}</p>
                                         <p className="text-xs text-gray-400">Solved</p>
                                     </div>
-                                    <div className="bg-gray-50 rounded-xl p-4 text-center">
-                                        <p className="text-2xl font-bold text-gray-900 capitalize">{selectedUser.role || 'user'}</p>
+                                    <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 text-center">
+                                        <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">{selectedUser.role || 'user'}</p>
                                         <p className="text-xs text-gray-400">Role</p>
                                     </div>
                                 </div>
 
                                 {/* Solved Challenges */}
-                                <h3 className="font-semibold text-gray-900 mb-4">Solved Challenges</h3>
+                                <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Solved Challenges</h3>
                                 {selectedUser.solved_challenges?.length > 0 ? (
                                     <div className="space-y-2">
                                         {selectedUser.solved_challenges.map((progress, idx) => (
-                                            <div key={idx} className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-lg">
-                                                <span className="text-gray-900">{progress.challenge_title}</span>
-                                                <span className="font-mono text-sm text-gray-500">+{progress.score_earned} pts</span>
+                                            <div key={idx} className="flex items-center justify-between py-2 px-4 bg-gray-50 dark:bg-zinc-800/50 rounded-lg">
+                                                <span className="text-gray-900 dark:text-gray-100">{progress.challenge_title}</span>
+                                                <span className="font-mono text-sm text-gray-500 dark:text-gray-400">+{progress.score_earned} pts</span>
                                             </div>
                                         ))}
                                     </div>

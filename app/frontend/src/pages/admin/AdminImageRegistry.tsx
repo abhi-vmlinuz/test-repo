@@ -423,7 +423,7 @@ const AdminImageRegistry = () => {
             <div className="p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[400px]">
                 <div className="flex flex-col items-center gap-4">
                     <RefreshCw className="w-8 h-8 text-gray-400 animate-spin" />
-                    <p className="text-gray-500 font-mono text-sm">Loading Configuration...</p>
+                    <p className="text-gray-500 dark:text-gray-400 font-mono text-sm">Loading Configuration...</p>
                 </div>
             </div>
         );
@@ -434,24 +434,24 @@ const AdminImageRegistry = () => {
             {/* Header */}
             <div className="mb-8 flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
                         <img src="/logo.png" alt="ZecurX" className="w-8 h-8" />
                         Image Registry
                     </h1>
-                    <p className="text-gray-500 mt-1">Manage Docker images for CTF challenges</p>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">Manage Docker images for CTF challenges</p>
                 </div>
             </div>
 
             {/* GHCR Configuration */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-zinc-800 p-6 mb-8">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-gray-200">
+                        <div className="w-10 h-10 bg-white dark:bg-zinc-900 rounded-xl flex items-center justify-center border border-gray-200 dark:border-zinc-700">
                             <img src="/github-mark.svg" alt="GitHub" className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="font-semibold text-gray-900">GitHub Container Registry</h2>
-                            <p className="text-sm text-gray-500">Connect your GitHub account to store images</p>
+                            <h2 className="font-semibold text-gray-900 dark:text-gray-100">GitHub Container Registry</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Connect your GitHub account to store images</p>
                         </div>
                     </div>
                     {ghcrConfig.connected && !isEditing && (
@@ -463,16 +463,16 @@ const AdminImageRegistry = () => {
 
                 {/* Saved Configuration View (GitHub-style) */}
                 {!isEditing && ghcrConfig.connected ? (
-                    <div className="border border-gray-200 rounded-xl overflow-hidden">
-                        <div className="flex items-center justify-between p-4 bg-gray-50/50">
+                    <div className="border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-zinc-800/50/50">
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-gray-500">Username:</span>
-                                    <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">{ghcrConfig.username}</span>
+                                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Username:</span>
+                                    <span className="font-mono text-sm bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded">{ghcrConfig.username}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-gray-500">Token:</span>
-                                    <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">ghp_••••••••••••</span>
+                                    <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Token:</span>
+                                    <span className="font-mono text-sm bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded">ghp_••••••••••••</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -488,7 +488,7 @@ const AdminImageRegistry = () => {
                                     href={`https://github.com/${ghcrConfig.username}?tab=packages`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+                                    className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300"
                                 >
                                     <ExternalLink className="w-3.5 h-3.5" />
                                     View on GitHub
@@ -505,7 +505,7 @@ const AdminImageRegistry = () => {
                     <>
                         <div className="grid md:grid-cols-2 gap-4 mt-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">GitHub Username</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GitHub Username</label>
                                 <Input
                                     value={ghcrConfig.username}
                                     onChange={(e) => setGhcrConfig(prev => ({ ...prev, username: e.target.value }))}
@@ -513,7 +513,7 @@ const AdminImageRegistry = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                     Personal Access Token
                                     <span className="text-gray-400 font-normal ml-1">(write:packages scope)</span>
                                 </label>
@@ -527,7 +527,7 @@ const AdminImageRegistry = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowToken(!showToken)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-400"
                                     >
                                         {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     </button>
@@ -573,24 +573,24 @@ const AdminImageRegistry = () => {
             </div>
 
             {/* Build New Image */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-zinc-800 p-6 mb-8">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
                             <Upload className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <h2 className="font-semibold text-gray-900">Build New Image</h2>
-                            <p className="text-sm text-gray-500">Upload ZIP or import from GitHub repository</p>
+                            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Build New Image</h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Upload ZIP or import from GitHub repository</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Source Tabs */}
-                <div className="flex gap-2 mb-4 p-1 bg-gray-100 rounded-lg w-fit">
+                <div className="flex gap-2 mb-4 p-1 bg-gray-100 dark:bg-zinc-800 rounded-lg w-fit">
                     <button
                         onClick={() => { setBuildSource('zip'); setSelectedRepo(null); setSelectedFolder(''); setFolderPreview(null); }}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${buildSource === 'zip' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${buildSource === 'zip' ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-sm dark:shadow-none' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
                             }`}
                     >
                         <Upload className="w-4 h-4" />
@@ -598,7 +598,7 @@ const AdminImageRegistry = () => {
                     </button>
                     <button
                         onClick={() => { setBuildSource('github'); if (githubConnected) fetchGithubRepos(); }}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${buildSource === 'github' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${buildSource === 'github' ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-sm dark:shadow-none' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
                             }`}
                     >
                         <GitBranch className="w-4 h-4" />
@@ -611,7 +611,7 @@ const AdminImageRegistry = () => {
                     <>
                         <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Image Name</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Image Name</label>
                                 <Input
                                     value={buildName}
                                     onChange={(e) => setBuildName(e.target.value)}
@@ -623,7 +623,7 @@ const AdminImageRegistry = () => {
                                 </p>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
                                     <span>ZIP File</span>
                                     <span className="text-[10px] text-amber-600 font-bold uppercase tracking-widest">Max 300MB</span>
                                 </label>
@@ -660,7 +660,7 @@ const AdminImageRegistry = () => {
                                         }
                                     }}
                                     disabled={buildProgress === 'uploading' || buildProgress === 'building' || buildProgress === 'pushing'}
-                                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 disabled:opacity-50"
+                                    className="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 dark:bg-zinc-800 file:text-gray-700 dark:text-gray-300 hover:file:bg-gray-200 disabled:opacity-50"
                                 />
                                 <p className="text-[10px] text-gray-400 mt-1">
                                     💡 Files over 50MB won't show preview but will still build successfully
@@ -671,18 +671,18 @@ const AdminImageRegistry = () => {
 
                         {/* ZIP Preview Section */}
                         {loadingZipPreview && (
-                            <div className="mt-4 text-center py-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-center gap-2">
+                            <div className="mt-4 text-center py-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800 flex items-center justify-center gap-2">
                                 <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm text-gray-500">Scanning ZIP contents...</span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">Scanning ZIP contents...</span>
                             </div>
                         )}
 
                         {zipPreview && buildFile && !loadingZipPreview && (
-                            <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                                <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                            <div className="mt-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden shadow-sm dark:shadow-none">
+                                <div className="bg-gray-50 dark:bg-zinc-800/50 px-4 py-2 border-b border-gray-200 dark:border-zinc-700 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <Package className="w-4 h-4 text-gray-500" />
-                                        <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">ZIP Preview</span>
+                                        <Package className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                        <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">ZIP Preview</span>
                                     </div>
                                     <span className="text-xs text-gray-400">
                                         {zipPreview.total_files} files • {zipPreview.total_size < 1024 * 1024
@@ -699,7 +699,7 @@ const AdminImageRegistry = () => {
                                         </div>
                                     )}
                                     {zipPreview.files.slice(0, 20).map((file, i) => (
-                                        <div key={i} className="flex items-center gap-2 text-gray-600 hover:bg-gray-50 rounded px-1 transition-colors">
+                                        <div key={i} className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:bg-zinc-800/50 rounded px-1 transition-colors">
                                             <span className="text-gray-300 w-4">{i + 1}.</span>
                                             {file.name.toLowerCase().includes('dockerfile') ? (
                                                 <button
@@ -760,7 +760,7 @@ const AdminImageRegistry = () => {
 
                         {/* Build Log - White Background */}
                         {buildProgress !== 'idle' && (
-                            <div className="mt-4 bg-gray-50 border border-gray-200 rounded-xl p-4 font-mono text-sm max-h-40 overflow-y-auto">
+                            <div className="mt-4 bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-xl p-4 font-mono text-sm max-h-40 overflow-y-auto">
                                 {buildLogs.map((log, i) => (
                                     <div
                                         key={i}
@@ -768,7 +768,7 @@ const AdminImageRegistry = () => {
                                             log.includes('✅') ? 'text-emerald-600' :
                                                 log.includes('❌') ? 'text-red-600' :
                                                     log.includes('📦') ? 'text-blue-600 font-medium' :
-                                                        'text-gray-600'
+                                                        'text-gray-600 dark:text-gray-400'
                                         }
                                     >
                                         {log}
@@ -815,10 +815,10 @@ const AdminImageRegistry = () => {
                 {buildSource === 'github' && (
                     <div className="space-y-4">
                         {!githubConnected ? (
-                            <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-200">
+                            <div className="text-center py-8 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-200 dark:border-zinc-700">
                                 <img src="/github-mark.svg" alt="GitHub" className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                <h4 className="font-medium text-gray-700 mb-2">Connect GitHub to browse repositories</h4>
-                                <p className="text-sm text-gray-500 mb-4">Your GHCR token will be used to access your repos</p>
+                                <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Connect GitHub to browse repositories</h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Your GHCR token will be used to access your repos</p>
                                 {ghcrConfig.connected ? (
                                     <Button onClick={() => { checkGithubStatus(); fetchGithubRepos(); }}>
                                         <GitBranch className="w-4 h-4 mr-2" />
@@ -835,7 +835,7 @@ const AdminImageRegistry = () => {
                             <>
                                 {/* Repo Selection */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Repository</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Repository</label>
                                     {loadingGithub ? (
                                         <div className="text-center py-4 text-gray-400">Loading repos...</div>
                                     ) : (
@@ -864,7 +864,7 @@ const AdminImageRegistry = () => {
                                 {/* Folder Browser */}
                                 {selectedRepo && (
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                             Select Challenge Folder
                                             <span className="text-gray-400 font-normal ml-2">
                                                 (must contain Dockerfile or docker-compose.yml)
@@ -873,13 +873,13 @@ const AdminImageRegistry = () => {
                                         {loadingFolders ? (
                                             <div className="text-center py-4 text-gray-400">Loading folders...</div>
                                         ) : (
-                                            <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
+                                            <div className="border border-gray-200 dark:border-zinc-700 rounded-lg max-h-48 overflow-y-auto">
                                                 {repoFolders.filter(f => f.type === 'dir').map(folder => (
                                                     <button
                                                         key={folder.path}
                                                         type="button"
                                                         onClick={() => previewGithubFolder(selectedRepo, folder.path)}
-                                                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-2 border-b last:border-b-0 ${selectedFolder === folder.path ? 'bg-blue-50 text-blue-700' : ''
+                                                        className={`w-full text-left px-3 py-2 hover:bg-gray-50 dark:bg-zinc-800/50 flex items-center gap-2 border-b last:border-b-0 ${selectedFolder === folder.path ? 'bg-blue-50 text-blue-700' : ''
                                                             }`}
                                                     >
                                                         <FolderOpen className="w-4 h-4 text-amber-500" />
@@ -887,7 +887,7 @@ const AdminImageRegistry = () => {
                                                     </button>
                                                 ))}
                                                 {repoFolders.filter(f => f.type === 'dir').length === 0 && (
-                                                    <p className="p-3 text-sm text-gray-500 text-center">No folders found in root</p>
+                                                    <p className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">No folders found in root</p>
                                                 )}
                                             </div>
                                         )}
@@ -907,7 +907,7 @@ const AdminImageRegistry = () => {
                                                 {folderPreview.has_compose ? '🧩 Docker Compose Pack' : folderPreview.has_dockerfile ? '📦 Single Image' : 'No build files found'}
                                             </span>
                                         </div>
-                                        <p className="text-sm text-gray-600">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
                                             Files: {folderPreview.files.slice(0, 5).join(', ')}{folderPreview.files.length > 5 && '...'}
                                         </p>
                                     </div>
@@ -917,7 +917,7 @@ const AdminImageRegistry = () => {
                                 {folderPreview?.can_build && (
                                     <div className="grid md:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Image/Pack Name</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Image/Pack Name</label>
                                             <Input
                                                 value={buildName}
                                                 onChange={(e) => setBuildName(e.target.value)}
@@ -961,7 +961,7 @@ const AdminImageRegistry = () => {
             </div>
 
             {/* Image Library */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm dark:shadow-none border border-gray-100 dark:border-zinc-800 p-6">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center">
@@ -972,11 +972,11 @@ const AdminImageRegistry = () => {
                             )}
                         </div>
                         <div>
-                            <h2 className="font-semibold text-gray-900">
+                            <h2 className="font-semibold text-gray-900 dark:text-gray-100">
                                 {imagesTab === 'images' ? 'Your Images' : 'Your Challenge Packs'}
                             </h2>
                             <div className="flex items-center gap-2">
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
                                     {imagesTab === 'images' ? `${images.length} images` : `${challengePacks.length} packs`}
                                 </p>
                                 {imagesTab === 'images' && orphanCount > 0 && (
@@ -989,10 +989,10 @@ const AdminImageRegistry = () => {
                     </div>
                     <div className="flex gap-2 items-center">
                         {/* Tab Switcher */}
-                        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg mr-2">
+                        <div className="flex gap-1 p-1 bg-gray-100 dark:bg-zinc-800 rounded-lg mr-2">
                             <button
                                 onClick={() => setImagesTab('images')}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${imagesTab === 'images' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${imagesTab === 'images' ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-sm dark:shadow-none' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
                                     }`}
                             >
                                 <Box className="w-3.5 h-3.5" />
@@ -1000,7 +1000,7 @@ const AdminImageRegistry = () => {
                             </button>
                             <button
                                 onClick={() => setImagesTab('packs')}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${imagesTab === 'packs' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${imagesTab === 'packs' ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-sm dark:shadow-none' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
                                     }`}
                             >
                                 <Layers className="w-3.5 h-3.5" />
@@ -1031,14 +1031,14 @@ const AdminImageRegistry = () => {
                 {imagesTab === 'images' && (
                     <>
                         {loading ? (
-                            <div className="text-center py-12 text-gray-500">
+                            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
                                 Loading images...
                             </div>
                         ) : images.length === 0 ? (
                             <div className="text-center py-12">
                                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                <p className="text-gray-500">No images in your registry yet</p>
+                                <p className="text-gray-500 dark:text-gray-400">No images in your registry yet</p>
                                 <p className="text-sm text-gray-400 mt-1">Build your first image above</p>
                             </div>
                         ) : (
@@ -1046,7 +1046,7 @@ const AdminImageRegistry = () => {
                                 {images.map((img, idx) => (
                                     <div key={idx} className={`flex items-center justify-between p-4 rounded-xl transition-colors ${img.warning ? 'bg-amber-50 border border-amber-200' :
                                         img.in_use ? 'bg-emerald-50 border border-emerald-200' :
-                                            'bg-gray-50 hover:bg-gray-100'
+                                            'bg-gray-50 dark:bg-zinc-800/50 hover:bg-gray-100 dark:bg-zinc-800'
                                         }`}>
                                         <div className="flex items-center gap-4">
                                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${img.warning ? 'bg-amber-100' :
@@ -1055,12 +1055,12 @@ const AdminImageRegistry = () => {
                                                 }`}>
                                                 <Box className={`w-5 h-5 ${img.warning ? 'text-amber-600' :
                                                     img.in_use ? 'text-emerald-600' :
-                                                        'text-gray-600'
+                                                        'text-gray-600 dark:text-gray-400'
                                                     }`} />
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2">
-                                                    <p className="font-medium text-gray-900">
+                                                    <p className="font-medium text-gray-900 dark:text-gray-100">
                                                         {img.in_use && img.used_by ? img.used_by : img.label}
                                                     </p>
                                                     {img.in_use && (
@@ -1109,14 +1109,14 @@ const AdminImageRegistry = () => {
                 {imagesTab === 'packs' && (
                     <>
                         {loading ? (
-                            <div className="text-center py-12 text-gray-500">
+                            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
                                 Loading packs...
                             </div>
                         ) : challengePacks.length === 0 ? (
                             <div className="text-center py-12">
                                 <Layers className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                <p className="text-gray-500">No challenge packs yet</p>
+                                <p className="text-gray-500 dark:text-gray-400">No challenge packs yet</p>
                                 <p className="text-sm text-gray-400 mt-1">Build a docker-compose.yml based challenge above</p>
                             </div>
                         ) : (
@@ -1127,18 +1127,18 @@ const AdminImageRegistry = () => {
                                             <div>
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <span className="text-lg">🧩</span>
-                                                    <h4 className="font-semibold text-gray-900">{pack.display_name}</h4>
+                                                    <h4 className="font-semibold text-gray-900 dark:text-gray-100">{pack.display_name}</h4>
                                                     <Badge className="bg-purple-100 text-purple-700" variant={undefined}>
                                                         {pack.images.length} container{pack.images.length !== 1 ? 's' : ''}
                                                     </Badge>
                                                 </div>
-                                                <p className="text-xs text-gray-500 font-mono mb-3">{pack.pack_name}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 font-mono mb-3">{pack.pack_name}</p>
 
                                                 {/* Container list */}
                                                 <div className="flex flex-wrap gap-2">
                                                     {pack.images.map((img, i) => (
-                                                        <div key={i} className="bg-white/70 border border-purple-100 rounded-lg px-3 py-1.5 text-xs">
-                                                            <span className="font-medium text-gray-700">{img.name}</span>
+                                                        <div key={i} className="bg-white/70 dark:bg-zinc-900/70 border border-purple-100 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs">
+                                                            <span className="font-medium text-gray-700 dark:text-gray-300">{img.name}</span>
                                                             {img.ports.length > 0 && (
                                                                 <span className="text-gray-400 ml-2">
                                                                     :{img.ports.join(', :')}
@@ -1149,7 +1149,7 @@ const AdminImageRegistry = () => {
                                                 </div>
                                             </div>
                                             <div className="text-right flex flex-col items-end gap-2">
-                                                <div className="flex items-center gap-2 text-sm text-gray-500">
+                                                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                                                     <span>{pack.combined_ports.length} port{pack.combined_ports.length !== 1 ? 's' : ''}</span>
                                                 </div>
                                                 {pack.created_at && (
@@ -1178,9 +1178,9 @@ const AdminImageRegistry = () => {
             {
                 showFileModal && zipPreview && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
-                        <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+                        <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
                             {/* Header */}
-                            <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b border-gray-200">
+                            <div className="bg-gray-100 dark:bg-zinc-800 px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-zinc-700">
                                 <div className="flex items-center gap-3">
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${showFileModal === 'dockerfile' ? 'bg-blue-100' : 'bg-purple-100'
                                         }`}>
@@ -1188,15 +1188,15 @@ const AdminImageRegistry = () => {
                                             }`} />
                                     </div>
                                     <div>
-                                        <h3 className="font-semibold text-gray-900">
+                                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                                             {showFileModal === 'dockerfile' ? 'Dockerfile' : 'docker-compose.yml'}
                                         </h3>
-                                        <p className="text-xs text-gray-500">View contents for verification</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">View contents for verification</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={() => setShowFileModal(null)}
-                                    className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
+                                    className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 transition-colors"
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
@@ -1210,7 +1210,7 @@ const AdminImageRegistry = () => {
                                         : zipPreview.docker_compose_content
                                     )?.split('\n').map((line, i) => (
                                         <div key={i} className="flex hover:bg-gray-800/50 rounded px-2 -mx-2">
-                                            <span className="w-10 text-gray-500 text-right mr-4 select-none flex-shrink-0">
+                                            <span className="w-10 text-gray-500 dark:text-gray-400 text-right mr-4 select-none flex-shrink-0">
                                                 {i + 1}
                                             </span>
                                             <span className={
@@ -1222,11 +1222,11 @@ const AdminImageRegistry = () => {
                                                                     line.startsWith('CMD') || line.startsWith('ENTRYPOINT') ? 'text-orange-400' :
                                                                         line.startsWith('ENV') ? 'text-cyan-400' :
                                                                             line.startsWith('WORKDIR') ? 'text-pink-400' :
-                                                                                line.startsWith('#') ? 'text-gray-500 italic' :
+                                                                                line.startsWith('#') ? 'text-gray-500 dark:text-gray-400 italic' :
                                                                                     'text-gray-100'
                                                 ) : (
                                                     // YAML syntax highlighting for docker-compose
-                                                    line.match(/^\s*#/) ? 'text-gray-500 italic' :
+                                                    line.match(/^\s*#/) ? 'text-gray-500 dark:text-gray-400 italic' :
                                                         line.match(/^\s*[a-z_]+:/) ? 'text-cyan-400' :
                                                             line.match(/^\s*-\s/) ? 'text-yellow-400' :
                                                                 line.match(/:\s*$/) ? 'text-purple-400' :
@@ -1237,7 +1237,7 @@ const AdminImageRegistry = () => {
                                             </span>
                                         </div>
                                     )) || (
-                                            <div className="text-center text-gray-500 py-8">
+                                            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                                                 No content available
                                             </div>
                                         )}
@@ -1245,12 +1245,12 @@ const AdminImageRegistry = () => {
                             </div>
 
                             {/* Footer */}
-                            <div className="bg-gray-100 px-6 py-3 flex items-center justify-between border-t border-gray-200">
-                                <div className="text-xs text-gray-500">
+                            <div className="bg-gray-100 dark:bg-zinc-800 px-6 py-3 flex items-center justify-between border-t border-gray-200 dark:border-zinc-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
                                     {showFileModal === 'dockerfile' && zipPreview.detected_ports.length > 0 ? (
                                         <span className="flex items-center gap-2">
                                             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                            Detected ports: <strong className="text-gray-700">{zipPreview.detected_ports.join(', ')}</strong>
+                                            Detected ports: <strong className="text-gray-700 dark:text-gray-300">{zipPreview.detected_ports.join(', ')}</strong>
                                         </span>
                                     ) : showFileModal === 'dockerfile' ? (
                                         <span className="text-amber-600">No EXPOSE statements found</span>
