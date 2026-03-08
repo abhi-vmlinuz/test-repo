@@ -1230,29 +1230,8 @@ pre code {
   color: #CA8A04 !important;
 }
 
-/* 2nd place card */
-[data-theme="dark"] .border-gray-100.bg-white.rounded-xl,
-[data-theme="dark"] .border-gray-100.bg-white.rounded-2xl {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
-
-[data-theme="dark"] .border-gray-100.bg-white .text-gray-900 {
-  color: #18181B !important;
-}
-
-[data-theme="dark"] .border-gray-100.bg-white .text-gray-500 {
-  color: #6B7280 !important;
-}
-
-/* 3rd place card */
-[data-theme="dark"] .border-orange-100.bg-white.rounded-xl,
-[data-theme="dark"] .border-orange-100.bg-white.rounded-2xl {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
-
-[data-theme="dark"] .border-orange-100.bg-white .text-gray-900 {
-  color: #18181B !important;
-}
+/* 2nd/3rd place card overrides removed - they used .border-gray-100.bg-white
+   selectors that accidentally matched admin tables and forced dark text in dark mode */
 
 /* Rank number circles - keep colorful */
 [data-theme="dark"] .bg-gray-200.rounded-full {
