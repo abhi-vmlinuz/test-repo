@@ -172,7 +172,7 @@ const AdminNexus = () => {
                         <Cloud className="w-8 h-8 text-blue-500" />
                         Nexus Engine
                     </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Container orchestration & billing management</p>
+                    <p className="text-gray-500 mt-1">Container orchestration & billing management</p>
                 </div>
                 <div className="flex gap-3">
                     <Button onClick={fetchData} disabled={loading} variant="outline" size="sm">
@@ -187,14 +187,14 @@ const AdminNexus = () => {
             </div>
 
             {/* Custom Tabs */}
-            <div className="flex gap-2 p-1 bg-gray-100 dark:bg-zinc-800 rounded-lg w-fit">
+            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg w-fit">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.id
-                            ? 'bg-white dark:bg-zinc-900 text-zinc-900 shadow-sm dark:shadow-none'
-                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
+                            ? 'bg-white text-zinc-900 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         <tab.icon className="w-4 h-4" />
@@ -209,11 +209,11 @@ const AdminNexus = () => {
                     {/* Stats Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                            <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                            <Card className="border border-gray-200 bg-white">
                                 <CardContent className="pt-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Active Sessions</p>
+                                            <p className="text-sm font-medium text-gray-500">Active Sessions</p>
                                             <p className="text-3xl font-bold text-zinc-900 mt-1">{stats.active_sessions}</p>
                                         </div>
                                         <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
@@ -225,11 +225,11 @@ const AdminNexus = () => {
                         </motion.div>
 
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                            <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                            <Card className="border border-gray-200 bg-white">
                                 <CardContent className="pt-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Running Pods</p>
+                                            <p className="text-sm font-medium text-gray-500">Running Pods</p>
                                             <p className="text-3xl font-bold text-zinc-900 mt-1">{stats.total_pods}</p>
                                         </div>
                                         <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -241,11 +241,11 @@ const AdminNexus = () => {
                         </motion.div>
 
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                            <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                            <Card className="border border-gray-200 bg-white">
                                 <CardContent className="pt-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Est. Hourly Cost</p>
+                                            <p className="text-sm font-medium text-gray-500">Est. Hourly Cost</p>
                                             <p className="text-3xl font-bold text-zinc-900 mt-1">${(stats.active_sessions * 0.035).toFixed(2)}</p>
                                         </div>
                                         <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
@@ -257,11 +257,11 @@ const AdminNexus = () => {
                         </motion.div>
 
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                            <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                            <Card className="border border-gray-200 bg-white">
                                 <CardContent className="pt-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">This Week</p>
+                                            <p className="text-sm font-medium text-gray-500">This Week</p>
                                             <p className="text-3xl font-bold text-zinc-900 mt-1">${totalBillingCost.toFixed(2)}</p>
                                         </div>
                                         <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
@@ -274,9 +274,9 @@ const AdminNexus = () => {
                     </div>
 
                     {/* Billing Chart */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-sm dark:shadow-none overflow-hidden">
-                        <CardHeader className="border-b border-gray-50 bg-gray-50 dark:bg-zinc-800/50/30">
-                            <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <Card className="border border-gray-200 bg-white shadow-sm overflow-hidden">
+                        <CardHeader className="border-b border-gray-50 bg-gray-50">
+                            <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 uppercase tracking-wider">
                                 <Activity className="w-4 h-4 text-blue-500" />
                                 Resource Consumption & Cost
                             </CardTitle>
@@ -335,10 +335,10 @@ const AdminNexus = () => {
 
                             {/* Summary Footer */}
                             {(history.daily_breakdown || []).length > 0 && (
-                                <div className="mt-6 pt-6 border-t border-gray-100 dark:border-zinc-800 grid grid-cols-3 gap-8">
+                                <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-3 gap-8">
                                     <div>
                                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Cost</p>
-                                        <p className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">${(history.summary?.total_cost || 0).toFixed(2)}</p>
+                                        <p className="text-xl font-bold text-gray-900 mt-1">${(history.summary?.total_cost || 0).toFixed(2)}</p>
                                     </div>
                                     <div>
                                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Efficiency</p>
@@ -356,7 +356,7 @@ const AdminNexus = () => {
 
                     {/* Quick Actions */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-gray-300 transition-colors cursor-pointer">
+                        <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer">
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -370,7 +370,7 @@ const AdminNexus = () => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setActiveTab('nodes')}>
+                        <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setActiveTab('nodes')}>
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -391,7 +391,7 @@ const AdminNexus = () => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-gray-300 transition-colors cursor-pointer">
+                        <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer">
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
@@ -399,7 +399,7 @@ const AdminNexus = () => {
                                     </div>
                                     <div>
                                         <p className="font-semibold text-zinc-900">Nexus Engine</p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">65.21.191.184:8081</p>
+                                        <p className="text-sm text-gray-500">65.21.191.184:8081</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -407,11 +407,11 @@ const AdminNexus = () => {
                     </div>
 
                     {/* Active Sessions Preview */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle className="flex items-center gap-2 text-lg">
-                                    <Server className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                    <Server className="w-5 h-5 text-gray-500" />
                                     Active Sessions
                                 </CardTitle>
                                 <Button variant="ghost" size="sm" onClick={() => setActiveTab('sessions')}>
@@ -423,16 +423,16 @@ const AdminNexus = () => {
                             {sessions.length > 0 ? (
                                 <div className="space-y-3">
                                     {sessions.slice(0, 5).map((session, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-lg">
+                                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                                 <div>
-                                                    <p className="font-mono text-sm text-gray-900 dark:text-gray-100">{session.target_ip || 'Pending...'}</p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Session: {session.session_id?.slice(0, 12)}...</p>
+                                                    <p className="font-mono text-sm text-gray-900">{session.target_ip || 'Pending...'}</p>
+                                                    <p className="text-xs text-gray-500">Session: {session.session_id?.slice(0, 12)}...</p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                <p className="text-xs text-gray-500">
                                                     {session.started_at ? new Date(session.started_at).toLocaleTimeString() : 'N/A'}
                                                 </p>
                                                 <Button
@@ -494,19 +494,19 @@ const AdminNexus = () => {
 
 
                     {sessions.length === 0 ? (
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                        <Card className="border border-gray-200 bg-white">
                             <CardContent className="py-16 text-center">
                                 <Server className="w-16 h-16 mx-auto mb-4 text-gray-200" />
-                                <p className="text-gray-500 dark:text-gray-400 text-lg">No active sessions</p>
+                                <p className="text-gray-500 text-lg">No active sessions</p>
                                 <p className="text-gray-400 text-sm mt-1">Sessions will appear here when users start challenge containers</p>
                             </CardContent>
                         </Card>
                     ) : (
                         <div className="grid gap-4">
                             {sessions.map((session: any) => (
-                                <Card key={session.session_id} className={`border bg-white dark:bg-zinc-900 ${session.is_orphaned ? 'border-amber-300 bg-amber-50' :
-                                    session.status === 'running' ? 'border-gray-200 dark:border-zinc-700' :
-                                        'border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-800/50'
+                                <Card key={session.session_id} className={`border bg-white ${session.is_orphaned ? 'border-amber-300 bg-amber-50' :
+                                    session.status === 'running' ? 'border-gray-200' :
+                                        'border-gray-100 bg-gray-50'
                                     }`}>
                                     <CardContent className="py-4">
                                         <div className="flex items-center justify-between">
@@ -532,21 +532,21 @@ const AdminNexus = () => {
                                                             </Badge>
                                                         )}
                                                         {!session.in_nexus && session.status === 'running' && !session.is_orphaned && (
-                                                            <Badge variant="outline" className="border-gray-300 text-gray-600 dark:text-gray-400 text-[10px]">
+                                                            <Badge variant="outline" className="border-gray-300 text-gray-600 text-[10px]">
                                                                 DB Only
                                                             </Badge>
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-3 mt-1">
-                                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                        <p className="text-sm text-gray-600">
                                                             <span className="text-gray-400">User:</span> {session.username || 'Unknown'}
                                                         </p>
-                                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                        <p className="text-sm text-gray-600">
                                                             <span className="text-gray-400">Challenge:</span> {session.challenge_title || 'Unknown'}
                                                         </p>
                                                         {/* Exposed Ports */}
                                                         {session.ports && session.ports.length > 0 && (
-                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                            <p className="text-sm text-gray-600">
                                                                 <span className="text-gray-400">Ports:</span>{' '}
                                                                 <span className="font-mono text-xs">{session.ports.join(', ')}</span>
                                                             </p>
@@ -563,11 +563,11 @@ const AdminNexus = () => {
                                                         session.status === 'running' ? 'border-green-200 text-green-700 bg-green-50' :
                                                             session.status === 'terminated' ? 'border-red-200 text-red-700 bg-red-50' :
                                                                 session.status === 'expired' ? 'border-amber-200 text-amber-700 bg-amber-50' :
-                                                                    'border-gray-200 dark:border-zinc-700 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-zinc-800/50'
+                                                                    'border-gray-200 text-gray-700 bg-gray-50'
                                                     }>
                                                         {session.status || 'unknown'}
                                                     </Badge>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    <p className="text-xs text-gray-500 mt-1">
                                                         Started: {session.started_at ? new Date(session.started_at).toLocaleString() : 'N/A'}
                                                     </p>
                                                     {session.estimated_cost > 0 && (
@@ -599,10 +599,10 @@ const AdminNexus = () => {
             {activeTab === 'nodes' && (
                 <div className="space-y-6">
                     {/* Clusters Section */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Cloud className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                <Cloud className="w-5 h-5 text-gray-500" />
                                 Available Clusters
                             </CardTitle>
                         </CardHeader>
@@ -616,7 +616,7 @@ const AdminNexus = () => {
                                                 {cluster.type}
                                             </Badge>
                                         </div>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{cluster.description}</p>
+                                        <p className="text-sm text-gray-500">{cluster.description}</p>
                                         <div className="mt-3 flex items-center gap-4 text-xs">
                                             <span className="text-gray-400">{cluster.zone || cluster.region}</span>
                                             {cluster.hostport && (
@@ -632,11 +632,11 @@ const AdminNexus = () => {
                     </Card>
 
                     {/* Node List */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <CardTitle className="flex items-center gap-2 text-lg">
-                                    <Server className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                    <Server className="w-5 h-5 text-gray-500" />
                                     Cluster Nodes ({nodes.count || 0})
                                 </CardTitle>
                                 <Badge variant="outline" className={`${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
@@ -648,7 +648,7 @@ const AdminNexus = () => {
                             {(nodes.nodes || []).length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {(nodes.nodes || []).map((node: any, idx: number) => (
-                                        <div key={idx} className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-lg border border-gray-100 dark:border-zinc-800">
+                                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                             <div className="flex items-center gap-3 mb-3">
                                                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                                                 <div>
@@ -658,7 +658,7 @@ const AdminNexus = () => {
                                             </div>
                                             <div className="flex items-center gap-2 mt-2">
                                                 <Globe className="w-4 h-4 text-gray-400" />
-                                                <code className="text-sm bg-white dark:bg-zinc-900 px-2 py-1 rounded border border-gray-200 dark:border-zinc-700">
+                                                <code className="text-sm bg-white px-2 py-1 rounded border border-gray-200">
                                                     {node.external_ip || 'No external IP'}
                                                 </code>
                                             </div>
@@ -676,10 +676,10 @@ const AdminNexus = () => {
                     </Card>
 
                     {/* Port Allocations */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Network className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                <Network className="w-5 h-5 text-gray-500" />
                                 Port Allocations (hostPort Mode)
                             </CardTitle>
                         </CardHeader>
@@ -687,20 +687,20 @@ const AdminNexus = () => {
                             {(portAllocations.port_allocations || []).length > 0 ? (
                                 <div className="space-y-4">
                                     {(portAllocations.port_allocations || []).map((nodeAlloc: any, idx: number) => (
-                                        <div key={idx} className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-lg border border-gray-100 dark:border-zinc-800">
+                                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                             <div className="flex items-center justify-between mb-3">
                                                 <div className="flex items-center gap-2">
-                                                    <MonitorDot className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                                    <MonitorDot className="w-4 h-4 text-gray-500" />
                                                     <span className="font-medium text-zinc-900 text-sm">{nodeAlloc.node_name}</span>
                                                 </div>
-                                                <code className="text-xs bg-white dark:bg-zinc-900 px-2 py-1 rounded border border-gray-200 dark:border-zinc-700">
+                                                <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
                                                     {nodeAlloc.external_ip}
                                                 </code>
                                             </div>
                                             {Object.keys(nodeAlloc.allocations || {}).length > 0 ? (
                                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                                     {Object.entries(nodeAlloc.allocations || {}).map(([port, sessionId]: [string, any]) => (
-                                                        <div key={port} className="flex items-center gap-2 bg-white dark:bg-zinc-900 p-2 rounded border border-gray-200 dark:border-zinc-700">
+                                                        <div key={port} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
                                                             <span className="font-mono text-sm text-emerald-600">{port}</span>
                                                             <span className="text-xs text-gray-400 truncate" title={sessionId}>
                                                                 {(sessionId as string).slice(0, 8)}...
@@ -731,34 +731,34 @@ const AdminNexus = () => {
                 <div className="space-y-6">
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                        <Card className="border border-gray-200 bg-white">
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Sessions</p>
+                                    <p className="text-sm font-medium text-gray-500">Total Sessions</p>
                                     <p className="text-2xl font-bold text-zinc-900 mt-1">{history.summary?.total_sessions || 0}</p>
                                 </div>
                             </CardContent>
                         </Card>
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                        <Card className="border border-gray-200 bg-white">
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</p>
+                                    <p className="text-sm font-medium text-gray-500">Total Cost</p>
                                     <p className="text-2xl font-bold text-emerald-600 mt-1">${(history.summary?.total_cost || 0).toFixed(4)}</p>
                                 </div>
                             </CardContent>
                         </Card>
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                        <Card className="border border-gray-200 bg-white">
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Hours</p>
+                                    <p className="text-sm font-medium text-gray-500">Total Hours</p>
                                     <p className="text-2xl font-bold text-blue-600 mt-1">{(history.summary?.total_hours || 0).toFixed(1)}h</p>
                                 </div>
                             </CardContent>
                         </Card>
-                        <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                        <Card className="border border-gray-200 bg-white">
                             <CardContent className="pt-6">
                                 <div className="text-center">
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Unique Users</p>
+                                    <p className="text-sm font-medium text-gray-500">Unique Users</p>
                                     <p className="text-2xl font-bold text-purple-600 mt-1">{history.summary?.unique_users || 0}</p>
                                 </div>
                             </CardContent>
@@ -766,10 +766,10 @@ const AdminNexus = () => {
                     </div>
 
                     {/* Session Logs Table */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Clock className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                <Clock className="w-5 h-5 text-gray-500" />
                                 Session Logs
                             </CardTitle>
                         </CardHeader>
@@ -777,18 +777,18 @@ const AdminNexus = () => {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="border-b border-gray-200 dark:border-zinc-700">
-                                            <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">User</th>
-                                            <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Session ID</th>
-                                            <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Started</th>
-                                            <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Duration</th>
-                                            <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Status</th>
-                                            <th className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Cost</th>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">User</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Session ID</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Started</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Duration</th>
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
+                                            <th className="text-right py-3 px-4 font-medium text-gray-500">Cost</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(history.sessions || []).map((session: any, idx: number) => (
-                                            <tr key={idx} className="border-b border-gray-100 dark:border-zinc-800 hover:bg-gray-50 dark:bg-zinc-800/50">
+                                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
                                                 <td className="py-3 px-4">
                                                     <div>
                                                         <p className="font-medium text-zinc-900">{session.username}</p>
@@ -796,12 +796,12 @@ const AdminNexus = () => {
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <code className="text-xs bg-gray-100 dark:bg-zinc-800 px-2 py-1 rounded">{session.session_id?.substring(0, 12)}...</code>
+                                                    <code className="text-xs bg-gray-100 px-2 py-1 rounded">{session.session_id?.substring(0, 12)}...</code>
                                                 </td>
-                                                <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+                                                <td className="py-3 px-4 text-gray-600">
                                                     {session.started_at ? new Date(session.started_at).toLocaleString() : 'N/A'}
                                                 </td>
-                                                <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+                                                <td className="py-3 px-4 text-gray-600">
                                                     {session.duration_mins ? `${session.duration_mins} min` : 'N/A'}
                                                 </td>
                                                 <td className="py-3 px-4">
@@ -813,7 +813,7 @@ const AdminNexus = () => {
                                                                     session.status === 'expired' ? 'border-amber-200 text-amber-700 bg-amber-50' :
                                                                         session.status === 'terminated' ? 'border-red-200 text-red-700 bg-red-50' :
                                                                             session.status === 'completed' ? 'border-purple-200 text-purple-700 bg-purple-50' :
-                                                                                'border-gray-200 dark:border-zinc-700 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-zinc-800/50'
+                                                                                'border-gray-200 text-gray-700 bg-gray-50'
                                                         }
                                                     >
                                                         {session.status}
@@ -827,7 +827,7 @@ const AdminNexus = () => {
                                     </tbody>
                                 </table>
                                 {(!history.sessions || history.sessions.length === 0) && (
-                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <div className="text-center py-8 text-gray-500">
                                         No session history yet
                                     </div>
                                 )}
@@ -836,10 +836,10 @@ const AdminNexus = () => {
                     </Card>
 
                     {/* Daily Breakdown Table */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Calendar className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                <Calendar className="w-5 h-5 text-gray-500" />
                                 Daily Breakdown (Last 7 Days)
                             </CardTitle>
                         </CardHeader>
@@ -847,26 +847,26 @@ const AdminNexus = () => {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="border-b border-gray-200 dark:border-zinc-700">
-                                            <th className="text-left py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Date</th>
-                                            <th className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Sessions</th>
-                                            <th className="text-center py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Hours</th>
-                                            <th className="text-right py-3 px-4 font-medium text-gray-500 dark:text-gray-400">Cost</th>
+                                        <tr className="border-b border-gray-200">
+                                            <th className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
+                                            <th className="text-center py-3 px-4 font-medium text-gray-500">Sessions</th>
+                                            <th className="text-center py-3 px-4 font-medium text-gray-500">Hours</th>
+                                            <th className="text-right py-3 px-4 font-medium text-gray-500">Cost</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(history.daily_breakdown || []).map((day: any, idx: number) => (
-                                            <tr key={idx} className="border-b border-gray-100 dark:border-zinc-800 hover:bg-gray-50 dark:bg-zinc-800/50">
+                                            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
                                                 <td className="py-3 px-4 font-medium text-zinc-900">{day.date}</td>
-                                                <td className="py-3 px-4 text-center text-gray-600 dark:text-gray-400">{day.sessions}</td>
-                                                <td className="py-3 px-4 text-center text-gray-600 dark:text-gray-400">{day.hours?.toFixed(1)}h</td>
+                                                <td className="py-3 px-4 text-center text-gray-600">{day.sessions}</td>
+                                                <td className="py-3 px-4 text-center text-gray-600">{day.hours?.toFixed(1)}h</td>
                                                 <td className="py-3 px-4 text-right font-medium text-emerald-600">${day.cost?.toFixed(4)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                                 {(!history.daily_breakdown || history.daily_breakdown.length === 0) && (
-                                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <div className="text-center py-8 text-gray-500">
                                         No data for the last 7 days
                                     </div>
                                 )}
@@ -885,29 +885,29 @@ const AdminNexus = () => {
             {activeTab === 'settings' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Resource Limits */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Cpu className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                <Cpu className="w-5 h-5 text-gray-500" />
                                 Resource Limits
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Max Concurrent Pods</label>
-                                <Input type="number" defaultValue={100} className="bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700" />
+                                <label className="text-sm font-medium text-gray-700 mb-2 block">Max Concurrent Pods</label>
+                                <Input type="number" defaultValue={100} className="bg-gray-50 border-gray-200" />
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Default TTL (minutes)</label>
-                                <Input type="number" defaultValue={60} className="bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700" />
+                                <label className="text-sm font-medium text-gray-700 mb-2 block">Default TTL (minutes)</label>
+                                <Input type="number" defaultValue={60} className="bg-gray-50 border-gray-200" />
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">CPU per Pod (cores)</label>
-                                <Input type="number" defaultValue={0.25} step={0.1} className="bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700" />
+                                <label className="text-sm font-medium text-gray-700 mb-2 block">CPU per Pod (cores)</label>
+                                <Input type="number" defaultValue={0.25} step={0.1} className="bg-gray-50 border-gray-200" />
                             </div>
                             <div>
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Memory per Pod (GB)</label>
-                                <Input type="number" defaultValue={0.5} step={0.1} className="bg-gray-50 dark:bg-zinc-800/50 border-gray-200 dark:border-zinc-700" />
+                                <label className="text-sm font-medium text-gray-700 mb-2 block">Memory per Pod (GB)</label>
+                                <Input type="number" defaultValue={0.5} step={0.1} className="bg-gray-50 border-gray-200" />
                             </div>
                             <Button className="w-full bg-zinc-900 hover:bg-black text-white">
                                 Save Settings
@@ -916,35 +916,35 @@ const AdminNexus = () => {
                     </Card>
 
                     {/* Infrastructure */}
-                    <Card className="border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                    <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Cloud className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                                <Cloud className="w-5 h-5 text-gray-500" />
                                 Infrastructure
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-lg">
+                            <div className="p-4 bg-gray-50 rounded-lg">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">Spawn Mode</span>
+                                    <span className="text-sm text-gray-600">Spawn Mode</span>
                                     <Badge variant="outline" className={`${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
                                         {nexusConfig.default_spawn_mode === 'hostport' ? '⚡ hostPort' : '⚖️ LoadBalancer'}
                                     </Badge>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">Active Cluster</span>
+                                    <span className="text-sm text-gray-600">Active Cluster</span>
                                     <span className="font-medium">{(nexusConfig.clusters || [])[0]?.type || 'GKE Autopilot'}</span>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">Nodes Available</span>
+                                    <span className="text-sm text-gray-600">Nodes Available</span>
                                     <span className="font-medium">{nodes.count || 0}</span>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">Nexus Engine</span>
+                                    <span className="text-sm text-gray-600">Nexus Engine</span>
                                     <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">Online</Badge>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">API Endpoint</span>
+                                    <span className="text-sm text-gray-600">API Endpoint</span>
                                     <span className="font-mono text-xs">65.21.191.184:8081</span>
                                 </div>
                             </div>

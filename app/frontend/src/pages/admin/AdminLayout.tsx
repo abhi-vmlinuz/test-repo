@@ -46,7 +46,7 @@ const AdminLayout = ({ user, logout }) => {
     }
 
     return (
-        <div className="min-h-screen bg-white dark:bg-zinc-900 flex text-slate-900 dark:text-gray-100 font-sans selection:bg-zinc-800 selection:text-white relative overflow-x-hidden">
+        <div className="min-h-screen bg-white flex text-slate-900 font-sans selection:bg-zinc-800 selection:text-white relative overflow-x-hidden">
             {/* Background Grid */}
             <div className="fixed inset-0 bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px] pointer-events-none z-0"></div>
 
@@ -54,7 +54,7 @@ const AdminLayout = ({ user, logout }) => {
             <CreativeBackground />
 
             {/* Sidebar - Desktop */}
-            <aside className="fixed left-0 top-0 bottom-0 w-64 border-r border-gray-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-xl z-40 hidden lg:flex flex-col p-6">
+            <aside className="fixed left-0 top-0 bottom-0 w-64 border-r border-gray-100 bg-white/50 backdrop-blur-xl z-40 hidden lg:flex flex-col p-6">
                 {/* Logo */}
                 <div className="mb-10 px-2">
                     <Link to="/" className="flex items-center gap-3 group">
@@ -76,7 +76,7 @@ const AdminLayout = ({ user, logout }) => {
                             to={item.path}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative overflow-hidden ${isActive(item.path)
                                 ? 'bg-zinc-900 text-white shadow-md'
-                                : 'text-gray-500 dark:text-gray-400 hover:text-zinc-900 hover:bg-gray-100 dark:bg-zinc-800/80'
+                                : 'text-gray-500 hover:text-zinc-900 hover:bg-gray-100'
                                 }`}
                         >
                             <item.icon className={`w-4 h-4 transition-colors ${isActive(item.path) ? 'text-white' : 'text-gray-400 group-hover:text-zinc-900'}`} />
@@ -89,10 +89,10 @@ const AdminLayout = ({ user, logout }) => {
                 </nav>
 
                 {/* Separator */}
-                <div className="pt-6 mt-6 border-t border-gray-100 dark:border-zinc-800">
+                <div className="pt-6 mt-6 border-t border-gray-100">
                     <Link
                         to="/dashboard"
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-zinc-900 hover:bg-gray-100 dark:bg-zinc-800/80 transition-all"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-500 hover:text-zinc-900 hover:bg-gray-100 transition-all"
                     >
                         <ChevronRight className="w-4 h-4 rotate-180" />
                         Back to Platform
@@ -100,16 +100,16 @@ const AdminLayout = ({ user, logout }) => {
                 </div>
 
                 {/* User Profile Snippet */}
-                <div className="border-t border-gray-100 dark:border-zinc-800 pt-6 mt-6">
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800/50 hover:border-gray-200 dark:border-zinc-700 transition-colors group cursor-pointer relative">
-                        <div className="w-9 h-9 rounded-lg bg-white dark:bg-zinc-900 border border-gray-150 flex items-center justify-center shadow-sm dark:shadow-none">
-                            <span className="font-bold text-xs text-gray-700 dark:text-gray-300">{user?.username?.substring(0, 2).toUpperCase()}</span>
+                <div className="border-t border-gray-100 pt-6 mt-6">
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-gray-200 transition-colors group cursor-pointer relative">
+                        <div className="w-9 h-9 rounded-lg bg-white border border-gray-150 flex items-center justify-center shadow-sm">
+                            <span className="font-bold text-xs text-gray-700">{user?.username?.substring(0, 2).toUpperCase()}</span>
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-zinc-800 truncate">{user?.username}</p>
                             <div className="flex items-center gap-1.5">
                                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">{user?.role}</p>
+                                <p className="text-xs text-gray-500 uppercase tracking-wider">{user?.role}</p>
                             </div>
                         </div>
 
@@ -122,7 +122,7 @@ const AdminLayout = ({ user, logout }) => {
             </aside>
 
             {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border-b border-gray-100 dark:border-zinc-800 z-50 flex items-center justify-between px-4">
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50 flex items-center justify-between px-4">
                 <Link to="/" className="flex items-center gap-2">
                     <img src="/logo.png" alt="ZecurX" className="w-7 h-7 object-contain" />
                     <div>
@@ -130,14 +130,14 @@ const AdminLayout = ({ user, logout }) => {
                         <span className="text-[10px] uppercase font-bold text-red-600 tracking-wider">Admin</span>
                     </div>
                 </Link>
-                <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-500 dark:text-gray-400">
+                <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2 text-gray-500">
                     {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
             </div>
 
             {/* Mobile Menu Overlay */}
             {mobileMenuOpen && (
-                <div className="lg:hidden fixed inset-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm pt-20 px-6">
+                <div className="lg:hidden fixed inset-0 z-40 bg-white/95 backdrop-blur-sm pt-20 px-6">
                     <nav className="space-y-4">
                         {navItems.map((item) => (
                             <Link
@@ -146,7 +146,7 @@ const AdminLayout = ({ user, logout }) => {
                                 onClick={() => setMobileMenuOpen(false)}
                                 className={`flex items-center gap-4 px-4 py-3 rounded-xl text-lg font-medium ${isActive(item.path)
                                     ? 'bg-zinc-900 text-white'
-                                    : 'text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-zinc-800/50'
+                                    : 'text-gray-500 bg-gray-50'
                                     }`}
                             >
                                 <item.icon className="w-5 h-5" />
@@ -155,7 +155,7 @@ const AdminLayout = ({ user, logout }) => {
                         ))}
                         <Link
                             to="/dashboard"
-                            className="flex items-center gap-4 px-4 py-3 rounded-xl text-lg font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-zinc-800/50 mt-4"
+                            className="flex items-center gap-4 px-4 py-3 rounded-xl text-lg font-medium text-gray-500 bg-gray-50 mt-4"
                         >
                             <ChevronRight className="w-5 h-5 rotate-180" />
                             Back to Platform

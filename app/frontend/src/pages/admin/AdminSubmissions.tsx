@@ -52,8 +52,8 @@ const AdminSubmissions = () => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Submissions</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">User progress and solve history</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Submissions</h1>
+                    <p className="text-gray-500 mt-1">User progress and solve history</p>
                 </div>
             </div>
 
@@ -65,7 +65,7 @@ const AdminSubmissions = () => {
                         onClick={() => setFilter(f)}
                         className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${filter === f
                             ? 'bg-gray-900 text-white'
-                            : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         {f === 'all' ? 'All' : f === 'correct' ? 'Solved' : 'In Progress'}
@@ -74,26 +74,26 @@ const AdminSubmissions = () => {
             </div>
 
             {/* Submissions Table */}
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 overflow-hidden">
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-zinc-800">
+                    <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">User</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Challenge</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Status</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Points</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Hints Used</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Date</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">User</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Challenge</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Status</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Points</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Hints Used</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Date</th>
                         </tr>
                     </thead>
                     <tbody>
                         {submissions.map((sub, idx) => (
-                            <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50 dark:bg-zinc-800/50">
+                            <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50">
                                 <td className="px-6 py-4">
-                                    <p className="font-medium text-gray-900 dark:text-gray-100">{sub.username}</p>
+                                    <p className="font-medium text-gray-900">{sub.username}</p>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <p className="text-gray-900 dark:text-gray-100">{sub.challenge_title}</p>
+                                    <p className="text-gray-900">{sub.challenge_title}</p>
                                 </td>
                                 <td className="px-6 py-4">
                                     {sub.solved ? (
@@ -108,13 +108,13 @@ const AdminSubmissions = () => {
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-6 py-4 font-mono text-gray-900 dark:text-gray-100">
+                                <td className="px-6 py-4 font-mono text-gray-900">
                                     {sub.solved ? `+${sub.score_earned || 0}` : '—'}
                                 </td>
-                                <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
+                                <td className="px-6 py-4 text-gray-500">
                                     {sub.hints_used?.length || 0} hints
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                                <td className="px-6 py-4 text-sm text-gray-500">
                                     {sub.solved_at ? new Date(sub.solved_at).toLocaleString() : '—'}
                                 </td>
                             </tr>
@@ -131,8 +131,8 @@ const AdminSubmissions = () => {
 
             {/* Stats */}
             <div className="mt-6 grid grid-cols-3 gap-4">
-                <div className="bg-white dark:bg-zinc-900 rounded-xl border border-gray-100 dark:border-zinc-800 p-4 text-center">
-                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{submissions.length}</p>
+                <div className="bg-white rounded-xl border border-gray-100 p-4 text-center">
+                    <p className="text-2xl font-bold text-gray-900">{submissions.length}</p>
                     <p className="text-xs text-gray-400">Total Records</p>
                 </div>
                 <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-4 text-center">
@@ -141,8 +141,8 @@ const AdminSubmissions = () => {
                     </p>
                     <p className="text-xs text-emerald-600">Solved</p>
                 </div>
-                <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800 p-4 text-center">
-                    <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">
+                <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 text-center">
+                    <p className="text-2xl font-bold text-gray-600">
                         {submissions.filter(s => !s.solved).length}
                     </p>
                     <p className="text-xs text-gray-400">In Progress</p>

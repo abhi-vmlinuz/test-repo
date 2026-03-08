@@ -51,8 +51,8 @@ const AdminDashboard = () => {
         <div className="p-8">
             {/* Header */}
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Admin Dashboard</h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1">Platform overview and statistics</p>
+                <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+                <p className="text-gray-500 mt-1">Platform overview and statistics</p>
             </div>
 
             {/* Stats Grid */}
@@ -60,14 +60,14 @@ const AdminDashboard = () => {
                 {statCards.map((stat, idx) => {
                     const Icon = stat.icon;
                     return (
-                        <div key={idx} className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-100 dark:border-zinc-800 shadow-sm dark:shadow-none">
+                        <div key={idx} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                             <div className="flex items-center justify-between mb-4">
-                                <span className="text-sm text-gray-500 dark:text-gray-400">{stat.label}</span>
+                                <span className="text-sm text-gray-500">{stat.label}</span>
                                 <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center`}>
                                     <Icon className="w-5 h-5 text-white" />
                                 </div>
                             </div>
-                            <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</div>
+                            <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
                         </div>
                     );
                 })}
@@ -76,9 +76,9 @@ const AdminDashboard = () => {
             {/* Two Column Layout */}
             <div className="grid grid-cols-2 gap-8">
                 {/* Top Users */}
-                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-100 dark:border-zinc-800 shadow-sm dark:shadow-none">
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Top Users</h2>
+                        <h2 className="text-lg font-semibold text-gray-900">Top Users</h2>
                         <Award className="w-5 h-5 text-amber-500" />
                     </div>
                     <div className="space-y-4">
@@ -87,18 +87,18 @@ const AdminDashboard = () => {
                                 <div key={user.id} className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${idx === 0 ? 'bg-amber-100 text-amber-600' :
-                                            idx === 1 ? 'bg-gray-200 text-gray-600 dark:text-gray-400' :
+                                            idx === 1 ? 'bg-gray-200 text-gray-600' :
                                                 idx === 2 ? 'bg-orange-100 text-orange-600' :
-                                                    'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-gray-400'
+                                                    'bg-gray-100 text-gray-500'
                                             }`}>
                                             {idx + 1}
                                         </span>
                                         <div>
-                                            <p className="font-medium text-gray-900 dark:text-gray-100">{user.username}</p>
+                                            <p className="font-medium text-gray-900">{user.username}</p>
                                             <p className="text-xs text-gray-400">{user.email}</p>
                                         </div>
                                     </div>
-                                    <span className="font-mono font-bold text-gray-900 dark:text-gray-100">{user.score} pts</span>
+                                    <span className="font-mono font-bold text-gray-900">{user.score} pts</span>
                                 </div>
                             ))
                         ) : (
@@ -108,9 +108,9 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Recent Activity */}
-                <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-gray-100 dark:border-zinc-800 shadow-sm dark:shadow-none">
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Recent Solves</h2>
+                        <h2 className="text-lg font-semibold text-gray-900">Recent Solves</h2>
                         <Activity className="w-5 h-5 text-emerald-500" />
                     </div>
                     <div className="space-y-4">
@@ -120,7 +120,7 @@ const AdminDashboard = () => {
                                     <div className="flex items-center gap-3">
                                         <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                                         <div>
-                                            <p className="font-medium text-gray-900 dark:text-gray-100">{solve.username}</p>
+                                            <p className="font-medium text-gray-900">{solve.username}</p>
                                             <p className="text-xs text-gray-400">solved {solve.challenge_title}</p>
                                         </div>
                                     </div>

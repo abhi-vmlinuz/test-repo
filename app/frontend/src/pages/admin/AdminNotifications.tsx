@@ -136,8 +136,8 @@ const AdminNotifications = ({ user }) => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Notifications</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Send announcements and messages to users</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+                    <p className="text-gray-500 mt-1">Send announcements and messages to users</p>
                 </div>
                 <Button onClick={() => setShowCreateModal(true)} className="bg-gray-900 hover:bg-gray-800">
                     <Send className="w-4 h-4 mr-2" /> Send Notification
@@ -150,7 +150,7 @@ const AdminNotifications = ({ user }) => {
                     onClick={() => { setShowCreateModal(true); setTargetType('all'); setType('announcement'); }}
                     className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl p-6 text-white cursor-pointer hover:shadow-lg transition-shadow"
                 >
-                    <div className="w-12 h-12 bg-white/20 dark:bg-zinc-900/20 rounded-xl flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                         <Megaphone className="w-6 h-6" />
                     </div>
                     <h3 className="text-lg font-semibold mb-1">Broadcast Announcement</h3>
@@ -161,7 +161,7 @@ const AdminNotifications = ({ user }) => {
                     onClick={() => { setShowCreateModal(true); setTargetType('specific'); setType('message'); }}
                     className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-white cursor-pointer hover:shadow-lg transition-shadow"
                 >
-                    <div className="w-12 h-12 bg-white/20 dark:bg-zinc-900/20 rounded-xl flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
                         <MessageCircle className="w-6 h-6" />
                     </div>
                     <h3 className="text-lg font-semibold mb-1">Direct Message</h3>
@@ -170,15 +170,15 @@ const AdminNotifications = ({ user }) => {
             </div>
 
             {/* Sent Notifications */}
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800">
-                <div className="p-6 border-b border-gray-100 dark:border-zinc-800">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Sent Notifications</h2>
+            <div className="bg-white rounded-2xl border border-gray-100">
+                <div className="p-6 border-b border-gray-100">
+                    <h2 className="text-lg font-semibold text-gray-900">Sent Notifications</h2>
                 </div>
 
                 {notifications.length > 0 ? (
                     <div className="divide-y divide-gray-100">
                         {notifications.map((notif) => (
-                            <div key={notif._id} className="p-6 hover:bg-gray-50 dark:bg-zinc-800/50">
+                            <div key={notif._id} className="p-6 hover:bg-gray-50">
                                 <div className="flex items-start gap-4">
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${notif.type === 'announcement' ? 'bg-purple-100' : 'bg-blue-100'
                                         }`}>
@@ -190,12 +190,12 @@ const AdminNotifications = ({ user }) => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="font-medium text-gray-900 dark:text-gray-100">{notif.title}</h3>
+                                            <h3 className="font-medium text-gray-900">{notif.title}</h3>
                                             <Badge variant="outline" className="text-xs">
                                                 {notif.target_type === 'all' ? 'All Users' : 'Specific Users'}
                                             </Badge>
                                         </div>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{notif.message}</p>
+                                        <p className="text-sm text-gray-500 line-clamp-2">{notif.message}</p>
                                         <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
                                             <span className="flex items-center gap-1">
                                                 <Users className="w-3 h-3" />
@@ -227,12 +227,12 @@ const AdminNotifications = ({ user }) => {
             {/* Create Notification Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                        <div className="border-b border-gray-100 dark:border-zinc-800 p-6 flex items-center justify-between sticky top-0 bg-white dark:bg-zinc-900 z-10">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Send Notification</h2>
+                    <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                        <div className="border-b border-gray-100 p-6 flex items-center justify-between sticky top-0 bg-white z-10">
+                            <h2 className="text-xl font-bold text-gray-900">Send Notification</h2>
                             <button
                                 onClick={() => { setShowCreateModal(false); resetForm(); }}
-                                className="p-2 hover:bg-gray-100 dark:bg-zinc-800 rounded-lg"
+                                className="p-2 hover:bg-gray-100 rounded-lg"
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -241,13 +241,13 @@ const AdminNotifications = ({ user }) => {
                         <div className="p-6 space-y-6">
                             {/* Type Selection */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setType('announcement')}
                                         className={`flex-1 p-3 rounded-xl border-2 flex items-center justify-center gap-2 transition-all ${type === 'announcement'
                                             ? 'border-purple-500 bg-purple-50 text-purple-700'
-                                            : 'border-gray-200 dark:border-zinc-700 hover:border-gray-300'
+                                            : 'border-gray-200 hover:border-gray-300'
                                             }`}
                                     >
                                         <Megaphone className="w-4 h-4" />
@@ -257,7 +257,7 @@ const AdminNotifications = ({ user }) => {
                                         onClick={() => setType('message')}
                                         className={`flex-1 p-3 rounded-xl border-2 flex items-center justify-center gap-2 transition-all ${type === 'message'
                                             ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                            : 'border-gray-200 dark:border-zinc-700 hover:border-gray-300'
+                                            : 'border-gray-200 hover:border-gray-300'
                                             }`}
                                     >
                                         <MessageCircle className="w-4 h-4" />
@@ -268,13 +268,13 @@ const AdminNotifications = ({ user }) => {
 
                             {/* Target Selection */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recipients</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Recipients</label>
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setTargetType('all')}
                                         className={`flex-1 p-3 rounded-xl border-2 flex items-center justify-center gap-2 transition-all ${targetType === 'all'
                                             ? 'border-gray-900 bg-gray-900 text-white'
-                                            : 'border-gray-200 dark:border-zinc-700 hover:border-gray-300'
+                                            : 'border-gray-200 hover:border-gray-300'
                                             }`}
                                     >
                                         <Users className="w-4 h-4" />
@@ -284,7 +284,7 @@ const AdminNotifications = ({ user }) => {
                                         onClick={() => setTargetType('specific')}
                                         className={`flex-1 p-3 rounded-xl border-2 flex items-center justify-center gap-2 transition-all ${targetType === 'specific'
                                             ? 'border-gray-900 bg-gray-900 text-white'
-                                            : 'border-gray-200 dark:border-zinc-700 hover:border-gray-300'
+                                            : 'border-gray-200 hover:border-gray-300'
                                             }`}
                                     >
                                         <User className="w-4 h-4" />
@@ -296,7 +296,7 @@ const AdminNotifications = ({ user }) => {
                             {/* User Search (for specific users) */}
                             {targetType === 'specific' && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search Users</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Search Users</label>
                                     <div className="relative">
                                         {searching ? (
                                             <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
@@ -314,18 +314,18 @@ const AdminNotifications = ({ user }) => {
 
                                     {/* Search Results */}
                                     {searchResults.length > 0 && (
-                                        <div className="mt-2 border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                                        <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                                             {searchResults.map((resultUser) => (
                                                 <div
                                                     key={resultUser.id}
                                                     onClick={() => addUser(resultUser)}
-                                                    className="p-3 hover:bg-gray-50 dark:bg-zinc-800/50 cursor-pointer flex items-center gap-3 border-b border-gray-100 dark:border-zinc-800 last:border-0"
+                                                    className="p-3 hover:bg-gray-50 cursor-pointer flex items-center gap-3 border-b border-gray-100 last:border-0"
                                                 >
-                                                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-400">
+                                                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600">
                                                         {resultUser.username.substring(0, 2).toUpperCase()}
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{resultUser.username}</p>
+                                                        <p className="text-sm font-medium text-gray-900">{resultUser.username}</p>
                                                         <p className="text-xs text-gray-400">{resultUser.email}</p>
                                                     </div>
                                                 </div>
@@ -335,7 +335,7 @@ const AdminNotifications = ({ user }) => {
 
                                     {/* No results message */}
                                     {searchFocused && !searching && searchResults.length === 0 && (
-                                        <div className="mt-2 p-4 border border-gray-200 dark:border-zinc-700 rounded-xl text-center text-sm text-gray-400">
+                                        <div className="mt-2 p-4 border border-gray-200 rounded-xl text-center text-sm text-gray-400">
                                             No users found
                                         </div>
                                     )}
@@ -347,7 +347,7 @@ const AdminNotifications = ({ user }) => {
                                                 <Badge
                                                     key={user.id}
                                                     variant={undefined}
-                                                    className="bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 flex items-center gap-1 pr-1"
+                                                    className="bg-gray-100 text-gray-700 flex items-center gap-1 pr-1"
                                                 >
                                                     {user.username}
                                                     <button
@@ -365,7 +365,7 @@ const AdminNotifications = ({ user }) => {
 
                             {/* Title */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Title</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
                                 <Input
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
@@ -375,17 +375,17 @@ const AdminNotifications = ({ user }) => {
 
                             {/* Message */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Message</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
                                 <textarea
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
                                     placeholder="Write your message here..."
-                                    className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl p-3 text-sm h-32 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                    className="w-full border border-gray-200 rounded-xl p-3 text-sm h-32 resize-none focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                                 />
                             </div>
                         </div>
 
-                        <div className="border-t border-gray-100 dark:border-zinc-800 p-6 flex justify-end gap-3">
+                        <div className="border-t border-gray-100 p-6 flex justify-end gap-3">
                             <Button
                                 variant="outline"
                                 onClick={() => { setShowCreateModal(false); resetForm(); }}

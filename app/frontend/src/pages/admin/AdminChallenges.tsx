@@ -236,7 +236,7 @@ const AdminChallenges = () => {
             case 'easy': return 'bg-emerald-100 text-emerald-700';
             case 'medium': return 'bg-amber-100 text-amber-700';
             case 'hard': return 'bg-red-100 text-red-700';
-            default: return 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300';
+            default: return 'bg-gray-100 text-gray-700';
         }
     };
 
@@ -572,8 +572,8 @@ const AdminChallenges = () => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Challenges</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">{challenges.length} challenges total</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Challenges</h1>
+                    <p className="text-gray-500 mt-1">{challenges.length} challenges total</p>
                 </div>
                 <button
                     onClick={openCreateModal}
@@ -597,31 +597,31 @@ const AdminChallenges = () => {
             </div>
 
             {/* Challenges Table */}
-            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-700 overflow-hidden overflow-x-auto">
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden overflow-x-auto">
                 <table className="w-full min-w-[900px]">
-                    <thead className="bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-200 dark:border-zinc-700">
+                    <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Title</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Author</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Category</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Difficulty</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Points</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Docker</th>
-                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Status</th>
-                            <th className="text-right px-6 py-4 text-sm font-semibold text-gray-600 dark:text-gray-400">Actions</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Title</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Author</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Category</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Difficulty</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Points</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Docker</th>
+                            <th className="text-left px-6 py-4 text-sm font-semibold text-gray-600">Status</th>
+                            <th className="text-right px-6 py-4 text-sm font-semibold text-gray-600">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredChallenges.map(challenge => (
-                            <tr key={challenge.id} className="border-b border-gray-50 hover:bg-gray-50 dark:bg-zinc-800/50">
+                            <tr key={challenge.id} className="border-b border-gray-50 hover:bg-gray-50">
                                 <td className="px-6 py-4">
-                                    <p className="font-medium text-gray-900 dark:text-gray-100">{challenge.title}</p>
+                                    <p className="font-medium text-gray-900">{challenge.title}</p>
                                     <p className="text-xs text-gray-400 truncate max-w-xs">{challenge.description.substring(0, 50)}...</p>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                <td className="px-6 py-4 text-sm text-gray-600">
                                     {challenge.author || <span className="text-gray-300 italic">—</span>}
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                <td className="px-6 py-4 text-sm text-gray-600">
                                     {getCategoryName(challenge.category_id)}
                                 </td>
                                 <td className="px-6 py-4">
@@ -629,7 +629,7 @@ const AdminChallenges = () => {
                                         {challenge.difficulty}
                                     </Badge>
                                 </td>
-                                <td className="px-6 py-4 font-mono text-gray-900 dark:text-gray-100">
+                                <td className="px-6 py-4 font-mono text-gray-900">
                                     {challenge.total_points ?? (challenge.points + (challenge.questions?.reduce((sum: number, q: { points?: number }) => sum + (q.points || 0), 0) || 0))}
                                 </td>
                                 <td className="px-6 py-4">
@@ -657,7 +657,7 @@ const AdminChallenges = () => {
                                     <div className="flex items-center justify-end gap-2">
                                         <button
                                             onClick={() => openEditModal(challenge)}
-                                            className="p-2 text-gray-400 hover:text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:bg-zinc-800 rounded-lg transition-colors"
+                                            className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                                         >
                                             <Edit2 className="w-4 h-4" />
                                         </button>
@@ -684,12 +684,12 @@ const AdminChallenges = () => {
             {/* Create/Edit Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="sticky top-0 z-10 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-zinc-700 px-6 py-4 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-gray-900">
                                 {editingChallenge ? 'Edit Challenge' : 'New Challenge'}
                             </h2>
-                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 dark:bg-zinc-800 rounded-lg">
+                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -697,7 +697,7 @@ const AdminChallenges = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-6">
                             {/* Title */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Title</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
                                 <Input
                                     type="text"
                                     value={formData.title}
@@ -709,7 +709,7 @@ const AdminChallenges = () => {
 
                             {/* Author */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Author </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Author </label>
                                 <Input
                                     type="text"
                                     value={formData.author}
@@ -721,13 +721,13 @@ const AdminChallenges = () => {
 
                             {/* Description */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                                     required
                                     rows={6}
-                                    className="w-full px-4 py-3 border border-gray-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                                     placeholder="A vulnerable login form..."
                                 />
                             </div>
@@ -735,12 +735,12 @@ const AdminChallenges = () => {
                             {/* Category & Difficulty Row */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                                     <select
                                         value={formData.category_id}
                                         onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
                                         required
-                                        className="w-full px-4 py-3 border border-gray-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-gray-900"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900"
                                     >
                                         {categories.map(cat => (
                                             <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -748,11 +748,11 @@ const AdminChallenges = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Difficulty</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty</label>
                                     <select
                                         value={formData.difficulty}
                                         onChange={(e) => setFormData(prev => ({ ...prev, difficulty: e.target.value }))}
-                                        className="w-full px-4 py-3 border border-gray-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-gray-900"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900"
                                     >
                                         <option value="easy">Easy</option>
                                         <option value="medium">Medium</option>
@@ -763,7 +763,7 @@ const AdminChallenges = () => {
 
                             {/* Points */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Base Points</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Base Points</label>
                                 <Input
                                     type="number"
                                     value={formData.points}
@@ -780,7 +780,7 @@ const AdminChallenges = () => {
                                     <div className="flex items-center gap-3">
                                         <Flag className="w-5 h-5 text-indigo-600" />
                                         <div>
-                                            <h3 className="font-medium text-gray-700 dark:text-gray-300">Main Flag</h3>
+                                            <h3 className="font-medium text-gray-700">Main Flag</h3>
                                             <p className="text-xs text-gray-400">Enable if challenge has a main flag to submit</p>
                                         </div>
                                     </div>
@@ -791,14 +791,14 @@ const AdminChallenges = () => {
                                             onChange={(e) => setFormData(prev => ({ ...prev, has_main_flag: e.target.checked }))}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:bg-zinc-900 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                                     </label>
                                 </div>
 
                                 {/* Main Flag field - only show if toggle is on */}
                                 {formData.has_main_flag && (
                                     <div className="pt-4 border-t border-indigo-100">
-                                        <label className="block text-sm text-gray-500 dark:text-gray-400 mb-1">Flag Value</label>
+                                        <label className="block text-sm text-gray-500 mb-1">Flag Value</label>
                                         <Input
                                             type="text"
                                             value={formData.flag}
@@ -811,12 +811,12 @@ const AdminChallenges = () => {
                             </div>
 
                             {/* Docker Toggle */}
-                            <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-4">
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
-                                        <Container className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                                        <Container className="w-5 h-5 text-gray-600" />
                                         <div>
-                                            <h3 className="font-medium text-gray-700 dark:text-gray-300">Lab Environment</h3>
+                                            <h3 className="font-medium text-gray-700">Lab Environment</h3>
                                             <p className="text-xs text-gray-400">Enable for challenges that need a live machine</p>
                                         </div>
                                     </div>
@@ -847,13 +847,13 @@ const AdminChallenges = () => {
                                             }}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:bg-zinc-900 after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>
                                     </label>
                                 </div>
 
                                 {/* Docker fields - only show if toggle is on */}
                                 {formData.has_docker && (
-                                    <div className="pt-4 border-t border-gray-200 dark:border-zinc-700 space-y-4">
+                                    <div className="pt-4 border-t border-gray-200 space-y-4">
 
                                         {/* Image Not Found Warning */}
                                         {imageNotFoundWarning && formData.docker_image && (
@@ -882,7 +882,7 @@ const AdminChallenges = () => {
                                                                     setFormData(prev => ({ ...prev, has_docker: false, docker_image: '' }));
                                                                     setImageNotFoundWarning(false);
                                                                 }}
-                                                                className="px-3 py-1.5 bg-white dark:bg-zinc-900 border border-amber-300 text-amber-700 text-sm rounded-lg hover:bg-amber-50 transition-colors"
+                                                                className="px-3 py-1.5 bg-white border border-amber-300 text-amber-700 text-sm rounded-lg hover:bg-amber-50 transition-colors"
                                                             >
                                                                 Disable Docker
                                                             </button>
@@ -893,13 +893,13 @@ const AdminChallenges = () => {
                                         )}
 
                                         {/* Source Type Tabs */}
-                                        <div className="flex gap-2 p-1 bg-gray-100 dark:bg-zinc-800 rounded-lg">
+                                        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
                                             <button
                                                 type="button"
                                                 onClick={() => setFormData(prev => ({ ...prev, docker_source: 'image', challenge_pack_id: '', is_multi_container: false }))}
                                                 className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${(!formData.docker_source || formData.docker_source === 'image')
-                                                    ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-sm dark:shadow-none'
-                                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
+                                                    ? 'bg-white text-gray-900 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
                                                     }`}
                                             >
                                                 📦 Single Container
@@ -908,8 +908,8 @@ const AdminChallenges = () => {
                                                 type="button"
                                                 onClick={() => setFormData(prev => ({ ...prev, docker_source: 'pack', docker_image: '', is_multi_container: true }))}
                                                 className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${formData.docker_source === 'pack'
-                                                    ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-sm dark:shadow-none'
-                                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
+                                                    ? 'bg-white text-gray-900 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
                                                     }`}
                                             >
                                                 🧩 Multi-Container
@@ -918,8 +918,8 @@ const AdminChallenges = () => {
                                                 type="button"
                                                 onClick={() => setFormData(prev => ({ ...prev, docker_source: 'github' }))}
                                                 className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${formData.docker_source === 'github'
-                                                    ? 'bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 shadow-sm dark:shadow-none'
-                                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300'
+                                                    ? 'bg-white text-gray-900 shadow-sm'
+                                                    : 'text-gray-500 hover:text-gray-700'
                                                     }`}
                                             >
                                                 <img src="/github-mark.svg" alt="" className="w-4 h-4" />
@@ -933,7 +933,7 @@ const AdminChallenges = () => {
                                                 {/* Image Library from GHCR */}
                                                 <div>
                                                     <div className="flex items-center justify-between mb-2">
-                                                        <label className="block text-sm text-gray-500 dark:text-gray-400">Select from your image library</label>
+                                                        <label className="block text-sm text-gray-500">Select from your image library</label>
                                                         <button
                                                             type="button"
                                                             onClick={async () => {
@@ -950,7 +950,7 @@ const AdminChallenges = () => {
                                                                     setLoadingImages(false);
                                                                 }
                                                             }}
-                                                            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300"
+                                                            className="text-xs text-gray-500 hover:text-gray-700"
                                                         >
                                                             🔄 Refresh
                                                         </button>
@@ -992,14 +992,14 @@ const AdminChallenges = () => {
                                                                         }}
                                                                         className={`p-3 text-left text-sm rounded-lg border transition-all ${formData.docker_image === img.image
                                                                             ? 'border-gray-900 bg-gray-900 text-white'
-                                                                            : 'border-gray-200 dark:border-zinc-700 hover:border-gray-400 bg-white dark:bg-zinc-900'
+                                                                            : 'border-gray-200 hover:border-gray-400 bg-white'
                                                                             }`}
                                                                     >
                                                                         <div className="flex items-center justify-between">
                                                                             <span className="font-medium truncate">📦 {img.label || img.image.split('/').pop()}</span>
                                                                             <span className={`text-xs px-2 py-0.5 rounded ${img.source === 'ghcr' ? 'bg-purple-100 text-purple-700' :
                                                                                 img.source === 'database' ? 'bg-blue-100 text-blue-700' :
-                                                                                    'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400'
+                                                                                    'bg-gray-100 text-gray-600'
                                                                                 }`}>
                                                                                 {img.source === 'ghcr' ? 'GHCR' : img.source === 'database' ? 'In Use' : 'Public'}
                                                                             </span>
@@ -1010,8 +1010,8 @@ const AdminChallenges = () => {
                                                             })()}
                                                         </div>
                                                     ) : (
-                                                        <div className="text-center py-6 bg-gray-50 dark:bg-zinc-800/50 rounded-lg mb-3">
-                                                            <p className="text-sm text-gray-500 dark:text-gray-400">No images in library yet</p>
+                                                        <div className="text-center py-6 bg-gray-50 rounded-lg mb-3">
+                                                            <p className="text-sm text-gray-500">No images in library yet</p>
                                                             <p className="text-xs text-gray-400 mt-1">Upload a ZIP file to create your first image</p>
                                                         </div>
                                                     )}
@@ -1034,13 +1034,13 @@ const AdminChallenges = () => {
                                                 {/* Pack Selection Header */}
                                                 <div className="flex items-center justify-between">
                                                     <div>
-                                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Challenge Pack</h4>
+                                                        <h4 className="text-sm font-medium text-gray-700">Select Challenge Pack</h4>
                                                         <p className="text-xs text-gray-400 mt-0.5">Multi-container bundles built from docker-compose</p>
                                                     </div>
                                                     <button
                                                         type="button"
                                                         onClick={fetchDockerImages}
-                                                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300"
+                                                        className="text-xs text-gray-500 hover:text-gray-700"
                                                     >
                                                         🔄 Refresh
                                                     </button>
@@ -1067,19 +1067,19 @@ const AdminChallenges = () => {
                                                                 }}
                                                                 className={`p-4 text-left rounded-xl border-2 transition-all ${formData.challenge_pack_id === pack.id
                                                                     ? 'border-indigo-500 bg-indigo-50'
-                                                                    : 'border-gray-200 dark:border-zinc-700 hover:border-gray-400 bg-white dark:bg-zinc-900'
+                                                                    : 'border-gray-200 hover:border-gray-400 bg-white'
                                                                     }`}
                                                             >
                                                                 <div className="flex items-start justify-between mb-2">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-2xl">🧩</span>
                                                                         <div>
-                                                                            <span className="font-semibold text-gray-900 dark:text-gray-100">{pack.display_name || pack.pack_name}</span>
+                                                                            <span className="font-semibold text-gray-900">{pack.display_name || pack.pack_name}</span>
                                                                             <div className="flex items-center gap-2 mt-1">
                                                                                 <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium">
                                                                                     {pack.images.length} containers
                                                                                 </span>
-                                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 rounded-full">
+                                                                                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
                                                                                     {pack.combined_ports.length} ports
                                                                                 </span>
                                                                             </div>
@@ -1091,9 +1091,9 @@ const AdminChallenges = () => {
                                                                 </div>
 
                                                                 {/* Container breakdown */}
-                                                                <div className="mt-3 space-y-1 text-xs border-t border-gray-100 dark:border-zinc-800 pt-2">
+                                                                <div className="mt-3 space-y-1 text-xs border-t border-gray-100 pt-2">
                                                                     {pack.images.map((img, idx) => (
-                                                                        <div key={idx} className="flex items-center justify-between text-gray-600 dark:text-gray-400">
+                                                                        <div key={idx} className="flex items-center justify-between text-gray-600">
                                                                             <span className="flex items-center gap-1">
                                                                                 <Container className="w-3 h-3" />
                                                                                 {img.name}
@@ -1108,13 +1108,13 @@ const AdminChallenges = () => {
                                                         ))}
                                                     </div>
                                                 ) : (
-                                                    <div className="text-center py-8 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-200 dark:border-zinc-700">
-                                                        <div className="w-16 h-16 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                                    <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-200">
+                                                        <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                                                             <span className="text-3xl">🧩</span>
                                                         </div>
-                                                        <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">No Challenge Packs Yet</h4>
-                                                        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-4">
-                                                            Upload a ZIP containing <code className="bg-gray-100 dark:bg-zinc-800 px-1 rounded text-xs">docker-compose.yml</code> in the Image Registry to create a multi-container pack.
+                                                        <h4 className="font-medium text-gray-700 mb-2">No Challenge Packs Yet</h4>
+                                                        <p className="text-sm text-gray-500 max-w-sm mx-auto mb-4">
+                                                            Upload a ZIP containing <code className="bg-gray-100 px-1 rounded text-xs">docker-compose.yml</code> in the Image Registry to create a multi-container pack.
                                                         </p>
                                                         <a
                                                             href="/admin/registry"
@@ -1144,12 +1144,12 @@ const AdminChallenges = () => {
 
                                         {/* GitHub Source - Redirects to Image Registry */}
                                         {formData.docker_source === 'github' && (
-                                            <div className="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 dark:border-zinc-700 rounded-xl p-6 text-center">
-                                                <div className="w-16 h-16 bg-white dark:bg-zinc-900 rounded-xl flex items-center justify-center mx-auto mb-4 border border-gray-200 dark:border-zinc-700 shadow-sm dark:shadow-none">
+                                            <div className="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-xl p-6 text-center">
+                                                <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center mx-auto mb-4 border border-gray-200 shadow-sm">
                                                     <img src="/github-mark.svg" alt="GitHub" className="w-8 h-8" />
                                                 </div>
-                                                <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Build from GitHub Repository</h4>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 max-w-sm mx-auto">
+                                                <h4 className="font-semibold text-gray-900 mb-2">Build from GitHub Repository</h4>
+                                                <p className="text-sm text-gray-500 mb-4 max-w-sm mx-auto">
                                                     To build images from GitHub repositories, use the Image Registry.
                                                     Once built, your images will appear in the "Single Container" tab above.
                                                 </p>
@@ -1169,9 +1169,9 @@ const AdminChallenges = () => {
                                         )}
 
                                         {/* Port Selection */}
-                                        <div className="pt-4 border-t border-gray-200 dark:border-zinc-700">
+                                        <div className="pt-4 border-t border-gray-200">
                                             <div className="flex items-center justify-between mb-3">
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                                <label className="block text-sm font-medium text-gray-700">
                                                     Container Ports
                                                 </label>
                                                 <div className="flex gap-2">
@@ -1181,14 +1181,14 @@ const AdminChallenges = () => {
                                                             ...prev,
                                                             ports: [22, 80, 443, 3000, 8000, 8080]
                                                         }))}
-                                                        className="text-xs px-2 py-1 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 rounded transition-colors"
+                                                        className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                                                     >
                                                         Select All
                                                     </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => setFormData(prev => ({ ...prev, ports: [] }))}
-                                                        className="text-xs px-2 py-1 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 rounded transition-colors"
+                                                        className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
                                                     >
                                                         Clear
                                                     </button>
@@ -1209,7 +1209,7 @@ const AdminChallenges = () => {
                                                         key={port}
                                                         className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${formData.ports.includes(port)
                                                             ? 'border-gray-900 bg-gray-900 text-white'
-                                                            : 'border-gray-200 dark:border-zinc-700 hover:border-gray-400'
+                                                            : 'border-gray-200 hover:border-gray-400'
                                                             }`}
                                                     >
                                                         <input
@@ -1245,7 +1245,7 @@ const AdminChallenges = () => {
                                                     min="1"
                                                     max="65535"
                                                     placeholder="Custom port..."
-                                                    className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-gray-900"
+                                                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900"
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter') {
                                                             e.preventDefault();
@@ -1273,7 +1273,7 @@ const AdminChallenges = () => {
                                                             input.value = '';
                                                         }
                                                     }}
-                                                    className="px-3 py-2 text-sm bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 rounded-lg transition-colors"
+                                                    className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                                                 >
                                                     Add
                                                 </button>
@@ -1285,7 +1285,7 @@ const AdminChallenges = () => {
                                                     {formData.ports.map(port => (
                                                         <span
                                                             key={port}
-                                                            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded text-xs"
+                                                            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
                                                         >
                                                             :{port}
                                                             <button
@@ -1312,24 +1312,24 @@ const AdminChallenges = () => {
                             </div>
 
                             {/* Additional Questions (Multi-flag support) */}
-                            <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-4">
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <h3 className="font-medium text-gray-700 dark:text-gray-300">Additional Questions</h3>
+                                        <h3 className="font-medium text-gray-700">Additional Questions</h3>
                                         <p className="text-xs text-gray-400">Add sub-questions with their own flags and points</p>
                                     </div>
                                     <button
                                         type="button"
                                         onClick={addQuestion}
-                                        className="text-sm text-gray-900 dark:text-gray-100 hover:text-gray-700 dark:text-gray-300 font-medium"
+                                        className="text-sm text-gray-900 hover:text-gray-700 font-medium"
                                     >
                                         + Add Question
                                     </button>
                                 </div>
                                 {formData.questions.map((q, idx) => (
-                                    <div key={idx} className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-gray-200 dark:border-zinc-700 space-y-3">
+                                    <div key={idx} className="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Question {idx + 1}</span>
+                                            <span className="text-sm font-medium text-gray-600">Question {idx + 1}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => removeQuestion(idx)}
@@ -1376,9 +1376,9 @@ const AdminChallenges = () => {
                             </div>
 
                             {/* Tags */}
-                            <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-3">
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
                                 <div>
-                                    <h3 className="font-medium text-gray-700 dark:text-gray-300">Tags</h3>
+                                    <h3 className="font-medium text-gray-700">Tags</h3>
                                     <p className="text-xs text-gray-400">Add tags to help categorize this challenge</p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
@@ -1403,7 +1403,7 @@ const AdminChallenges = () => {
                                     <input
                                         type="text"
                                         placeholder="Add tag..."
-                                        className="px-3 py-1 text-sm bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-500 w-28"
+                                        className="px-3 py-1 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-500 w-28"
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter' || e.key === ',') {
                                                 e.preventDefault();
@@ -1424,7 +1424,7 @@ const AdminChallenges = () => {
                                                 key={tag}
                                                 type="button"
                                                 onClick={() => setFormData({ ...formData, tags: [...formData.tags, tag] })}
-                                                className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 dark:text-gray-400 rounded-full hover:bg-gray-300"
+                                                className="px-2 py-0.5 text-xs bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300"
                                             >
                                                 + {tag}
                                             </button>
@@ -1435,13 +1435,13 @@ const AdminChallenges = () => {
 
                             {/* Hints */}
 
-                            <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-4">
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="font-medium text-gray-700 dark:text-gray-300">Hints</h3>
+                                    <h3 className="font-medium text-gray-700">Hints</h3>
                                     <button
                                         type="button"
                                         onClick={addHint}
-                                        className="text-sm text-gray-900 dark:text-gray-100 hover:text-gray-700 dark:text-gray-300 font-medium"
+                                        className="text-sm text-gray-900 hover:text-gray-700 font-medium"
                                     >
                                         + Add Hint
                                     </button>
@@ -1468,12 +1468,12 @@ const AdminChallenges = () => {
                             </div>
 
                             {/* Challenge Artifacts */}
-                            <div className="bg-white dark:bg-zinc-900 border rounded-xl p-4 space-y-4 shadow-sm dark:shadow-none">
+                            <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
                                 <div className="flex items-center justify-between border-b pb-2">
                                     <div className="flex items-center gap-2">
-                                        <Paperclip className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                                        <Paperclip className="w-5 h-5 text-gray-600" />
                                         <div>
-                                            <h3 className="font-medium text-gray-700 dark:text-gray-300">Challenge Artifacts</h3>
+                                            <h3 className="font-medium text-gray-700">Challenge Artifacts</h3>
                                             <p className="text-xs text-gray-400">Files for users to download and analyze</p>
                                         </div>
                                     </div>
@@ -1516,13 +1516,13 @@ const AdminChallenges = () => {
 
                                 <div className="space-y-2">
                                     {artifacts.map((art) => (
-                                        <div key={art.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-lg border border-gray-100 dark:border-zinc-800 group">
+                                        <div key={art.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 group">
                                             <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-white dark:bg-zinc-900 rounded border border-gray-200 dark:border-zinc-700">
+                                                <div className="p-2 bg-white rounded border border-gray-200">
                                                     <FileText className="w-4 h-4 text-indigo-500" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{art.filename}</p>
+                                                    <p className="text-sm font-medium text-gray-700">{art.filename}</p>
                                                     <p className="text-[10px] text-gray-400">
                                                         {(art.file_size / 1024).toFixed(1)} KB • {art.mime_type || 'Unknown type'}
                                                     </p>
@@ -1548,7 +1548,7 @@ const AdminChallenges = () => {
                                         </div>
                                     ))}
                                     {artifacts.length === 0 && editingChallenge && (
-                                        <div className="text-center py-6 border-2 border-dashed border-gray-100 dark:border-zinc-800 rounded-lg">
+                                        <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-lg">
                                             <p className="text-sm text-gray-400 italic">No artifacts uploaded yet</p>
                                         </div>
                                     )}
@@ -1562,19 +1562,19 @@ const AdminChallenges = () => {
                                     id="is_published"
                                     checked={formData.is_published}
                                     onChange={(e) => setFormData(prev => ({ ...prev, is_published: e.target.checked }))}
-                                    className="w-4 h-4 rounded border-gray-300 text-gray-900 dark:text-gray-100 focus:ring-gray-900"
+                                    className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                                 />
-                                <label htmlFor="is_published" className="text-sm text-gray-700 dark:text-gray-300">
+                                <label htmlFor="is_published" className="text-sm text-gray-700">
                                     Publish immediately (visible to users)
                                 </label>
                             </div>
 
                             {/* Submit */}
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-zinc-700">
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                                 <button
                                     type="button"
                                     onClick={() => setShowModal(false)}
-                                    className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:bg-zinc-800 rounded-xl transition-colors"
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -1605,21 +1605,21 @@ const AdminChallenges = () => {
             {/* Dockerfile Viewer Modal */}
             {showDockerfileModal && zipPreview?.dockerfile_content && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-8">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
+                    <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl">
                         {/* Header */}
-                        <div className="bg-gray-100 dark:bg-zinc-800 px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-zinc-700">
+                        <div className="bg-gray-100 px-6 py-4 flex items-center justify-between border-b border-gray-200">
                             <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                                     <FileText className="w-4 h-4 text-blue-600" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">Dockerfile</h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">View contents for verification</p>
+                                    <h3 className="font-semibold text-gray-900">Dockerfile</h3>
+                                    <p className="text-xs text-gray-500">View contents for verification</p>
                                 </div>
                             </div>
                             <button
                                 onClick={() => setShowDockerfileModal(false)}
-                                className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 transition-colors"
+                                className="p-2 hover:bg-gray-200 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -1630,7 +1630,7 @@ const AdminChallenges = () => {
                             <div className="font-mono text-sm">
                                 {zipPreview.dockerfile_content.split('\n').map((line, i) => (
                                     <div key={i} className="flex hover:bg-gray-800/50 rounded px-2 -mx-2">
-                                        <span className="w-10 text-gray-500 dark:text-gray-400 text-right mr-4 select-none flex-shrink-0">
+                                        <span className="w-10 text-gray-500 text-right mr-4 select-none flex-shrink-0">
                                             {i + 1}
                                         </span>
                                         <span className={
@@ -1641,7 +1641,7 @@ const AdminChallenges = () => {
                                                             line.startsWith('CMD') || line.startsWith('ENTRYPOINT') ? 'text-orange-400' :
                                                                 line.startsWith('ENV') ? 'text-cyan-400' :
                                                                     line.startsWith('WORKDIR') ? 'text-pink-400' :
-                                                                        line.startsWith('#') ? 'text-gray-500 dark:text-gray-400 italic' :
+                                                                        line.startsWith('#') ? 'text-gray-500 italic' :
                                                                             line.startsWith('ARG') ? 'text-indigo-400' :
                                                                                 line.startsWith('LABEL') ? 'text-teal-400' :
                                                                                     line.startsWith('USER') ? 'text-rose-400' :
@@ -1655,12 +1655,12 @@ const AdminChallenges = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-gray-100 dark:bg-zinc-800 px-6 py-3 flex items-center justify-between border-t border-gray-200 dark:border-zinc-700">
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="bg-gray-100 px-6 py-3 flex items-center justify-between border-t border-gray-200">
+                            <div className="text-xs text-gray-500">
                                 {zipPreview.detected_ports.length > 0 ? (
                                     <span className="flex items-center gap-2">
                                         <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                                        Detected ports: <strong className="text-gray-700 dark:text-gray-300">{zipPreview.detected_ports.join(', ')}</strong>
+                                        Detected ports: <strong className="text-gray-700">{zipPreview.detected_ports.join(', ')}</strong>
                                     </span>
                                 ) : (
                                     <span className="text-amber-600">No EXPOSE statements found</span>
@@ -1680,7 +1680,7 @@ const AdminChallenges = () => {
             {/* GitHub Artifact Import Modal */}
             {showGithubArtifactModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[80vh] flex flex-col">
+                    <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[80vh] flex flex-col">
                         {/* Header */}
                         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 rounded-t-2xl">
                             <div className="flex items-center justify-between">
@@ -1707,7 +1707,7 @@ const AdminChallenges = () => {
                         <div className="p-6 space-y-4 flex-1 overflow-auto">
                             {/* Repository Selector */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Repository</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Select Repository</label>
                                 <select
                                     value={artifactSelectedRepo?.full_name || ''}
                                     onChange={(e) => {
@@ -1718,7 +1718,7 @@ const AdminChallenges = () => {
                                         setArtifactSelectedFile(null);
                                         if (repo) fetchArtifactRepoContents(repo, '');
                                     }}
-                                    className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 >
                                     <option value="">-- Choose a repository --</option>
                                     {githubRepos.map(repo => (
@@ -1729,7 +1729,7 @@ const AdminChallenges = () => {
 
                             {/* Breadcrumb Path */}
                             {artifactSelectedRepo && (
-                                <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
+                                <div className="flex items-center gap-1 text-sm text-gray-500 flex-wrap">
                                     <button
                                         onClick={() => fetchArtifactRepoContents(artifactSelectedRepo, '')}
                                         className="text-purple-600 hover:underline font-medium"
@@ -1755,11 +1755,11 @@ const AdminChallenges = () => {
 
                             {/* File Browser */}
                             {artifactSelectedRepo && (
-                                <div className="border border-gray-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+                                <div className="border border-gray-200 rounded-lg overflow-hidden">
                                     {loadingArtifactContents ? (
                                         <div className="p-8 text-center">
                                             <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+                                            <p className="text-sm text-gray-500">Loading...</p>
                                         </div>
                                     ) : artifactRepoContents.length === 0 ? (
                                         <div className="p-8 text-center text-gray-400">
@@ -1782,7 +1782,7 @@ const AdminChallenges = () => {
                                                     }}
                                                     className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${artifactSelectedFile?.path === item.path
                                                         ? 'bg-purple-50 border-l-4 border-purple-500'
-                                                        : 'hover:bg-gray-50 dark:bg-zinc-800/50'
+                                                        : 'hover:bg-gray-50'
                                                         }`}
                                                 >
                                                     {item.type === 'dir' ? (
@@ -1791,7 +1791,7 @@ const AdminChallenges = () => {
                                                         <FileText className="w-5 h-5 text-gray-400" />
                                                     )}
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{item.name}</p>
+                                                        <p className="text-sm font-medium text-gray-700 truncate">{item.name}</p>
                                                         {item.size && (
                                                             <p className="text-xs text-gray-400">{(item.size / 1024).toFixed(1)} KB</p>
                                                         )}
@@ -1819,8 +1819,8 @@ const AdminChallenges = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-gray-50 dark:bg-zinc-800/50 px-6 py-4 rounded-b-2xl flex items-center justify-between border-t">
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="bg-gray-50 px-6 py-4 rounded-b-2xl flex items-center justify-between border-t">
+                            <div className="text-xs text-gray-500">
                                 {artifactSelectedFile ? `Selected: ${artifactSelectedFile.name}` : 'Select a file to import'}
                             </div>
                             <div className="flex items-center gap-3">
@@ -1832,7 +1832,7 @@ const AdminChallenges = () => {
                                         setArtifactCurrentPath('');
                                         setArtifactSelectedFile(null);
                                     }}
-                                    className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:bg-zinc-800 rounded-lg transition-colors text-sm"
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors text-sm"
                                 >
                                     Cancel
                                 </button>

@@ -9,7 +9,7 @@ import {
 const STATUS_CONFIG = {
     disabled: {
         label: 'Disabled',
-        color: 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-zinc-700',
+        color: 'bg-gray-100 text-gray-600 border-gray-200',
         dot: 'bg-gray-400',
         description: 'Hidden from everyone',
     },
@@ -107,7 +107,7 @@ const AdminFeatureFlags = ({ user }) => {
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
                     <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">Superadmin access required</p>
+                    <p className="text-gray-500 font-medium">Superadmin access required</p>
                 </div>
             </div>
         );
@@ -124,7 +124,7 @@ const AdminFeatureFlags = ({ user }) => {
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">Feature Flags</h1>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Control feature availability across the platform</p>
+                            <p className="text-sm text-gray-500">Control feature availability across the platform</p>
                         </div>
                     </div>
                 </div>
@@ -139,45 +139,45 @@ const AdminFeatureFlags = ({ user }) => {
 
             {/* Create Form */}
             {showCreate && (
-                <div className="mb-6 p-6 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl shadow-sm dark:shadow-none">
+                <div className="mb-6 p-6 bg-white border border-gray-200 rounded-xl shadow-sm">
                     <h3 className="text-sm font-semibold text-zinc-900 mb-4">Create Feature Flag</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Key (unique identifier)</label>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Key (unique identifier)</label>
                             <input
                                 type="text"
                                 value={newFlag.key}
                                 onChange={(e) => setNewFlag({ ...newFlag, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
                                 placeholder="firecracker_terminal"
-                                className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Display Name</label>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Display Name</label>
                             <input
                                 type="text"
                                 value={newFlag.name}
                                 onChange={(e) => setNewFlag({ ...newFlag, name: e.target.value })}
                                 placeholder="Firecracker VM Terminal"
-                                className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900"
                             />
                         </div>
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Description</label>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Description</label>
                             <input
                                 type="text"
                                 value={newFlag.description}
                                 onChange={(e) => setNewFlag({ ...newFlag, description: e.target.value })}
                                 placeholder="MicroVM-based terminals for challenge environments"
-                                className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Initial Status</label>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5">Initial Status</label>
                             <select
                                 value={newFlag.status}
                                 onChange={(e) => setNewFlag({ ...newFlag, status: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900 bg-white dark:bg-zinc-900"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-900 bg-white"
                             >
                                 <option value="disabled">Disabled</option>
                                 <option value="beta">Beta (Superadmin only)</option>
@@ -200,7 +200,7 @@ const AdminFeatureFlags = ({ user }) => {
             {/* Status legend */}
             <div className="flex items-center gap-6 mb-6 px-1">
                 {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                    <div key={key} className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <div key={key} className="flex items-center gap-2 text-xs text-gray-500">
                         <div className={`w-2 h-2 rounded-full ${config.dot}`} />
                         <span className="font-medium">{config.label}</span>
                         <span className="hidden sm:inline">— {config.description}</span>
@@ -211,12 +211,12 @@ const AdminFeatureFlags = ({ user }) => {
             {/* Flags Table */}
             {loading ? (
                 <div className="flex items-center justify-center h-48">
-                    <div className="w-6 h-6 border-2 border-gray-200 dark:border-zinc-700 border-t-zinc-900 rounded-full animate-spin" />
+                    <div className="w-6 h-6 border-2 border-gray-200 border-t-zinc-900 rounded-full animate-spin" />
                 </div>
             ) : flags.length === 0 ? (
-                <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-xl">
+                <div className="text-center py-16 bg-white border border-gray-100 rounded-xl">
                     <FlaskConical className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400 font-medium mb-1">No feature flags yet</p>
+                    <p className="text-gray-500 font-medium mb-1">No feature flags yet</p>
                     <p className="text-sm text-gray-400">Create your first flag to control feature visibility</p>
                 </div>
             ) : (
@@ -227,7 +227,7 @@ const AdminFeatureFlags = ({ user }) => {
                         return (
                             <div
                                 key={flag.key}
-                                className="group bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-xl p-5 hover:border-gray-200 dark:border-zinc-700 hover:shadow-sm dark:shadow-none transition-all"
+                                className="group bg-white border border-gray-100 rounded-xl p-5 hover:border-gray-200 hover:shadow-sm transition-all"
                             >
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1 min-w-0">
@@ -238,15 +238,15 @@ const AdminFeatureFlags = ({ user }) => {
                                                 {statusConfig.label}
                                             </span>
                                         </div>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{flag.description || 'No description'}</p>
-                                        <code className="text-xs text-gray-400 bg-gray-50 dark:bg-zinc-800/50 px-2 py-1 rounded font-mono">{flag.key}</code>
+                                        <p className="text-sm text-gray-500 mb-2">{flag.description || 'No description'}</p>
+                                        <code className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded font-mono">{flag.key}</code>
                                     </div>
 
                                     <div className="flex items-center gap-1 ml-4">
                                         {/* Status toggle buttons */}
                                         <button
                                             onClick={() => updateStatus(flag.key, 'disabled')}
-                                            className={`p-2 rounded-lg transition-colors ${flag.status === 'disabled' ? 'bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300' : 'text-gray-300 hover:text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:bg-zinc-800/50'}`}
+                                            className={`p-2 rounded-lg transition-colors ${flag.status === 'disabled' ? 'bg-gray-100 text-gray-700' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}
                                             title="Disable"
                                         >
                                             <EyeOff className="w-4 h-4" />
@@ -266,7 +266,7 @@ const AdminFeatureFlags = ({ user }) => {
                                             <Eye className="w-4 h-4" />
                                         </button>
 
-                                        <div className="w-px h-5 bg-gray-100 dark:bg-zinc-800 mx-1" />
+                                        <div className="w-px h-5 bg-gray-100 mx-1" />
 
                                         {/* Delete */}
                                         {deleteConfirm === flag.key ? (
@@ -280,7 +280,7 @@ const AdminFeatureFlags = ({ user }) => {
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteConfirm(null)}
-                                                    className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:bg-zinc-800/50 transition-colors"
+                                                    className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
                                                     title="Cancel"
                                                 >
                                                     <X className="w-4 h-4" />
@@ -304,11 +304,11 @@ const AdminFeatureFlags = ({ user }) => {
             )}
 
             {/* Info box */}
-            <div className="mt-8 p-4 bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-800 rounded-xl">
+            <div className="mt-8 p-4 bg-gray-50 border border-gray-100 rounded-xl">
                 <div className="flex items-start gap-3">
                     <AlertTriangle className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                    <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                        <p className="font-medium text-gray-600 dark:text-gray-400">How feature flags work</p>
+                    <div className="text-xs text-gray-500 space-y-1">
+                        <p className="font-medium text-gray-600">How feature flags work</p>
                         <p><strong>Disabled</strong> — Feature is completely hidden. No one can access it.</p>
                         <p><strong>Beta</strong> — Only you (superadmin) can see and test the feature on production.</p>
                         <p><strong>Enabled</strong> — Feature is live for all users. Safe to merge into mainline.</p>

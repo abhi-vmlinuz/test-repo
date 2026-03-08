@@ -114,8 +114,8 @@ const AdminCategories = () => {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Categories</h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">{categories.length} categories total</p>
+                    <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
+                    <p className="text-gray-500 mt-1">{categories.length} categories total</p>
                 </div>
                 <button
                     onClick={openCreateModal}
@@ -131,7 +131,7 @@ const AdminCategories = () => {
                 {categories.map(category => (
                     <div
                         key={category.id}
-                        className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-6 hover:shadow-lg transition-shadow"
+                        className="bg-white rounded-2xl border border-gray-100 p-6 hover:shadow-lg transition-shadow"
                     >
                         <div className="flex items-start justify-between mb-4">
                             <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
@@ -154,11 +154,11 @@ const AdminCategories = () => {
                                 </button>
                             </div>
                         </div>
-                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">{category.name}</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{category.description}</p>
-                        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                        <h3 className="font-semibold text-gray-900 mb-2">{category.name}</h3>
+                        <p className="text-sm text-gray-500 line-clamp-2">{category.description}</p>
+                        <div className="mt-4 pt-4 border-t border-gray-100">
                             <p className="text-xs text-gray-400">
-                                Icon: <span className="font-mono text-gray-600 dark:text-gray-400">{category.icon}</span>
+                                Icon: <span className="font-mono text-gray-600">{category.icon}</span>
                             </p>
                         </div>
                     </div>
@@ -174,12 +174,12 @@ const AdminCategories = () => {
             {/* Create/Edit Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-8">
-                    <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-md">
-                        <div className="border-b border-gray-100 dark:border-zinc-800 px-6 py-4 flex items-center justify-between">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                    <div className="bg-white rounded-2xl w-full max-w-md">
+                        <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-gray-900">
                                 {editingCategory ? 'Edit Category' : 'New Category'}
                             </h2>
-                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 dark:bg-zinc-800 rounded-lg">
+                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -187,7 +187,7 @@ const AdminCategories = () => {
                         <form onSubmit={handleSubmit} className="p-6 space-y-6">
                             {/* Name */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Name</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
                                 <Input
                                     type="text"
                                     value={formData.name}
@@ -199,24 +199,24 @@ const AdminCategories = () => {
 
                             {/* Description */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                                 <textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                                     required
                                     rows={3}
-                                    className="w-full px-4 py-3 border border-gray-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                     placeholder="Web vulnerabilities and exploitation techniques"
                                 />
                             </div>
 
                             {/* Icon */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Icon</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Icon</label>
                                 <select
                                     value={formData.icon}
                                     onChange={(e) => setFormData(prev => ({ ...prev, icon: e.target.value }))}
-                                    className="w-full px-4 py-3 border border-gray-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
                                 >
                                     {AVAILABLE_ICONS.map(icon => (
                                         <option key={icon} value={icon}>{icon}</option>
@@ -229,7 +229,7 @@ const AdminCategories = () => {
 
                             {/* Color */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Color</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Color</label>
                                 <div className="grid grid-cols-5 gap-3">
                                     {AVAILABLE_COLORS.map(colorOption => (
                                         <button
@@ -248,11 +248,11 @@ const AdminCategories = () => {
                             </div>
 
                             {/* Submit */}
-                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-zinc-800">
+                            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                                 <button
                                     type="button"
                                     onClick={() => setShowModal(false)}
-                                    className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:bg-zinc-800 rounded-xl transition-colors"
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
                                 >
                                     Cancel
                                 </button>
