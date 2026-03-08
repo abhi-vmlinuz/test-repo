@@ -107,7 +107,7 @@ code {
         transition: background-color 0.3s ease, color 0.3s ease;
     }
 
-    /* Force text color inheritance for dark mode */
+    /* Force text color inheritance for dark mode - covers ALL text elements */
     [data-theme="dark"] h1,
     [data-theme="dark"] h2,
     [data-theme="dark"] h3,
@@ -117,9 +117,46 @@ code {
     [data-theme="dark"] p,
     [data-theme="dark"] span,
     [data-theme="dark"] label,
-    [data-theme="dark"] li {
+    [data-theme="dark"] li,
+    [data-theme="dark"] td,
+    [data-theme="dark"] th,
+    [data-theme="dark"] div,
+    [data-theme="dark"] a,
+    [data-theme="dark"] button,
+    [data-theme="dark"] input,
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea,
+    [data-theme="dark"] small,
+    [data-theme="dark"] strong,
+    [data-theme="dark"] em,
+    [data-theme="dark"] b {
         color: inherit;
     }
+
+    /* Dark mode: override hardcoded Tailwind gray text classes */
+    [data-theme="dark"] .text-gray-900 { color: #f3f4f6; }
+    [data-theme="dark"] .text-gray-800 { color: #e5e7eb; }
+    [data-theme="dark"] .text-gray-700 { color: #d1d5db; }
+    [data-theme="dark"] .text-gray-600 { color: #9ca3af; }
+    [data-theme="dark"] .text-gray-500 { color: #9ca3af; }
+    [data-theme="dark"] .text-slate-900 { color: #f3f4f6; }
+    [data-theme="dark"] .text-slate-800 { color: #e5e7eb; }
+    [data-theme="dark"] .text-slate-700 { color: #d1d5db; }
+    [data-theme="dark"] .text-zinc-900 { color: #f3f4f6; }
+    [data-theme="dark"] .text-zinc-800 { color: #e5e7eb; }
+    [data-theme="dark"] .text-zinc-700 { color: #d1d5db; }
+
+    /* Dark mode: override hardcoded Tailwind bg classes */
+    [data-theme="dark"] .bg-white { background-color: #18181b; }
+    [data-theme="dark"] .bg-gray-50 { background-color: rgba(39, 39, 42, 0.5); }
+    [data-theme="dark"] .bg-gray-100 { background-color: #27272a; }
+    [data-theme="dark"] .bg-gray-200 { background-color: #3f3f46; }
+
+    /* Dark mode: override hardcoded Tailwind border classes */
+    [data-theme="dark"] .border-gray-50 { border-color: #27272a; }
+    [data-theme="dark"] .border-gray-100 { border-color: #27272a; }
+    [data-theme="dark"] .border-gray-200 { border-color: #3f3f46; }
+    [data-theme="dark"] .border-gray-300 { border-color: #52525b; }
 }
 
 /* Custom scrollbar for minimal theme */
