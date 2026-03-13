@@ -2516,7 +2516,7 @@ async def submit_flag(submission: FlagSubmit, current_user: dict = Depends(get_c
         await conn.execute('''
             UPDATE ctf_public_challenges SET solves = solves + 1, "updatedAt" = NOW()
             WHERE id = $1
-        ''', submission.challenge_id)
+        ''', challenge_id)
         
         return {'correct': True, 'message': 'Correct flag!', 'points': points_earned}
 
@@ -2599,6 +2599,13 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
             UPDATE users SET "ctfScore" = "ctfScore" + $1, "updatedAt" = NOW()
             WHERE id = $2
         ''', points_earned, current_user['id'])
+        
+        # Update solve count on first question solve (when challenge is first marked solved)
+        if is_first_solve:
+            await conn.execute('''
+                UPDATE ctf_public_challenges SET solves = solves + 1, "updatedAt" = NOW()
+                WHERE id = $1
+            ''', challenge_id)
         
         return {'correct': True, 'message': 'Correct!', 'points': points_earned}
 
