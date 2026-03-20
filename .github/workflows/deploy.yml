@@ -52,7 +52,7 @@ jobs:
       - name: Verify Deployment
         run: |
           echo "🔍 Verifying CTF health..."
-          sleep 10
+          sleep 20
           CTF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://ctf.zecurx.com/ || echo "000")
           
           if [ "$CTF_STATUS" == "200" ] || [ "$CTF_STATUS" == "401" ]; then
