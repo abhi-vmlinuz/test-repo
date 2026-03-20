@@ -1,0 +1,63 @@
+name: Deploy ZecurX CTF
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        required: true
+        default: 'cached'
+        type: choice
+        options:
+          - cached   # Fast - uses Docker cache
+          - fresh    # Slow - no cache, clean build
+          - quick    # Fastest - just restart, no build
+
+env:
+  VPS_HOST: '65.21.191.184'
+  VPS_USER: 'root'
+  DEPLOY_PATH: '/opt/zecurx-ctf'
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy via update.sh
+        run: |
+          MODE="${{ github.event.inputs.build_mode || 'cached' }}"
+          
+          echo "🏁 Deploying CTF in $MODE mode..."
+          
+          ssh -o StrictHostKeyChecking=no ${{ env.VPS_USER }}@${{ env.VPS_HOST }} << EOF
+            cd ${{ env.DEPLOY_PATH }}
+            git pull origin main
+            chmod +x update.sh
+            ./update.sh $MODE
+          EOF
+      
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Verifying CTF health..."
+          sleep 10
+          CTF_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://ctf.zecurx.com/ || echo "000")
+          
+          if [ "$CTF_STATUS" == "200" ] || [ "$CTF_STATUS" == "401" ]; then
+            echo "✅ CTF verified ($CTF_STATUS)!"
+          else
+            echo "❌ CTF unreachable ($CTF_STATUS)"
+            exit 1
+          fi
