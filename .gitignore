@@ -1,22 +1,52 @@
-# Dependency directories
+# Dependencies
 node_modules/
 **/node_modules/
 
-# Logs and temporary files
+# Frontend build/cache artifacts
+frontend/.next/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+
+# Generic build/cache artifacts
+dist/
+build/
+.cache/
+.parcel-cache/
+coverage/
+*.tsbuildinfo
+
+# Python artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Logs and temp files
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Build/output folders
-/build
-/dist
-
-# Environment variables (critical for security)
+# Environment and local overrides
 .env
-*.env.local
+.env.*
+!.env.example
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Legacy/irrelevant artifacts
 deploy-ctf.bat
 deploy-local.ps1.next
-zecurx-lms-client/.next/
-zecurx-lms-server/dist/
-*.tsbuildinfo
-certbot/conf/
-certbot/www/

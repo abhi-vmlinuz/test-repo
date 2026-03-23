@@ -1,5 +1,9 @@
 # ZecurX LABS - Cybersecurity Learning & CTF Platform
 
+> [!IMPORTANT]
+> Split-repo deployment note: nginx/certbot/reverse-proxy config is managed in `zecurx-infra`.
+> This repo (`zecurx-ctf`) does not own active nginx config.
+
 <p align="center">
   <strong>A comprehensive cybersecurity education and Capture The Flag (CTF) platform</strong>
 </p>
