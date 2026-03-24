@@ -265,12 +265,12 @@ const AdminNexus = () => {
                         </motion.div>
                     </div>
 
-                    {/* Billing Chart */}
+                    {/* Session Activity Chart */}
                     <Card className="border border-gray-200 bg-white shadow-sm overflow-hidden">
                         <CardHeader className="border-b border-gray-50 bg-gray-50">
                             <CardTitle className="flex items-center gap-2 text-sm font-bold text-gray-600 uppercase tracking-wider">
-                                <Activity className="w-4 h-4 text-blue-500" />
-                                Resource Consumption & Cost
+                                <Activity className="w-4 h-4 text-purple-500" />
+                                Session Activity (Last 7 Days)
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="pt-6">
@@ -279,9 +279,9 @@ const AdminNexus = () => {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <AreaChart data={history.daily_breakdown.map(d => ({ ...d, shortDate: d.date?.split(' ')[1] || d.date }))}>
                                             <defs>
-                                                <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
-                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                                <linearGradient id="colorSessions" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
                                                 </linearGradient>
                                             </defs>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -296,20 +296,19 @@ const AdminNexus = () => {
                                                 axisLine={false}
                                                 tickLine={false}
                                                 tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                                tickFormatter={(v) => `$${v.toFixed(2)}`}
                                             />
                                             <Tooltip
                                                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                                formatter={(value: any) => [`$${value.toFixed(4)}`, 'Daily Cost']}
+                                                formatter={(value: any) => [value, 'Sessions']}
                                                 labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
                                             />
                                             <Area
                                                 type="monotone"
-                                                dataKey="cost"
-                                                stroke="#3b82f6"
-                                                strokeWidth={2}
+                                                dataKey="sessions"
+                                                stroke="#a855f7"
+                                                strokeWidth={2.5}
                                                 fillOpacity={1}
-                                                fill="url(#colorCost)"
+                                                fill="url(#colorSessions)"
                                                 animationDuration={2000}
                                             />
                                         </AreaChart>
@@ -329,15 +328,19 @@ const AdminNexus = () => {
                             {(history.daily_breakdown || []).length > 0 && (
                                 <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-3 gap-8">
                                     <div>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Cost</p>
-                                        <p className="text-xl font-bold text-gray-900 mt-1">${(history.summary?.total_cost || 0).toFixed(2)}</p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Total Sessions</p>
+                                        <p className="text-xl font-bold text-gray-900 mt-1">{history.summary?.total_sessions || 0}</p>
                                     </div>
                                     <div>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Efficiency</p>
-                                        <p className="text-xl font-bold text-emerald-600 mt-1">98.4%</p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Avg Duration</p>
+                                        <p className="text-xl font-bold text-purple-600 mt-1">
+                                            {history.summary?.total_sessions > 0 
+                                                ? ((history.summary?.total_hours || 0) / history.summary?.total_sessions).toFixed(1) 
+                                                : '0.0'}h
+                                        </p>
                                     </div>
                                     <div className="text-right">
-                                        <Button variant="ghost" size="sm" className="text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                        <Button variant="ghost" size="sm" className="text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50">
                                             View Detailed Logs <ChevronRight className="w-3 h-3 ml-1" />
                                         </Button>
                                     </div>

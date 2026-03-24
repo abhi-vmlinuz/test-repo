@@ -81,26 +81,6 @@ const BillingTab = ({ API }: BillingTabProps) => {
                 </div>
             </div>
 
-            {/* Cost Comparison Banner */}
-            <Card className="border border-emerald-200 bg-emerald-50">
-                <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                        <CheckCircle className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                            <p className="font-semibold text-emerald-900 mb-1">95.8% Cost Reduction Achieved</p>
-                            <div className="flex items-center gap-4 text-sm text-emerald-700">
-                                <span className="line-through">GKE: $1,047/month</span>
-                                <span>→</span>
-                                <span className="font-semibold">Hetzner: $44/month</span>
-                            </div>
-                            <p className="text-xs text-emerald-600 mt-1">
-                                Migrated from GKE Autopilot + LoadBalancer to K3s Bare Metal + WireGuard VPN
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
             {/* Fixed Cost Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -265,25 +245,6 @@ const BillingTab = ({ API }: BillingTabProps) => {
                                 • IP: 65.21.191.184:8081<br/>
                                 • Manages pod lifecycle and VPN configs
                             </p>
-                        </div>
-
-                        <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                            <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-emerald-900">Cost Comparison</h4>
-                                <Badge variant="outline" className="border-emerald-300 text-emerald-800 bg-emerald-100">
-                                    95.8% savings
-                                </Badge>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <p className="text-gray-600 mb-1">Previous (GKE):</p>
-                                    <p className="font-mono text-red-600 line-through">$1,047/month</p>
-                                </div>
-                                <div>
-                                    <p className="text-gray-600 mb-1">Current (Hetzner):</p>
-                                    <p className="font-mono text-emerald-600 font-semibold">$44/month</p>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </CardContent>
