@@ -9,7 +9,7 @@ import {
     Server, DollarSign, Activity, Calculator, Trash2, RefreshCw,
     Cloud, Cpu, HardDrive, Network, Clock, TrendingUp,
     Settings, Zap, CheckCircle, XCircle, BarChart3,
-    Download, Calendar, ChevronRight, Layers, Globe, MonitorDot, Shield, Users
+    Download, Calendar, ChevronRight, ChevronDown, Layers, Globe, MonitorDot, Shield, Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -25,6 +25,15 @@ const AdminNexus = () => {
     // K3s and VPN state
     const [vpnStatus, setVpnStatus] = useState({ total_users: 0, active_connections: 0, server_ip: '10.8.0.1' });
     const [clusterHealth, setClusterHealth] = useState({ status: 'healthy', nodes_ready: 0, nodes_total: 0, pod_capacity: 0 });
+    
+    // Detailed lists state
+    const [vpnUsers, setVpnUsers] = useState<any[]>([]);
+    const [vpnConnections, setVpnConnections] = useState<any[]>([]);
+    const [clusterNodes, setClusterNodes] = useState<any[]>([]);
+    const [showVpnUsers, setShowVpnUsers] = useState(false);
+    const [showVpnConnections, setShowVpnConnections] = useState(false);
+    const [showClusterNodes, setShowClusterNodes] = useState(false);
+    const [loadingDetails, setLoadingDetails] = useState<string | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -49,6 +58,48 @@ const AdminNexus = () => {
             console.error('Failed to fetch Nexus data:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchVpnUsers = async () => {
+        setLoadingDetails('vpn-users');
+        try {
+            const res = await axios.get(`${API}/admin/nexus/vpn/users`);
+            setVpnUsers(res.data.users || []);
+            setShowVpnUsers(true);
+        } catch (error) {
+            console.error('Failed to fetch VPN users:', error);
+            toast.error('Failed to fetch VPN users');
+        } finally {
+            setLoadingDetails(null);
+        }
+    };
+
+    const fetchVpnConnections = async () => {
+        setLoadingDetails('vpn-connections');
+        try {
+            const res = await axios.get(`${API}/admin/nexus/vpn/connections`);
+            setVpnConnections(res.data.connections || []);
+            setShowVpnConnections(true);
+        } catch (error) {
+            console.error('Failed to fetch VPN connections:', error);
+            toast.error('Failed to fetch VPN connections');
+        } finally {
+            setLoadingDetails(null);
+        }
+    };
+
+    const fetchClusterNodes = async () => {
+        setLoadingDetails('cluster-nodes');
+        try {
+            const res = await axios.get(`${API}/admin/nexus/cluster/nodes`);
+            setClusterNodes(res.data.nodes || []);
+            setShowClusterNodes(true);
+        } catch (error) {
+            console.error('Failed to fetch cluster nodes:', error);
+            toast.error('Failed to fetch cluster nodes');
+        } finally {
+            setLoadingDetails(null);
         }
     };
 
@@ -233,15 +284,24 @@ const AdminNexus = () => {
                         </motion.div>
 
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-                            <Card className="border border-gray-200 bg-white">
+                            <Card className="border border-gray-200 bg-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => {
+                                if (!showVpnUsers) {
+                                    fetchVpnUsers();
+                                } else {
+                                    setShowVpnUsers(false);
+                                }
+                            }}>
                                 <CardContent className="pt-6">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-sm font-medium text-gray-500">VPN Users</p>
                                             <p className="text-3xl font-bold text-zinc-900 mt-1">{vpnStatus.total_users}</p>
                                         </div>
-                                        <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
-                                            <Shield className="w-6 h-6 text-teal-600" />
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
+                                                <Shield className="w-6 h-6 text-teal-600" />
+                                            </div>
+                                            {showVpnUsers ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
                                         </div>
                                     </div>
                                 </CardContent>
@@ -264,6 +324,152 @@ const AdminNexus = () => {
                             </Card>
                         </motion.div>
                     </div>
+
+                    {/* Expandable VPN Users Detail */}
+                    {showVpnUsers && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                            <Card className="border border-teal-200 bg-teal-50">
+                                <CardHeader className="border-b border-teal-200">
+                                    <CardTitle className="flex items-center gap-2 text-lg">
+                                        <Users className="w-5 h-5 text-teal-600" />
+                                        VPN Users ({vpnUsers.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-6">
+                                    {loadingDetails === 'vpn-users' ? (
+                                        <div className="flex items-center justify-center h-32">
+                                            <RefreshCw className="w-5 h-5 animate-spin text-teal-600" />
+                                        </div>
+                                    ) : vpnUsers.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-teal-200">
+                                                        <th className="text-left py-2 px-4 font-semibold text-teal-900">User ID</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-teal-900">VPN IP</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-teal-900">Created</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-teal-900">Allowed Pods</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {vpnUsers.map((user, idx) => (
+                                                        <tr key={idx} className="border-b border-teal-100 hover:bg-teal-100/50">
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{user.user_id}</td>
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{user.vpn_ip}</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{new Date(user.created_at).toLocaleDateString()}</td>
+                                                            <td className="py-2 px-4"><Badge variant="secondary">{user.allowed_pods}</Badge></td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-gray-600 py-8">No VPN users found</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
+
+                    {/* Expandable VPN Connections Detail */}
+                    {showVpnConnections && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                            <Card className="border border-emerald-200 bg-emerald-50">
+                                <CardHeader className="border-b border-emerald-200">
+                                    <CardTitle className="flex items-center gap-2 text-lg">
+                                        <Activity className="w-5 h-5 text-emerald-600" />
+                                        Active VPN Connections ({vpnConnections.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-6">
+                                    {loadingDetails === 'vpn-connections' ? (
+                                        <div className="flex items-center justify-center h-32">
+                                            <RefreshCw className="w-5 h-5 animate-spin text-emerald-600" />
+                                        </div>
+                                    ) : vpnConnections.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-emerald-200">
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">User ID</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">VPN IP</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">Endpoint</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">RX/TX</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">Connected</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {vpnConnections.map((conn, idx) => (
+                                                        <tr key={idx} className="border-b border-emerald-100 hover:bg-emerald-100/50">
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{conn.user_id}</td>
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{conn.vpn_ip}</td>
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-600">{conn.endpoint || 'N/A'}</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{(conn.rx_bytes / 1024 / 1024).toFixed(2)}MB / {(conn.tx_bytes / 1024 / 1024).toFixed(2)}MB</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{new Date(conn.connected_since).toLocaleTimeString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-gray-600 py-8">No active connections</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
+
+                    {/* Expandable K3s Nodes Detail */}
+                    {showClusterNodes && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                            <Card className="border border-blue-200 bg-blue-50">
+                                <CardHeader className="border-b border-blue-200">
+                                    <CardTitle className="flex items-center gap-2 text-lg">
+                                        <Layers className="w-5 h-5 text-blue-600" />
+                                        K3s Cluster Nodes ({clusterNodes.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-6">
+                                    {loadingDetails === 'cluster-nodes' ? (
+                                        <div className="flex items-center justify-center h-32">
+                                            <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
+                                        </div>
+                                    ) : clusterNodes.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-blue-200">
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Node</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Status</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Version</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">CPU/Memory</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Pod Capacity</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {clusterNodes.map((node, idx) => (
+                                                        <tr key={idx} className="border-b border-blue-100 hover:bg-blue-100/50">
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{node.name}</td>
+                                                            <td className="py-2 px-4">
+                                                                <Badge variant={node.status === 'Ready' ? 'default' : 'destructive'}>
+                                                                    {node.status}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{node.version}</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{node.cpu} / {node.memory}</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{node.pod_capacity}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-gray-600 py-8">No cluster nodes found</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
 
                     {/* Session Activity Chart */}
                     <Card className="border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -607,21 +813,35 @@ const AdminNexus = () => {
                                     <p className="text-sm text-gray-600 mb-1">Network: <span className="font-mono">{vpnStatus.server_ip}/24</span></p>
                                     <p className="text-sm text-gray-600">Protocol: <span className="font-mono">WireGuard UDP/51820</span></p>
                                 </div>
-                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
+                                    if (!showVpnUsers) {
+                                        fetchVpnUsers();
+                                    } else {
+                                        setShowVpnUsers(false);
+                                    }
+                                }}>
                                     <div className="flex items-center gap-3 mb-2">
                                         <Users className="w-5 h-5 text-blue-600" />
                                         <h4 className="font-semibold text-zinc-900">Total Users</h4>
                                     </div>
                                     <p className="text-3xl font-bold text-blue-600">{vpnStatus.total_users}</p>
                                     <p className="text-xs text-gray-500 mt-1">Configured VPN clients</p>
+                                    <p className="text-xs text-blue-600 font-medium mt-2">Click to view list →</p>
                                 </div>
-                                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
+                                    if (!showVpnConnections) {
+                                        fetchVpnConnections();
+                                    } else {
+                                        setShowVpnConnections(false);
+                                    }
+                                }}>
                                     <div className="flex items-center gap-3 mb-2">
                                         <Activity className="w-5 h-5 text-emerald-600" />
                                         <h4 className="font-semibold text-zinc-900">Active Connections</h4>
                                     </div>
                                     <p className="text-3xl font-bold text-emerald-600">{vpnStatus.active_connections}</p>
                                     <p className="text-xs text-gray-500 mt-1">Currently connected</p>
+                                    <p className="text-xs text-emerald-600 font-medium mt-2">Click to view details →</p>
                                 </div>
                             </div>
                             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
@@ -655,7 +875,13 @@ const AdminNexus = () => {
                                         {clusterHealth.status === 'healthy' ? 'Healthy' : 'Degraded'}
                                     </p>
                                 </div>
-                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => {
+                                    if (!showClusterNodes) {
+                                        fetchClusterNodes();
+                                    } else {
+                                        setShowClusterNodes(false);
+                                    }
+                                }}>
                                     <div className="flex items-center gap-3 mb-2">
                                         <Layers className="w-5 h-5 text-blue-600" />
                                         <h4 className="font-semibold text-zinc-900">Nodes Ready</h4>
@@ -663,6 +889,7 @@ const AdminNexus = () => {
                                     <p className="text-2xl font-bold text-blue-600">
                                         {clusterHealth.nodes_ready}/{clusterHealth.nodes_total}
                                     </p>
+                                    <p className="text-xs text-blue-600 font-medium mt-2">Click to view nodes →</p>
                                 </div>
                                 <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                                     <div className="flex items-center gap-3 mb-2">
@@ -684,6 +911,106 @@ const AdminNexus = () => {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Expandable VPN Connections in Infrastructure */}
+                    {showVpnConnections && activeTab === 'infrastructure' && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                            <Card className="border border-emerald-200 bg-emerald-50">
+                                <CardHeader className="border-b border-emerald-200">
+                                    <CardTitle className="flex items-center gap-2 text-lg">
+                                        <Activity className="w-5 h-5 text-emerald-600" />
+                                        Active VPN Connections ({vpnConnections.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-6">
+                                    {loadingDetails === 'vpn-connections' ? (
+                                        <div className="flex items-center justify-center h-32">
+                                            <RefreshCw className="w-5 h-5 animate-spin text-emerald-600" />
+                                        </div>
+                                    ) : vpnConnections.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-emerald-200">
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">User ID</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">VPN IP</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">Endpoint</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">RX/TX</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-emerald-900">Connected</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {vpnConnections.map((conn, idx) => (
+                                                        <tr key={idx} className="border-b border-emerald-100 hover:bg-emerald-100/50">
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{conn.user_id}</td>
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{conn.vpn_ip}</td>
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-600">{conn.endpoint || 'N/A'}</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{(conn.rx_bytes / 1024 / 1024).toFixed(2)}MB / {(conn.tx_bytes / 1024 / 1024).toFixed(2)}MB</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{new Date(conn.connected_since).toLocaleTimeString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-gray-600 py-8">No active connections</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
+
+                    {/* Expandable K3s Nodes in Infrastructure */}
+                    {showClusterNodes && activeTab === 'infrastructure' && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                            <Card className="border border-blue-200 bg-blue-50">
+                                <CardHeader className="border-b border-blue-200">
+                                    <CardTitle className="flex items-center gap-2 text-lg">
+                                        <Layers className="w-5 h-5 text-blue-600" />
+                                        K3s Cluster Nodes ({clusterNodes.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="pt-6">
+                                    {loadingDetails === 'cluster-nodes' ? (
+                                        <div className="flex items-center justify-center h-32">
+                                            <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
+                                        </div>
+                                    ) : clusterNodes.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-blue-200">
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Node</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Status</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Version</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">CPU/Memory</th>
+                                                        <th className="text-left py-2 px-4 font-semibold text-blue-900">Pod Capacity</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {clusterNodes.map((node, idx) => (
+                                                        <tr key={idx} className="border-b border-blue-100 hover:bg-blue-100/50">
+                                                            <td className="py-2 px-4 font-mono text-xs text-gray-700">{node.name}</td>
+                                                            <td className="py-2 px-4">
+                                                                <Badge variant={node.status === 'Ready' ? 'default' : 'destructive'}>
+                                                                    {node.status}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{node.version}</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{node.cpu} / {node.memory}</td>
+                                                            <td className="py-2 px-4 text-xs text-gray-600">{node.pod_capacity}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <p className="text-center text-gray-600 py-8">No cluster nodes found</p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
 
                     {/* Network Routing Info */}
                     <Card className="border border-gray-200 bg-white">
