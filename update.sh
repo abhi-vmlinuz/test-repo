@@ -22,6 +22,15 @@ case $MODE in
     ;;
 esac
 
+# Wait for containers to be healthy
+echo "[$(date)] Waiting for containers to stabilize..."
+sleep 5
+
+# Reload nginx to re-resolve container DNS names
+# This prevents 502 errors after container IP changes
+echo "[$(date)] Reloading nginx..."
+cd /opt/zecurx-infra && docker compose exec -T nginx nginx -s reload 2>/dev/null || echo "Warning: Could not reload nginx"
+
 # Cleanup unused images
 if [ "$MODE" == "fresh" ]; then
   docker image prune -f
