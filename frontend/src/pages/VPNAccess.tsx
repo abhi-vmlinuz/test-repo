@@ -403,20 +403,20 @@ const VPNAccess = ({ user, logout }) => {
               </CardContent>
             </Card>
 
-            {/* Quick Setup Guide */}
+            {/* Quick Setup Guide - GUI */}
             <div className="bg-zinc-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Zap className="w-12 h-12 text-white" />
+                <Monitor className="w-12 h-12 text-white" />
               </div>
 
               <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-zinc-500" /> Step-by-Step
+                <Monitor className="w-4 h-4 text-zinc-500" /> GUI Setup
               </h3>
 
               <div className="space-y-8 relative">
                 <div className="flex gap-4">
                   <div className="w-6 h-6 rounded-full bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg">1</div>
-                  <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">Install WireGuard from <a href="https://wireguard.com" className="text-white underline font-bold hover:text-white/80 transition-colors">wireguard.com</a></p>
+                  <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">Install WireGuard from <a href="https://wireguard.com" className="text-white underline font-bold hover:text-white/80 transition-colors" target="_blank" rel="noopener noreferrer">wireguard.com</a></p>
                 </div>
                 <div className="flex gap-4">
                   <div className="w-6 h-6 rounded-full bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg">2</div>
@@ -425,6 +425,96 @@ const VPNAccess = ({ user, logout }) => {
                 <div className="flex gap-4">
                   <div className="w-6 h-6 rounded-full bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg">3</div>
                   <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">Import config into your client and click <span className="text-white font-bold tracking-tight">Activate</span>.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* CLI Connection Guide */}
+            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border-2 border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5">
+                <Terminal className="w-12 h-12 text-zinc-900 dark:text-white" />
+              </div>
+
+              <h3 className="text-lg font-black text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-zinc-500 dark:text-zinc-400" /> CLI Connection
+              </h3>
+
+              <div className="space-y-6">
+                {/* Linux */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">LINUX</Badge>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
+                    <code className="block text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                      # Install WireGuard<br />
+                      sudo apt install wireguard  # Ubuntu/Debian<br />
+                      sudo dnf install wireguard-tools  # Fedora<br />
+                      <br />
+                      # Copy config to /etc/wireguard/<br />
+                      sudo cp ~/Downloads/{user?.username || 'zecurx'}.conf /etc/wireguard/{user?.username || 'zecurx'}.conf<br />
+                      <br />
+                      # Connect using interface name (without .conf)<br />
+                      sudo wg-quick up {user?.username || 'zecurx'}
+                    </code>
+                    <button 
+                      onClick={() => copyToClipboard(`sudo cp ~/Downloads/${user?.username || 'zecurx'}.conf /etc/wireguard/${user?.username || 'zecurx'}.conf\nsudo wg-quick up ${user?.username || 'zecurx'}`, 'Linux commands')}
+                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
+                    >
+                      <Copy className="w-3 h-3" /> COPY
+                    </button>
+                  </div>
+                </div>
+
+                {/* macOS */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">macOS</Badge>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
+                    <code className="block text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                      # Install WireGuard via Homebrew<br />
+                      brew install wireguard-tools<br />
+                      <br />
+                      # Copy config (create directory if needed)<br />
+                      sudo mkdir -p /usr/local/etc/wireguard<br />
+                      sudo cp ~/Downloads/{user?.username || 'zecurx'}.conf /usr/local/etc/wireguard/{user?.username || 'zecurx'}.conf<br />
+                      <br />
+                      # Connect<br />
+                      sudo wg-quick up {user?.username || 'zecurx'}
+                    </code>
+                    <button 
+                      onClick={() => copyToClipboard(`brew install wireguard-tools\nsudo mkdir -p /usr/local/etc/wireguard\nsudo cp ~/Downloads/${user?.username || 'zecurx'}.conf /usr/local/etc/wireguard/${user?.username || 'zecurx'}.conf\nsudo wg-quick up ${user?.username || 'zecurx'}`, 'macOS commands')}
+                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
+                    >
+                      <Copy className="w-3 h-3" /> COPY
+                    </button>
+                  </div>
+                </div>
+
+                {/* Alternative: Absolute Path */}
+                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="outline" className="border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 font-bold text-[10px]">ALTERNATIVE</Badge>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950/20 rounded-xl p-4 border border-amber-200 dark:border-amber-900">
+                    <p className="text-[10px] text-amber-800 dark:text-amber-300 mb-2 font-medium leading-relaxed">
+                      Use absolute path if you don't want to copy to /etc/wireguard:
+                    </p>
+                    <code className="block text-[10px] font-mono text-amber-900 dark:text-amber-200 leading-relaxed">
+                      sudo wg-quick up /full/path/to/{user?.username || 'zecurx'}.conf
+                    </code>
+                  </div>
+                </div>
+
+                {/* Disconnect */}
+                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                  <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">DISCONNECT</p>
+                  <div className="bg-red-50 dark:bg-red-950/20 rounded-xl p-4 border border-red-200 dark:border-red-900">
+                    <code className="block text-[10px] font-mono text-red-900 dark:text-red-200">
+                      sudo wg-quick down {user?.username || 'zecurx'}
+                    </code>
+                  </div>
                 </div>
               </div>
             </div>

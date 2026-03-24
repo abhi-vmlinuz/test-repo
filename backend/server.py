@@ -8708,6 +8708,60 @@ async def admin_nexus_cluster_health(current_user: dict = Depends(require_admin)
         }
 
 
+@api_router.get("/admin/nexus/vpn/users")
+async def admin_nexus_vpn_users(current_user: dict = Depends(require_admin)):
+    """
+    Get detailed list of all VPN users.
+    Proxies to Nexus Engine /api/v1/admin/vpn/users endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/vpn/users", timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                return {"users": [], "total": 0, "error": f"Nexus returned {resp.status_code}"}
+    except Exception as e:
+        logger.warning(f"Failed to get VPN users from Nexus: {e}")
+        return {"users": [], "total": 0, "error": str(e)}
+
+
+@api_router.get("/admin/nexus/vpn/connections")
+async def admin_nexus_vpn_connections(current_user: dict = Depends(require_admin)):
+    """
+    Get detailed list of active VPN connections.
+    Proxies to Nexus Engine /api/v1/admin/vpn/connections endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/vpn/connections", timeout=15.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                return {"connections": [], "total": 0, "error": f"Nexus returned {resp.status_code}"}
+    except Exception as e:
+        logger.warning(f"Failed to get VPN connections from Nexus: {e}")
+        return {"connections": [], "total": 0, "error": str(e)}
+
+
+@api_router.get("/admin/nexus/cluster/nodes")
+async def admin_nexus_cluster_nodes(current_user: dict = Depends(require_admin)):
+    """
+    Get detailed list of K3s cluster nodes.
+    Proxies to Nexus Engine /api/v1/admin/cluster/nodes endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/cluster/nodes", timeout=15.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                return {"nodes": [], "total": 0, "error": f"Nexus returned {resp.status_code}"}
+    except Exception as e:
+        logger.warning(f"Failed to get cluster nodes from Nexus: {e}")
+        return {"nodes": [], "total": 0, "error": str(e)}
+
+
 # ===========================================
 # APPLICATION LIFECYCLE
 # ===========================================
