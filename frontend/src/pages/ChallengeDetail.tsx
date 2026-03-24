@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip, Eye, EyeOff, Share2, Shield } from 'lucide-react';
+import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, HelpCircle, Send, Terminal, Hash, ChevronRight, Trophy, X, RefreshCw, Square, Clock, FileText, Download, Paperclip, Eye, EyeOff, Share2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import TerminalComponent from '@/components/TerminalComponent';
 import BetaFeature from '@/components/BetaFeature';
@@ -585,13 +585,10 @@ const ChallengeDetail = ({ user, logout }) => {
                         ? "Preparing your lab environment. It'd take a minute for the machine IP..."
                         : 'Start a private lab instance to access the challenge environment.'}
                     </p>
-                    <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex items-start gap-3">
-                      <Shield className="w-5 h-5 text-amber-600 mt-0.5" />
-                      <p className="text-amber-800 text-xs leading-relaxed">
-                        <span className="font-bold">VPN Required:</span> This instance can only be accessed through our VPN Tunnel.
-                        Download your configuration <a href="https://ctf.zecurx.com/access" target="_blank" rel="noreferrer" className="underline font-bold hover:text-amber-900 transition-colors">from here</a>.
-                      </p>
-                    </div>
+                    <p className="text-gray-500 text-[11px] leading-relaxed italic mt-1">
+                      Note: This instance can only be accessed through our VPN. 
+                      Download configuration <a href="/access" className="underline font-bold hover:text-gray-900 transition-colors">here</a>.
+                    </p>
                     <Button
                       onClick={handleStartDocker}
                       disabled={startingDocker}
