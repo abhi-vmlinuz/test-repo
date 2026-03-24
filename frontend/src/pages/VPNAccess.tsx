@@ -29,7 +29,7 @@ const VPNAccess = ({ user, logout }) => {
   const fetchVPNStatus = async () => {
     try {
       const response = await axios.get(`${VPN_API_BASE}/api/vpn/status`, {
-        headers: { 'X-User-ID': user?.username || user?.id }
+        headers: { 'X-User-ID': user?.id }
       });
       setVpnStatus(response.data);
     } catch (error: any) {
@@ -48,7 +48,7 @@ const VPNAccess = ({ user, logout }) => {
     setDownloading(true);
     try {
       const response = await axios.get(`${VPN_API_BASE}/api/vpn/config`, {
-        headers: { 'X-User-ID': user?.username || user?.id },
+        headers: { 'X-User-ID': user?.id },
         responseType: 'blob'
       });
       
@@ -76,7 +76,7 @@ const VPNAccess = ({ user, logout }) => {
     setRegenerating(true);
     try {
       await axios.post(`${VPN_API_BASE}/api/vpn/regenerate`, {}, {
-        headers: { 'X-User-ID': user?.username || user?.id }
+        headers: { 'X-User-ID': user?.id }
       });
       toast.success('VPN configuration regenerated! Download the new config.');
       fetchVPNStatus();
