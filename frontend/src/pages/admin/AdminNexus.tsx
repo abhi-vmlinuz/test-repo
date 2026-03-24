@@ -9,7 +9,7 @@ import {
     Server, DollarSign, Activity, Calculator, Trash2, RefreshCw,
     Cloud, Cpu, HardDrive, Network, Clock, TrendingUp,
     Settings, Zap, CheckCircle, XCircle, BarChart3,
-    Download, Calendar, ChevronRight, Layers, Globe, MonitorDot
+    Download, Calendar, ChevronRight, Layers, Globe, MonitorDot, Shield, Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
@@ -18,19 +18,13 @@ import BillingTab from './BillingTab';
 const AdminNexus = () => {
     const [stats, setStats] = useState({ active_sessions: 0, total_pods: 0, total_sessions_today: 0, estimated_cost_today: 0 });
     const [sessions, setSessions] = useState([]);
-    const [pricing, setPricing] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
     const [history, setHistory] = useState({ sessions: [], summary: { total_sessions: 0, total_cost: 0, total_hours: 0, unique_users: 0 }, daily_breakdown: [] });
 
-    // New Phase 2 state
-    const [nodes, setNodes] = useState({ nodes: [], count: 0 });
-    const [nexusConfig, setNexusConfig] = useState({ default_spawn_mode: 'hostport', available_modes: [], clusters: [] });
-    const [portAllocations, setPortAllocations] = useState({ port_allocations: [] });
-
-    // Pricing calculator inputs
-    const [hours, setHours] = useState(8);
-    const [concurrent, setConcurrent] = useState(50);
+    // K3s and VPN state
+    const [vpnStatus, setVpnStatus] = useState({ total_users: 0, active_connections: 0, server_ip: '10.8.0.1' });
+    const [clusterHealth, setClusterHealth] = useState({ status: 'healthy', nodes_ready: 0, nodes_total: 0, pod_capacity: 0 });
 
     useEffect(() => {
         fetchData();
@@ -39,20 +33,18 @@ const AdminNexus = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [statsRes, sessionsRes, historyRes, nodesRes, configRes, portsRes] = await Promise.all([
+            const [statsRes, sessionsRes, historyRes, vpnRes, clusterRes] = await Promise.all([
                 axios.get(`${API}/admin/nexus/stats`).catch(() => ({ data: { active_sessions: 0, total_pods: 0, total_sessions_today: 0, estimated_cost_today: 0 } })),
                 axios.get(`${API}/admin/nexus/sessions`).catch(() => ({ data: { sessions: [] } })),
                 axios.get(`${API}/admin/nexus/history`).catch(() => ({ data: { sessions: [], summary: {}, daily_breakdown: [] } })),
-                axios.get(`${API}/admin/nexus/nodes`).catch(() => ({ data: { nodes: [], count: 0 } })),
-                axios.get(`${API}/admin/nexus/config`).catch(() => ({ data: { default_spawn_mode: 'hostport', clusters: [] } })),
-                axios.get(`${API}/admin/nexus/ports`).catch(() => ({ data: { port_allocations: [] } }))
+                axios.get(`${API}/admin/nexus/vpn/status`).catch(() => ({ data: { total_users: 0, active_connections: 0, server_ip: '10.8.0.1' } })),
+                axios.get(`${API}/admin/nexus/cluster/health`).catch(() => ({ data: { status: 'unknown', nodes_ready: 0, nodes_total: 0, pod_capacity: 0 } }))
             ]);
             setStats(statsRes.data);
-            setNodes(nodesRes.data);
-            setNexusConfig(configRes.data);
-            setPortAllocations(portsRes.data);
             setSessions(sessionsRes.data.sessions || []);
             setHistory(historyRes.data);
+            setVpnStatus(vpnRes.data);
+            setClusterHealth(clusterRes.data);
         } catch (error) {
             console.error('Failed to fetch Nexus data:', error);
         } finally {
@@ -157,7 +149,7 @@ const AdminNexus = () => {
     const tabs = [
         { id: 'overview', label: 'Overview', icon: BarChart3 },
         { id: 'sessions', label: 'Sessions', icon: Server },
-        { id: 'nodes', label: 'Nodes', icon: Layers },
+        { id: 'vpn', label: 'VPN & Network', icon: Shield },
         { id: 'history', label: 'History', icon: Clock },
         { id: 'billing', label: 'Billing', icon: DollarSign },
         { id: 'settings', label: 'Settings', icon: Settings },
@@ -170,9 +162,9 @@ const AdminNexus = () => {
                 <div>
                     <h1 className="text-3xl font-bold text-zinc-900 flex items-center gap-3">
                         <Cloud className="w-8 h-8 text-blue-500" />
-                        Nexus Engine
+                        Nexus Engine v3
                     </h1>
-                    <p className="text-gray-500 mt-1">Container orchestration & billing management</p>
+                    <p className="text-gray-500 mt-1">K3s cluster orchestration & WireGuard VPN management</p>
                 </div>
                 <div className="flex gap-3">
                     <Button onClick={fetchData} disabled={loading} variant="outline" size="sm">
@@ -245,11 +237,11 @@ const AdminNexus = () => {
                                 <CardContent className="pt-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-medium text-gray-500">Est. Hourly Cost</p>
-                                            <p className="text-3xl font-bold text-zinc-900 mt-1">${(stats.active_sessions * 0.035).toFixed(2)}</p>
+                                            <p className="text-sm font-medium text-gray-500">VPN Users</p>
+                                            <p className="text-3xl font-bold text-zinc-900 mt-1">{vpnStatus.total_users}</p>
                                         </div>
-                                        <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                                            <DollarSign className="w-6 h-6 text-amber-600" />
+                                        <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
+                                            <Shield className="w-6 h-6 text-teal-600" />
                                         </div>
                                     </div>
                                 </CardContent>
@@ -261,11 +253,11 @@ const AdminNexus = () => {
                                 <CardContent className="pt-6">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-sm font-medium text-gray-500">This Week</p>
-                                            <p className="text-3xl font-bold text-zinc-900 mt-1">${totalBillingCost.toFixed(2)}</p>
+                                            <p className="text-sm font-medium text-gray-500">Monthly Cost</p>
+                                            <p className="text-3xl font-bold text-zinc-900 mt-1">$44.00</p>
                                         </div>
-                                        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                                            <TrendingUp className="w-6 h-6 text-purple-600" />
+                                        <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                            <TrendingUp className="w-6 h-6 text-emerald-600" />
                                         </div>
                                     </div>
                                 </CardContent>
@@ -359,33 +351,32 @@ const AdminNexus = () => {
                         <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer">
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                                        <CheckCircle className="w-6 h-6 text-green-600" />
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${clusterHealth.status === 'healthy' ? 'bg-green-100' : 'bg-red-100'}`}>
+                                        {clusterHealth.status === 'healthy' ? (
+                                            <CheckCircle className="w-6 h-6 text-green-600" />
+                                        ) : (
+                                            <XCircle className="w-6 h-6 text-red-600" />
+                                        )}
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-zinc-900">System Health</p>
-                                        <p className="text-sm text-green-600">All systems operational</p>
+                                        <p className="font-semibold text-zinc-900">K3s Cluster</p>
+                                        <p className={`text-sm ${clusterHealth.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
+                                            {clusterHealth.nodes_ready}/{clusterHealth.nodes_total} nodes ready
+                                        </p>
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setActiveTab('nodes')}>
+                        <Card className="border border-gray-200 bg-white hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setActiveTab('vpn')}>
                             <CardContent className="pt-6">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                        <Layers className="w-6 h-6 text-blue-600" />
+                                    <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
+                                        <Shield className="w-6 h-6 text-teal-600" />
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-zinc-900">GKE Clusters</p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <Badge variant="outline" className="text-[10px] border-emerald-200 text-emerald-700 bg-emerald-50">
-                                                {nodes.count || 0} node{(nodes.count || 0) !== 1 ? 's' : ''}
-                                            </Badge>
-                                            <Badge variant="outline" className={`text-[10px] ${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
-                                                {nexusConfig.default_spawn_mode === 'hostport' ? '⚡ hostPort' : '⚖️ LoadBalancer'}
-                                            </Badge>
-                                        </div>
+                                        <p className="font-semibold text-zinc-900">WireGuard VPN</p>
+                                        <p className="text-sm text-gray-500">{vpnStatus.total_users} users configured</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -520,12 +511,9 @@ const AdminNexus = () => {
                                                         <p className="font-mono text-lg font-semibold text-zinc-900">
                                                             {session.target_ip || 'N/A'}
                                                         </p>
-                                                        {/* Spawn Mode Badge */}
-                                                        {session.spawn_mode && (
-                                                            <Badge variant="outline" className={`text-[10px] ${session.spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
-                                                                {session.spawn_mode === 'hostport' ? '⚡ hostPort' : '⚖️ LoadBalancer'}
-                                                            </Badge>
-                                                        )}
+                                                        <Badge variant="outline" className="text-[10px] border-teal-200 text-teal-700 bg-teal-50">
+                                                            Direct Pod IP
+                                                        </Badge>
                                                         {session.is_orphaned && (
                                                             <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 text-[10px]">
                                                                 ⚠️ Orphaned
@@ -595,132 +583,146 @@ const AdminNexus = () => {
                 </div>
             )}
 
-            {/* Nodes Tab - Cluster & Port Monitoring */}
-            {activeTab === 'nodes' && (
+            {/* VPN & Network Tab */}
+            {activeTab === 'vpn' && (
                 <div className="space-y-6">
-                    {/* Clusters Section */}
+                    {/* VPN Status */}
                     <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
-                                <Cloud className="w-5 h-5 text-gray-500" />
-                                Available Clusters
+                                <Shield className="w-5 h-5 text-gray-500" />
+                                WireGuard VPN Status
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {(nexusConfig.clusters || []).map((cluster: any, idx: number) => (
-                                    <div key={idx} className={`p-4 rounded-lg border ${cluster.hostport ? 'border-emerald-200 bg-emerald-50/30' : 'border-blue-200 bg-blue-50/30'}`}>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h4 className="font-semibold text-zinc-900">{cluster.name}</h4>
-                                            <Badge variant="outline" className={cluster.hostport ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-blue-200 text-blue-700 bg-blue-50'}>
-                                                {cluster.type}
-                                            </Badge>
-                                        </div>
-                                        <p className="text-sm text-gray-500">{cluster.description}</p>
-                                        <div className="mt-3 flex items-center gap-4 text-xs">
-                                            <span className="text-gray-400">{cluster.zone || cluster.region}</span>
-                                            {cluster.hostport && (
-                                                <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700 bg-amber-50">
-                                                    ⚡ hostPort Enabled
-                                                </Badge>
-                                            )}
-                                        </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 bg-teal-50 rounded-lg border border-teal-200">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-3 h-3 bg-teal-500 rounded-full animate-pulse"></div>
+                                        <h4 className="font-semibold text-zinc-900">VPN Server</h4>
                                     </div>
-                                ))}
+                                    <p className="text-sm text-gray-600 mb-1">Network: <span className="font-mono">{vpnStatus.server_ip}/24</span></p>
+                                    <p className="text-sm text-gray-600">Protocol: <span className="font-mono">WireGuard UDP/51820</span></p>
+                                </div>
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <Users className="w-5 h-5 text-blue-600" />
+                                        <h4 className="font-semibold text-zinc-900">Total Users</h4>
+                                    </div>
+                                    <p className="text-3xl font-bold text-blue-600">{vpnStatus.total_users}</p>
+                                    <p className="text-xs text-gray-500 mt-1">Configured VPN clients</p>
+                                </div>
+                                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <Activity className="w-5 h-5 text-emerald-600" />
+                                        <h4 className="font-semibold text-zinc-900">Active Connections</h4>
+                                    </div>
+                                    <p className="text-3xl font-bold text-emerald-600">{vpnStatus.active_connections}</p>
+                                    <p className="text-xs text-gray-500 mt-1">Currently connected</p>
+                                </div>
+                            </div>
+                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                                <h4 className="font-semibold text-sm text-gray-700 mb-2">Architecture</h4>
+                                <p className="text-sm text-gray-600">
+                                    • Students download VPN config once from <span className="font-mono text-xs bg-white px-1 rounded">/access</span> page<br/>
+                                    • Direct access to pod IPs via VPN (<span className="font-mono text-xs">10.42.0.0/16</span>)<br/>
+                                    • ipset-based multi-tenant isolation with O(1) lookups<br/>
+                                    • TryHackMe-style standalone VPN model (user-scoped, not session-scoped)
+                                </p>
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Node List */}
+                    {/* K3s Cluster Health */}
                     <Card className="border border-gray-200 bg-white">
                         <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="flex items-center gap-2 text-lg">
-                                    <Server className="w-5 h-5 text-gray-500" />
-                                    Cluster Nodes ({nodes.count || 0})
-                                </CardTitle>
-                                <Badge variant="outline" className={`${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
-                                    Mode: {nexusConfig.default_spawn_mode || 'loadbalancer'}
-                                </Badge>
-                            </div>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                                <Server className="w-5 h-5 text-gray-500" />
+                                K3s Cluster Health
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {(nodes.nodes || []).length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {(nodes.nodes || []).map((node: any, idx: number) => (
-                                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                                                <div>
-                                                    <p className="font-medium text-zinc-900 text-sm font-mono">{node.name}</p>
-                                                    <p className="text-xs text-gray-400">Ready</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <Globe className="w-4 h-4 text-gray-400" />
-                                                <code className="text-sm bg-white px-2 py-1 rounded border border-gray-200">
-                                                    {node.external_ip || 'No external IP'}
-                                                </code>
-                                            </div>
-                                        </div>
-                                    ))}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className={`p-4 rounded-lg border ${clusterHealth.status === 'healthy' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className={`w-3 h-3 rounded-full ${clusterHealth.status === 'healthy' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                        <h4 className="font-semibold text-zinc-900">Cluster Status</h4>
+                                    </div>
+                                    <p className={`text-2xl font-bold ${clusterHealth.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {clusterHealth.status === 'healthy' ? 'Healthy' : 'Degraded'}
+                                    </p>
                                 </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <Server className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                                    <p className="text-gray-400">No nodes found</p>
-                                    <p className="text-sm text-gray-300">Nodes will appear when the cluster is connected</p>
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <Layers className="w-5 h-5 text-blue-600" />
+                                        <h4 className="font-semibold text-zinc-900">Nodes Ready</h4>
+                                    </div>
+                                    <p className="text-2xl font-bold text-blue-600">
+                                        {clusterHealth.nodes_ready}/{clusterHealth.nodes_total}
+                                    </p>
                                 </div>
-                            )}
+                                <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <Cpu className="w-5 h-5 text-indigo-600" />
+                                        <h4 className="font-semibold text-zinc-900">Pod Capacity</h4>
+                                    </div>
+                                    <p className="text-2xl font-bold text-indigo-600">{clusterHealth.pod_capacity}</p>
+                                    <p className="text-xs text-gray-500 mt-1">Max concurrent pods</p>
+                                </div>
+                            </div>
+                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                                <h4 className="font-semibold text-sm text-gray-700 mb-2">Infrastructure Details</h4>
+                                <p className="text-sm text-gray-600">
+                                    • Bare Metal: Hetzner AX41-NVMe (65.109.20.25) - 6 cores, 64GB RAM<br/>
+                                    • Pod Network: <span className="font-mono text-xs bg-white px-1 rounded">10.42.0.0/16</span> via CNI bridge<br/>
+                                    • Isolation: iptables + ipset per user (direct pod IP access over VPN)<br/>
+                                    • Cost: €38.83/month (bare metal) + €5.16/month (VPS) = <span className="font-semibold">$44/month total</span>
+                                </p>
+                            </div>
                         </CardContent>
                     </Card>
 
-                    {/* Port Allocations */}
+                    {/* Network Routing Info */}
                     <Card className="border border-gray-200 bg-white">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
                                 <Network className="w-5 h-5 text-gray-500" />
-                                Port Allocations (hostPort Mode)
+                                Network Routing
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {(portAllocations.port_allocations || []).length > 0 ? (
-                                <div className="space-y-4">
-                                    {(portAllocations.port_allocations || []).map((nodeAlloc: any, idx: number) => (
-                                        <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2">
-                                                    <MonitorDot className="w-4 h-4 text-gray-500" />
-                                                    <span className="font-medium text-zinc-900 text-sm">{nodeAlloc.node_name}</span>
-                                                </div>
-                                                <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
-                                                    {nodeAlloc.external_ip}
-                                                </code>
-                                            </div>
-                                            {Object.keys(nodeAlloc.allocations || {}).length > 0 ? (
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                                    {Object.entries(nodeAlloc.allocations || {}).map(([port, sessionId]: [string, any]) => (
-                                                        <div key={port} className="flex items-center gap-2 bg-white p-2 rounded border border-gray-200">
-                                                            <span className="font-mono text-sm text-emerald-600">{port}</span>
-                                                            <span className="text-xs text-gray-400 truncate" title={sessionId}>
-                                                                {(sessionId as string).slice(0, 8)}...
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <p className="text-sm text-gray-400">No ports allocated on this node</p>
-                                            )}
-                                        </div>
-                                    ))}
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                                    <div className="font-mono text-sm bg-white px-3 py-1.5 rounded border border-gray-200 text-gray-700">
+                                        10.8.0.0/24
+                                    </div>
+                                    <div className="text-gray-400">→</div>
+                                    <div className="font-mono text-sm bg-white px-3 py-1.5 rounded border border-gray-200 text-gray-700">
+                                        WireGuard VPN
+                                    </div>
+                                    <span className="text-xs text-gray-500">(Student VPN clients)</span>
                                 </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <Network className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                                    <p className="text-gray-400">No port allocations</p>
-                                    <p className="text-sm text-gray-300">Port allocations will appear when hostPort mode is active</p>
+                                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                                    <div className="font-mono text-sm bg-white px-3 py-1.5 rounded border border-gray-200 text-gray-700">
+                                        10.42.0.0/16
+                                    </div>
+                                    <div className="text-gray-400">→</div>
+                                    <div className="font-mono text-sm bg-white px-3 py-1.5 rounded border border-gray-200 text-gray-700">
+                                        K3s Pod Network
+                                    </div>
+                                    <span className="text-xs text-gray-500">(Challenge containers)</span>
                                 </div>
-                            )}
+                                <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                                    <div className="font-mono text-sm bg-white px-3 py-1.5 rounded border border-gray-200 text-gray-700">
+                                        cni0 bridge
+                                    </div>
+                                    <div className="text-gray-400">→</div>
+                                    <div className="font-mono text-sm bg-white px-3 py-1.5 rounded border border-gray-200 text-gray-700">
+                                        iptables + ipset
+                                    </div>
+                                    <span className="text-xs text-gray-500">(Per-user isolation)</span>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -926,18 +928,22 @@ const AdminNexus = () => {
                         <CardContent className="space-y-4">
                             <div className="p-4 bg-gray-50 rounded-lg">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600">Spawn Mode</span>
-                                    <Badge variant="outline" className={`${nexusConfig.default_spawn_mode === 'hostport' ? 'border-amber-200 text-amber-700 bg-amber-50' : 'border-blue-200 text-blue-700 bg-blue-50'}`}>
-                                        {nexusConfig.default_spawn_mode === 'hostport' ? '⚡ hostPort' : '⚖️ LoadBalancer'}
+                                    <span className="text-sm text-gray-600">Architecture</span>
+                                    <Badge variant="outline" className="border-teal-200 text-teal-700 bg-teal-50">
+                                        K3s + VPN
                                     </Badge>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600">Active Cluster</span>
-                                    <span className="font-medium">{(nexusConfig.clusters || [])[0]?.type || 'GKE Autopilot'}</span>
+                                    <span className="text-sm text-gray-600">Cluster Type</span>
+                                    <span className="font-medium">K3s Bare Metal</span>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-gray-600">Nodes Available</span>
-                                    <span className="font-medium">{nodes.count || 0}</span>
+                                    <span className="text-sm text-gray-600">Nodes Ready</span>
+                                    <span className="font-medium">{clusterHealth.nodes_ready}/{clusterHealth.nodes_total}</span>
+                                </div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm text-gray-600">VPN Server</span>
+                                    <span className="font-mono text-xs">{vpnStatus.server_ip}:51820</span>
                                 </div>
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="text-sm text-gray-600">Nexus Engine</span>
