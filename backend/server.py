@@ -2607,12 +2607,87 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
                 WHERE id = $1
             ''', challenge_id)
         
+        # Auto-destroy Nexus instance on challenge completion
+        if all_questions_solved:
+            asyncio.create_task(
+                _auto_destroy_nexus_session(str(current_user['id']), challenge_id)
+            )
+        
         return {
             'correct': True, 
             'message': 'Correct!', 
             'points': points_earned,
             'challenge_complete': all_questions_solved
         }
+
+
+async def _auto_destroy_nexus_session(user_id: str, challenge_id: str) -> None:
+    """
+    Background task: terminate the Nexus session for a user/challenge pair
+    when all questions are solved. Fire-and-forget - errors are logged, not raised.
+    """
+    session_id = None
+
+    # 1. Check in-memory cache first
+    if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
+        session_id = nexus_sessions[user_id][challenge_id]
+        logger.info(f"[AUTO-DESTROY] Found session {session_id} in cache for user {user_id}")
+
+    # 2. Fall back to DB if not in cache
+    if not session_id:
+        try:
+            pool = await Database.get_pool()
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow('''
+                    SELECT session_id FROM nexus_usage
+                    WHERE user_id = $1 AND challenge_id = $2 AND status = 'running'
+                    ORDER BY started_at DESC LIMIT 1
+                ''', user_id, challenge_id)
+                if row:
+                    session_id = row['session_id']
+                    logger.info(f"[AUTO-DESTROY] Found session {session_id} in DB for user {user_id}")
+        except Exception as e:
+            logger.error(f"[AUTO-DESTROY] DB lookup failed for user {user_id}: {e}")
+
+    if not session_id:
+        logger.info(f"[AUTO-DESTROY] No active session found for user {user_id}, challenge {challenge_id} - skipping")
+        return
+
+    # 3. Terminate the session via Nexus Engine
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                timeout=30.0
+            )
+            if resp.status_code in [200, 404]:
+                logger.info(f"[AUTO-DESTROY] Session {session_id} terminated (status={resp.status_code})")
+            else:
+                logger.warning(f"[AUTO-DESTROY] Unexpected status {resp.status_code} for session {session_id}: {resp.text}")
+    except Exception as e:
+        logger.error(f"[AUTO-DESTROY] Failed to call Nexus for session {session_id}: {e}")
+        return  # Don't clean up cache/DB if Nexus call failed
+
+    # 4. Update nexus_usage to 'completed'
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute('''
+                UPDATE nexus_usage SET
+                    ended_at = NOW(),
+                    status = 'completed',
+                    pod_seconds = GREATEST(60, EXTRACT(EPOCH FROM (NOW() - started_at))::INTEGER),
+                    estimated_cost = GREATEST(0.0001, (EXTRACT(EPOCH FROM (NOW() - started_at)) / 3600.0) * 0.045)
+                WHERE session_id = $1 AND status = 'running'
+            ''', session_id)
+            logger.info(f"[AUTO-DESTROY] nexus_usage marked 'completed' for session {session_id}")
+    except Exception as e:
+        logger.warning(f"[AUTO-DESTROY] Failed to update nexus_usage for session {session_id}: {e}")
+
+    # 5. Remove from in-memory cache
+    if user_id in nexus_sessions and challenge_id in nexus_sessions.get(user_id, {}):
+        del nexus_sessions[user_id][challenge_id]
+        logger.info(f"[AUTO-DESTROY] Removed session {session_id} from nexus_sessions cache")
 
 
 # ===========================================
