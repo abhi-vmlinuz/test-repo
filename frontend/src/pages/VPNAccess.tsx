@@ -201,9 +201,9 @@ const VPNAccess = ({ user, logout }) => {
                       <img src="/wireguard.svg" alt="WireGuard" className="w-12 h-12 grayscale brightness-200" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-black tracking-tight">WireGuard Peer</h2>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-zinc-500 font-mono text-xs">{user?.id?.substring(0, 13)}...</span>
+                      <h2 className="text-2xl font-black tracking-tight text-white leading-none">WireGuard Peer</h2>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-zinc-400 font-mono text-xs">{user?.id?.substring(0, 13)}...</span>
                         <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] font-bold">READY</Badge>
                       </div>
                     </div>
@@ -369,29 +369,29 @@ const VPNAccess = ({ user, logout }) => {
           <div className="lg:col-span-4 space-y-8">
             
             {/* Detailed Stats */}
-            <Card className="rounded-3xl border-zinc-200 shadow-sm overflow-hidden">
+            <Card className="rounded-3xl border-zinc-200 shadow-sm overflow-hidden bg-white">
               <div className="bg-zinc-50 px-6 py-4 border-b border-zinc-100">
                 <h3 className="text-xs font-black text-zinc-900 uppercase tracking-widest flex items-center gap-2">
-                  <Globe className="w-3 h-3" /> Network Topology
+                  <Globe className="w-3 h-3 text-zinc-500" /> Network Topology
                 </h3>
               </div>
               <CardContent className="p-6">
                 <div className="space-y-5">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-zinc-500 font-medium">VPN Range</span>
-                    <span className="font-mono font-bold text-zinc-900">10.8.0.0/24</span>
+                    <span className="text-zinc-500 font-medium tracking-tight">VPN Range</span>
+                    <span className="font-mono font-bold text-zinc-900 tabular-nums">10.8.0.0/24</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-zinc-500 font-medium">Lab Network</span>
-                    <span className="font-mono font-bold text-zinc-900">10.42.0.0/16</span>
+                    <span className="text-zinc-500 font-medium tracking-tight">Lab Network</span>
+                    <span className="font-mono font-bold text-zinc-900 tabular-nums">10.42.0.0/16</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-zinc-500 font-medium">Protocol</span>
-                    <Badge variant="secondary" className="bg-zinc-100 text-zinc-700 font-mono">WireGuard</Badge>
+                    <span className="text-zinc-500 font-medium tracking-tight">Protocol</span>
+                    <Badge variant="secondary" className="bg-zinc-100 text-zinc-900 font-mono text-[10px] font-bold border-zinc-200">WireGuard</Badge>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-zinc-500 font-medium">Standard Port</span>
-                    <span className="font-mono font-bold text-zinc-900">51820 / UDP</span>
+                    <span className="text-zinc-500 font-medium tracking-tight">Standard Port</span>
+                    <span className="font-mono font-bold text-zinc-900 tabular-nums">51820 / UDP</span>
                   </div>
                   <div className="pt-4 mt-4 border-t border-zinc-50">
                     <div className="flex items-start gap-3 text-xs text-zinc-400 leading-relaxed">
@@ -409,22 +409,22 @@ const VPNAccess = ({ user, logout }) => {
                   <Zap className="w-12 h-12 text-white/5" />
                </div>
                
-               <h3 className="text-lg font-black mb-6 flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-white/40" /> Step-by-Step
+               <h3 className="text-lg font-black text-white mb-6 flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-zinc-500" /> Step-by-Step
                </h3>
 
                <div className="space-y-8 relative">
                   <div className="flex gap-4">
-                    <div className="w-6 h-6 rounded-full bg-white/10 text-white border border-white/20 flex items-center justify-center text-[10px] font-black shrink-0">1</div>
-                    <p className="text-xs text-zinc-400 leading-relaxed">Install WireGuard from <a href="https://wireguard.com" className="text-white underline font-bold">wireguard.com</a></p>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg">1</div>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">Install WireGuard from <a href="https://wireguard.com" className="text-white underline font-bold hover:text-white/80 transition-colors">wireguard.com</a></p>
                   </div>
                   <div className="flex gap-4">
-                    <div className="w-6 h-6 rounded-full bg-white/10 text-white border border-white/20 flex items-center justify-center text-[10px] font-black shrink-0">2</div>
-                    <p className="text-xs text-zinc-400 leading-relaxed">Download your <code className="bg-white/5 px-1.5 py-0.5 rounded text-white font-mono">.conf</code> bundle using the dashboard button.</p>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg">2</div>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">Download your <code className="bg-zinc-800 px-1.5 py-0.5 rounded text-white border border-zinc-700 font-mono text-[10px]">.conf</code> bundle using the dashboard button.</p>
                   </div>
                   <div className="flex gap-4">
-                    <div className="w-6 h-6 rounded-full bg-white/10 text-white border border-white/20 flex items-center justify-center text-[10px] font-black shrink-0">3</div>
-                    <p className="text-xs text-zinc-400 leading-relaxed">Import config into your client and click <span className="text-white font-bold">Activate</span>.</p>
+                    <div className="w-6 h-6 rounded-full bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg">3</div>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">Import config into your client and click <span className="text-white font-bold tracking-tight">Activate</span>.</p>
                   </div>
                </div>
             </div>
