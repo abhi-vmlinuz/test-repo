@@ -2564,13 +2564,13 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
         solved_questions.append(submission.question_index)
         total_earned = (progress['scoreEarned'] if progress else 0) + points_earned
         
-        # Determine if this is the first question solved (for activity log purposes)
-        # We mark solved=true on first question answer so user appears in activity log
+        # Challenge is only complete when ALL questions are answered
+        all_questions_solved = len(solved_questions) >= len(questions)
         is_first_solve = len(solved_questions) == 1
         
         if progress:
-            if is_first_solve:
-                # First question solved - mark challenge as solved with timestamp
+            if all_questions_solved:
+                # All questions solved - mark challenge as complete
                 await conn.execute('''
                     UPDATE ctf_public_progress SET
                         solved = true, "solvedQuestions" = $1, "scoreEarned" = $2, 
@@ -2578,21 +2578,21 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
                     WHERE id = $3
                 ''', solved_questions, total_earned, progress['id'])
             else:
-                # Additional questions - just update score and questions
+                # Not all questions solved yet - just update score and questions
                 await conn.execute('''
                     UPDATE ctf_public_progress SET
                         "solvedQuestions" = $1, "scoreEarned" = $2, "updatedAt" = NOW()
                     WHERE id = $3
                 ''', solved_questions, total_earned, progress['id'])
         else:
-            # New progress record - mark as solved with timestamp
+            # New progress record - only mark solved if all questions answered (unlikely on first)
             await conn.execute('''
                 INSERT INTO ctf_public_progress (
                     id, "userId", "challengeId", solved, "hintsUsed",
                     "solvedQuestions", "scoreEarned", "solvedAt", "createdAt", "updatedAt"
-                ) VALUES ($1, $2, $3, true, '{}', $4, $5, NOW(), NOW(), NOW())
+                ) VALUES ($1, $2, $3, $4, '{}', $5, $6, CASE WHEN $4 THEN NOW() ELSE NULL END, NOW(), NOW())
             ''', generate_uuid(), current_user['id'], challenge_id, 
-                 solved_questions, total_earned)
+                 all_questions_solved, solved_questions, total_earned)
         
         # Update user score
         await conn.execute('''
@@ -2600,14 +2600,19 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
             WHERE id = $2
         ''', points_earned, current_user['id'])
         
-        # Update solve count on first question solve (when challenge is first marked solved)
-        if is_first_solve:
+        # Update solve count only when ALL questions are solved (challenge complete)
+        if all_questions_solved and (not progress or not progress.get('solved', False)):
             await conn.execute('''
                 UPDATE ctf_public_challenges SET solves = solves + 1, "updatedAt" = NOW()
                 WHERE id = $1
             ''', challenge_id)
         
-        return {'correct': True, 'message': 'Correct!', 'points': points_earned}
+        return {
+            'correct': True, 
+            'message': 'Correct!', 
+            'points': points_earned,
+            'challenge_complete': all_questions_solved
+        }
 
 
 # ===========================================
