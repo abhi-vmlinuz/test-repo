@@ -12,8 +12,8 @@ import {
   Copy, ExternalLink, Monitor
 } from 'lucide-react';
 
-// Nexus Engine URL for VPN endpoints
-const NEXUS_URL = import.meta.env.VITE_NEXUS_URL || 'http://localhost:8081';
+// VPN API is proxied through nginx at /api/vpn/ -> Nexus Engine
+const VPN_API_BASE = import.meta.env.VITE_BACKEND_URL || '';
 
 const VPNAccess = ({ user, logout }) => {
   const [vpnStatus, setVpnStatus] = useState<any>(null);
@@ -28,7 +28,7 @@ const VPNAccess = ({ user, logout }) => {
 
   const fetchVPNStatus = async () => {
     try {
-      const response = await axios.get(`${NEXUS_URL}/api/v1/vpn/status`, {
+      const response = await axios.get(`${VPN_API_BASE}/api/vpn/status`, {
         headers: { 'X-User-ID': user?.username || user?.id }
       });
       setVpnStatus(response.data);
@@ -47,7 +47,7 @@ const VPNAccess = ({ user, logout }) => {
   const handleDownloadConfig = async () => {
     setDownloading(true);
     try {
-      const response = await axios.get(`${NEXUS_URL}/api/v1/vpn/config`, {
+      const response = await axios.get(`${VPN_API_BASE}/api/vpn/config`, {
         headers: { 'X-User-ID': user?.username || user?.id },
         responseType: 'blob'
       });
@@ -75,7 +75,7 @@ const VPNAccess = ({ user, logout }) => {
   const handleRegenerateConfig = async () => {
     setRegenerating(true);
     try {
-      await axios.post(`${NEXUS_URL}/api/v1/vpn/regenerate`, {}, {
+      await axios.post(`${VPN_API_BASE}/api/vpn/regenerate`, {}, {
         headers: { 'X-User-ID': user?.username || user?.id }
       });
       toast.success('VPN configuration regenerated! Download the new config.');
@@ -162,7 +162,7 @@ const VPNAccess = ({ user, logout }) => {
                       <img src="/wireguard.svg" alt="WireGuard" className="w-10 h-10" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold">WireGuard VPN</h2>
+                      <h2 className="text-xl font-bold text-white">WireGuard VPN</h2>
                       <p className="text-zinc-400 text-sm">Secure tunnel to lab network</p>
                     </div>
                   </div>
