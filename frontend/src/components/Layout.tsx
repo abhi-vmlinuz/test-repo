@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, LayoutDashboard, Flag, Trophy, User, LogOut, Zap, Menu, X } from 'lucide-react';
+import { Shield, LayoutDashboard, Flag, Trophy, User, LogOut, Zap, Menu, X, Wifi } from 'lucide-react';
 import { useState } from 'react';
 import CreativeBackground from './CreativeBackground';
 
@@ -10,6 +10,7 @@ const Layout = ({ user, children, logout }) => {
     const navItems = [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
         { id: 'challenges', label: 'Challenges', icon: Flag, path: '/challenges' },
+        { id: 'access', label: 'VPN Access', icon: Wifi, path: '/access' },
         { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, path: '/leaderboard' },
         { id: 'profile', label: 'Profile', icon: User, path: '/profile' },
         { id: 'student', label: 'Student Portal', icon: Flag, path: '/student' },

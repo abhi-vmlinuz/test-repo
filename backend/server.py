@@ -7533,9 +7533,12 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                     if resp.status_code == 200:
                         data = resp.json()
                         if data.get('status') == 'running':
+                            # Support both pod_ip (v3.0 VPN mode) and target_ip (legacy)
+                            instance_ip = data.get('pod_ip') or data.get('target_ip')
                             return {
                                 "session_id": data['session_id'],
-                                "target_ip": data['target_ip'],
+                                "target_ip": instance_ip,
+                                "pod_ip": instance_ip,
                                 "expires_at": data['expires_at'],
                                 "status": "running",
                                 "message": "Existing instance found"
@@ -7670,9 +7673,12 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
                 except Exception as e:
                     logger.error(f"[NEXUS-INSERT] Failed to record usage: {e}")  # Don't fail the request
                 
+                # Support both pod_ip (v3.0 VPN mode) and target_ip (legacy)
+                instance_ip = session_data.get('pod_ip') or session_data.get('target_ip')
                 return {
                     "session_id": session_data['session_id'],
-                    "target_ip": session_data['target_ip'],
+                    "target_ip": instance_ip,
+                    "pod_ip": instance_ip,
                     "expires_at": session_data['expires_at'],
                     "status": "running",
                     "message": "Container started successfully"
@@ -7875,9 +7881,12 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get('status') == 'running':
+                        # Support both pod_ip (v3.0 VPN mode) and target_ip (legacy)
+                        instance_ip = data.get('pod_ip') or data.get('target_ip')
                         return {
                             "session_id": session_id,
-                            "target_ip": data.get('target_ip'),
+                            "target_ip": instance_ip,
+                            "pod_ip": instance_ip,
                             "expires_at": data.get('expires_at'),
                             "status": "running"
                         }
@@ -7916,7 +7925,8 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                         )
                         if resp.status_code == 200:
                             data = resp.json()
-                            target_ip = data.get('target_ip')
+                            # Support both pod_ip (v3.0 VPN mode) and target_ip (legacy)
+                            target_ip = data.get('pod_ip') or data.get('target_ip')
                             expires_at = data.get('expires_at')
                             # Cache it
                             if user_id not in nexus_sessions:
@@ -7946,6 +7956,7 @@ async def get_challenge_session(challenge_id: str, current_user: dict = Depends(
                     return {
                         "session_id": session_id,
                         "target_ip": target_ip,
+                        "pod_ip": target_ip,
                         "expires_at": expires_at,
                         "status": "running"
                     }
@@ -8067,7 +8078,7 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
                     'user_id': str(row['user_id']),
                     'username': row['username'] or 'Unknown',
                     'status': row['status'],
-                    'target_ip': nexus_data.get('target_ip'),  # Get from Nexus, not DB
+                    'target_ip': nexus_data.get('pod_ip') or nexus_data.get('target_ip'),  # Support v3.0 VPN mode
                     'spawn_mode': nexus_data.get('spawn_mode'), # From Nexus
                     'ports': nexus_data.get('ports'),           # From Nexus
                     'started_at': row['started_at'].isoformat() if row['started_at'] else None,

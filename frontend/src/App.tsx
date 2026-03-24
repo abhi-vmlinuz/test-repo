@@ -55,6 +55,7 @@ import StudentChallenge from '@/pages/student/StudentChallenge';
 import StudentAchievements from '@/pages/student/StudentAchievements';
 import StudentQuiz from '@/pages/student/StudentQuiz';
 import StudentProgress from '@/pages/student/StudentProgress';
+import VPNAccess from '@/pages/VPNAccess';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -163,6 +164,7 @@ function App() {
             <Route path="/leaderboard" element={user ? <Leaderboard user={user} logout={logout} /> : <Navigate to="/login" />} />
             <Route path="/profile" element={user ? <Profile user={user} logout={logout} setUser={setUser} /> : <Navigate to="/login" />} />
             <Route path="/profile/:userId" element={user ? <PublicProfile user={user} logout={logout} /> : <Navigate to="/login" />} />
+            <Route path="/access" element={user ? <VPNAccess user={user} logout={logout} /> : <Navigate to="/login" />} />
             <Route path="/terminal/:vmId" element={user ? <TerminalPage /> : <Navigate to="/login" />} />
 
 
