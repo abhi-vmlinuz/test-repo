@@ -8650,6 +8650,64 @@ async def admin_nexus_config(current_user: dict = Depends(require_admin)):
         }
 
 
+@api_router.get("/admin/nexus/vpn/status")
+async def admin_nexus_vpn_status(current_user: dict = Depends(require_admin)):
+    """
+    Get WireGuard VPN status including total users and active connections.
+    Proxies to Nexus Engine /api/v1/admin/vpn/stats endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/vpn/stats", timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                return {
+                    "total_users": 0,
+                    "active_connections": 0,
+                    "server_ip": "10.8.0.1",
+                    "error": f"Nexus returned {resp.status_code}"
+                }
+    except Exception as e:
+        logger.warning(f"Failed to get VPN status from Nexus: {e}")
+        return {
+            "total_users": 0,
+            "active_connections": 0,
+            "server_ip": "10.8.0.1",
+            "error": str(e)
+        }
+
+
+@api_router.get("/admin/nexus/cluster/health")
+async def admin_nexus_cluster_health(current_user: dict = Depends(require_admin)):
+    """
+    Get K3s cluster health status including node counts and pod capacity.
+    Proxies to Nexus Engine /api/v1/admin/cluster/health endpoint.
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/admin/cluster/health", timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                return {
+                    "status": "unknown",
+                    "nodes_ready": 0,
+                    "nodes_total": 0,
+                    "pod_capacity": 0,
+                    "error": f"Nexus returned {resp.status_code}"
+                }
+    except Exception as e:
+        logger.warning(f"Failed to get cluster health from Nexus: {e}")
+        return {
+            "status": "unknown",
+            "nodes_ready": 0,
+            "nodes_total": 0,
+            "pod_capacity": 0,
+            "error": str(e)
+        }
+
+
 # ===========================================
 # APPLICATION LIFECYCLE
 # ===========================================
