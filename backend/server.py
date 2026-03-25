@@ -27,6 +27,7 @@ from typing import List, Optional, Dict, Any
 import uuid
 import asyncio
 import json
+import random
 from datetime import datetime, timezone, timedelta
 import bcrypt
 import argon2  # LMS uses Argon2 for password hashing
@@ -282,6 +283,105 @@ class NotificationCreate(BaseModel):
     type: str = "announcement"
     target_type: str = "all"  # "all" or "specific"
     target_user_ids: Optional[List[str]] = None
+
+
+# ===========================================
+# CERTIFICATION EXAM MODELS
+# ===========================================
+
+# Points mapping for certification exam pools (EXPERT excluded)
+CERTIFICATION_DIFFICULTY_POINTS = {
+    'EASY': 10,
+    'MEDIUM': 20,
+    'HARD': 30
+}
+
+class CertificationExamConfigCreate(BaseModel):
+    """Create a certification exam configuration with 3 pools"""
+    name: str  # e.g., "ZXCPPT January 2026"
+    lms_final_exam_id: str
+    pool_a_challenge_ids: List[str]  # Exactly 7 challenges, 120 points
+    pool_b_challenge_ids: List[str]  # Exactly 7 challenges, 120 points
+    pool_c_challenge_ids: List[str]  # Exactly 7 challenges, 120 points
+    
+    # Optional overrides (defaults in DB)
+    global_duration_hours: int = 48
+    ctf_duration_hours: int = 12
+    report_duration_hours: int = 3
+
+class CertificationExamConfigUpdate(BaseModel):
+    """Update certification exam configuration"""
+    name: Optional[str] = None
+    pool_a_challenge_ids: Optional[List[str]] = None
+    pool_b_challenge_ids: Optional[List[str]] = None
+    pool_c_challenge_ids: Optional[List[str]] = None
+    global_duration_hours: Optional[int] = None
+    ctf_duration_hours: Optional[int] = None
+    report_duration_hours: Optional[int] = None
+
+class CertificationPoolChallenge(BaseModel):
+    """Challenge available for pool selection"""
+    id: str
+    title: str
+    category: str
+    category_id: str
+    difficulty: str
+    points: int  # Certification points (10/20/30), not challenge original points
+
+class CertificationExamConfigResponse(BaseModel):
+    """Certification exam config details"""
+    id: str
+    name: str
+    exam_type: str
+    lms_final_exam_id: str
+    pool_a_challenge_ids: List[str]
+    pool_b_challenge_ids: List[str]
+    pool_c_challenge_ids: List[str]
+    total_lab_points: int
+    global_duration_hours: int
+    ctf_duration_hours: int
+    report_duration_hours: int
+    is_published: bool
+    created_at: str
+    updated_at: str
+    # Computed fields
+    pool_a_challenges: Optional[List[dict]] = None
+    pool_b_challenges: Optional[List[dict]] = None
+    pool_c_challenges: Optional[List[dict]] = None
+    attempt_count: Optional[int] = None
+
+class CertificationExamAttemptSummary(BaseModel):
+    """Summary of a student's certification exam attempt"""
+    id: str
+    user_id: str
+    student_name: str
+    student_email: str
+    assigned_pool: str
+    status: str
+    mcq_score: Optional[float] = None
+    mcq_correct: Optional[int] = None
+    mcq_wrong: Optional[int] = None
+    lab_score: Optional[float] = None
+    lab_points_earned: int
+    report_score: Optional[float] = None
+    final_score: Optional[float] = None
+    passed: Optional[bool] = None
+    certification_level: Optional[str] = None
+    redeemed_at: str
+    global_expires_at: str
+    lab_started_at: Optional[str] = None
+    lab_expires_at: Optional[str] = None
+    report_uploaded_at: Optional[str] = None
+    report_graded_at: Optional[str] = None
+
+class ReportGradeRequest(BaseModel):
+    """Admin request to grade a student's report"""
+    clarity: int = Field(..., ge=0, le=20)
+    technical: int = Field(..., ge=0, le=25)
+    reproducibility: int = Field(..., ge=0, le=25)
+    impact: int = Field(..., ge=0, le=15)
+    remediation: int = Field(..., ge=0, le=15)
+    feedback: Optional[str] = None
 
 
 # ===========================================
@@ -3140,6 +3240,531 @@ async def admin_link_lms_course(lms_course_id: str, color: str = "gray", admin: 
         ''', ctf_course_id, lms_course_id, color)
         
         return {'id': ctf_course_id, 'message': 'CTF course linked successfully'}
+
+
+# ===========================================
+# ADMIN: CERTIFICATION EXAMS
+# ===========================================
+
+async def validate_certification_pool(challenge_ids: List[str], conn) -> tuple:
+    """
+    Validate that a pool has exactly 7 challenges totaling 120 points.
+    Returns (is_valid, error_message, total_points, challenges_details)
+    """
+    if len(challenge_ids) != 7:
+        return False, f"Pool must have exactly 7 challenges (has {len(challenge_ids)})", 0, []
+    
+    # Fetch challenges
+    challenges = await conn.fetch('''
+        SELECT c.id, c.title, c.difficulty, cat.name as category
+        FROM ctf_public_challenges c
+        LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
+        WHERE c.id = ANY($1::uuid[])
+    ''', challenge_ids)
+    
+    if len(challenges) != 7:
+        found_ids = {str(c['id']) for c in challenges}
+        missing = [cid for cid in challenge_ids if cid not in found_ids]
+        return False, f"Some challenges not found: {missing}", 0, []
+    
+    # Calculate total points and verify difficulty
+    total_points = 0
+    details = []
+    for c in challenges:
+        difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
+        if difficulty not in CERTIFICATION_DIFFICULTY_POINTS:
+            return False, f"Challenge '{c['title']}' has invalid difficulty '{difficulty}' (only EASY, MEDIUM, HARD allowed)", 0, []
+        
+        points = CERTIFICATION_DIFFICULTY_POINTS[difficulty]
+        total_points += points
+        details.append({
+            'id': str(c['id']),
+            'title': c['title'],
+            'difficulty': difficulty,
+            'category': c['category'] or 'Uncategorized',
+            'points': points
+        })
+    
+    if total_points != 120:
+        return False, f"Pool must total 120 points (has {total_points})", total_points, details
+    
+    return True, "", total_points, details
+
+
+@api_router.get("/admin/certification-exams/available-challenges")
+async def admin_get_available_certification_challenges(admin: dict = Depends(require_admin)):
+    """
+    Get all published CTF challenges available for certification exam pools.
+    Only returns EASY, MEDIUM, HARD challenges (EXPERT excluded).
+    Grouped by difficulty with certification points.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        challenges = await conn.fetch('''
+            SELECT c.id, c.title, c.difficulty, c.points as original_points,
+                   cat.id as category_id, cat.name as category
+            FROM ctf_public_challenges c
+            LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
+            WHERE c."isPublished" = true
+              AND UPPER(c.difficulty) IN ('EASY', 'MEDIUM', 'HARD')
+            ORDER BY c.difficulty, c.title
+        ''')
+        
+        result = {
+            'easy': [],
+            'medium': [],
+            'hard': []
+        }
+        
+        for c in challenges:
+            difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
+            cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+            
+            challenge_data = {
+                'id': str(c['id']),
+                'title': c['title'],
+                'category': c['category'] or 'Uncategorized',
+                'category_id': str(c['category_id']) if c['category_id'] else None,
+                'difficulty': difficulty,
+                'points': cert_points,  # Certification points
+                'original_points': c['original_points']  # Challenge's own points
+            }
+            
+            result[difficulty.lower()].append(challenge_data)
+        
+        return result
+
+
+@api_router.get("/admin/certification-exams/lms-final-exams")
+async def admin_get_lms_final_exams(admin: dict = Depends(require_admin)):
+    """
+    Get all LMS Final Exams available for linking to certification exams.
+    Shows which ones are already linked.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        exams = await conn.fetch('''
+            SELECT fe.id, fe.title, fe.description, fe.status,
+                   c.title as course_title, c.id as course_id,
+                   CASE WHEN cec.id IS NOT NULL THEN true ELSE false END as has_certification,
+                   cec.id as certification_config_id, cec.name as certification_name
+            FROM final_exams fe
+            LEFT JOIN courses c ON fe."courseId" = c.id
+            LEFT JOIN certification_exam_configs cec ON fe.id = cec."lmsFinalExamId"
+            ORDER BY fe."createdAt" DESC
+        ''')
+        
+        return [{
+            'id': str(e['id']),
+            'title': e['title'],
+            'description': e['description'],
+            'status': e['status'],
+            'course_title': e['course_title'],
+            'course_id': str(e['course_id']) if e['course_id'] else None,
+            'has_certification': e['has_certification'],
+            'certification_config_id': str(e['certification_config_id']) if e['certification_config_id'] else None,
+            'certification_name': e['certification_name']
+        } for e in exams]
+
+
+@api_router.post("/admin/certification-exams")
+async def admin_create_certification_exam(data: CertificationExamConfigCreate, admin: dict = Depends(require_admin)):
+    """
+    Create a new certification exam configuration with 3 pools.
+    Each pool must have exactly 7 challenges totaling 120 points.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Check if LMS final exam exists
+        lms_exam = await conn.fetchrow(
+            'SELECT id, title FROM final_exams WHERE id = $1',
+            data.lms_final_exam_id
+        )
+        if not lms_exam:
+            raise HTTPException(status_code=404, detail="LMS Final Exam not found")
+        
+        # Check if already linked
+        existing = await conn.fetchrow(
+            'SELECT id FROM certification_exam_configs WHERE "lmsFinalExamId" = $1',
+            data.lms_final_exam_id
+        )
+        if existing:
+            raise HTTPException(status_code=409, detail="This LMS Final Exam already has a certification exam configuration")
+        
+        # Validate Pool A
+        valid_a, error_a, points_a, details_a = await validate_certification_pool(data.pool_a_challenge_ids, conn)
+        if not valid_a:
+            raise HTTPException(status_code=400, detail=f"Pool A validation failed: {error_a}")
+        
+        # Validate Pool B
+        valid_b, error_b, points_b, details_b = await validate_certification_pool(data.pool_b_challenge_ids, conn)
+        if not valid_b:
+            raise HTTPException(status_code=400, detail=f"Pool B validation failed: {error_b}")
+        
+        # Validate Pool C
+        valid_c, error_c, points_c, details_c = await validate_certification_pool(data.pool_c_challenge_ids, conn)
+        if not valid_c:
+            raise HTTPException(status_code=400, detail=f"Pool C validation failed: {error_c}")
+        
+        # Create the exam config
+        config_id = generate_uuid()
+        await conn.execute('''
+            INSERT INTO certification_exam_configs (
+                id, name, "examType", "lmsFinalExamId",
+                "poolAChallengeIds", "poolBChallengeIds", "poolCChallengeIds",
+                "totalLabPoints", "globalDurationHours", "ctfDurationHours", "reportDurationHours",
+                "mcqWeight", "labWeight", "reportWeight",
+                "passThreshold", "labMinThreshold", "reportMinThreshold", "labUnlockReportThreshold",
+                "associateMin", "professionalMin", "eliteMin",
+                "isPublished", "createdById", "createdAt", "updatedAt"
+            ) VALUES (
+                $1, $2, 'ZXCPPT', $3,
+                $4, $5, $6,
+                120, $7, $8, $9,
+                0.30, 0.50, 0.20,
+                70.00, 60.00, 60.00, 80.00,
+                70.00, 80.00, 90.00,
+                false, $10, NOW(), NOW()
+            )
+        ''', config_id, data.name, data.lms_final_exam_id,
+             data.pool_a_challenge_ids, data.pool_b_challenge_ids, data.pool_c_challenge_ids,
+             data.global_duration_hours, data.ctf_duration_hours, data.report_duration_hours,
+             admin['id'])
+        
+        return {
+            'id': config_id,
+            'message': 'Certification exam created successfully',
+            'pools': {
+                'A': {'challenges': len(details_a), 'points': points_a},
+                'B': {'challenges': len(details_b), 'points': points_b},
+                'C': {'challenges': len(details_c), 'points': points_c}
+            }
+        }
+
+
+@api_router.get("/admin/certification-exams")
+async def admin_list_certification_exams(admin: dict = Depends(require_admin)):
+    """List all certification exam configurations"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        configs = await conn.fetch('''
+            SELECT cec.*, fe.title as lms_exam_title, u.name as created_by_name,
+                   (SELECT COUNT(*) FROM certification_exam_attempts cea WHERE cea."examConfigId" = cec.id) as attempt_count
+            FROM certification_exam_configs cec
+            LEFT JOIN final_exams fe ON cec."lmsFinalExamId" = fe.id
+            LEFT JOIN users u ON cec."createdById" = u.id
+            ORDER BY cec."createdAt" DESC
+        ''')
+        
+        return [{
+            'id': str(c['id']),
+            'name': c['name'],
+            'exam_type': c['examType'],
+            'lms_final_exam_id': str(c['lmsFinalExamId']),
+            'lms_exam_title': c['lms_exam_title'],
+            'total_lab_points': c['totalLabPoints'],
+            'global_duration_hours': c['globalDurationHours'],
+            'ctf_duration_hours': c['ctfDurationHours'],
+            'report_duration_hours': c['reportDurationHours'],
+            'is_published': c['isPublished'],
+            'attempt_count': c['attempt_count'],
+            'created_by': c['created_by_name'],
+            'created_at': c['createdAt'].isoformat() if c['createdAt'] else None,
+            'updated_at': c['updatedAt'].isoformat() if c['updatedAt'] else None
+        } for c in configs]
+
+
+@api_router.get("/admin/certification-exams/{config_id}")
+async def admin_get_certification_exam(config_id: str, admin: dict = Depends(require_admin)):
+    """Get detailed certification exam configuration with pool challenges"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        config = await conn.fetchrow('''
+            SELECT cec.*, fe.title as lms_exam_title
+            FROM certification_exam_configs cec
+            LEFT JOIN final_exams fe ON cec."lmsFinalExamId" = fe.id
+            WHERE cec.id = $1
+        ''', config_id)
+        
+        if not config:
+            raise HTTPException(status_code=404, detail="Certification exam not found")
+        
+        # Fetch challenge details for each pool
+        async def get_pool_details(challenge_ids):
+            if not challenge_ids:
+                return []
+            challenges = await conn.fetch('''
+                SELECT c.id, c.title, c.difficulty, cat.name as category
+                FROM ctf_public_challenges c
+                LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
+                WHERE c.id = ANY($1::uuid[])
+            ''', challenge_ids)
+            
+            # Maintain order from pool
+            id_to_challenge = {str(c['id']): c for c in challenges}
+            result = []
+            for cid in challenge_ids:
+                c = id_to_challenge.get(cid)
+                if c:
+                    difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
+                    result.append({
+                        'id': str(c['id']),
+                        'title': c['title'],
+                        'difficulty': difficulty,
+                        'category': c['category'] or 'Uncategorized',
+                        'points': CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+                    })
+            return result
+        
+        pool_a = await get_pool_details(config['poolAChallengeIds'])
+        pool_b = await get_pool_details(config['poolBChallengeIds'])
+        pool_c = await get_pool_details(config['poolCChallengeIds'])
+        
+        # Get attempt statistics
+        stats = await conn.fetchrow('''
+            SELECT 
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE status = 'GRADED' AND passed = true) as passed,
+                COUNT(*) FILTER (WHERE status = 'GRADED' AND passed = false) as failed,
+                COUNT(*) FILTER (WHERE status NOT IN ('GRADED', 'EXPIRED')) as in_progress,
+                COUNT(*) FILTER (WHERE "assignedPool" = 'A') as pool_a_count,
+                COUNT(*) FILTER (WHERE "assignedPool" = 'B') as pool_b_count,
+                COUNT(*) FILTER (WHERE "assignedPool" = 'C') as pool_c_count
+            FROM certification_exam_attempts
+            WHERE "examConfigId" = $1
+        ''', config_id)
+        
+        return {
+            'id': str(config['id']),
+            'name': config['name'],
+            'exam_type': config['examType'],
+            'lms_final_exam_id': str(config['lmsFinalExamId']),
+            'lms_exam_title': config['lms_exam_title'],
+            'pool_a_challenge_ids': config['poolAChallengeIds'],
+            'pool_b_challenge_ids': config['poolBChallengeIds'],
+            'pool_c_challenge_ids': config['poolCChallengeIds'],
+            'pool_a_challenges': pool_a,
+            'pool_b_challenges': pool_b,
+            'pool_c_challenges': pool_c,
+            'total_lab_points': config['totalLabPoints'],
+            'global_duration_hours': config['globalDurationHours'],
+            'ctf_duration_hours': config['ctfDurationHours'],
+            'report_duration_hours': config['reportDurationHours'],
+            'mcq_weight': float(config['mcqWeight']),
+            'lab_weight': float(config['labWeight']),
+            'report_weight': float(config['reportWeight']),
+            'pass_threshold': float(config['passThreshold']),
+            'lab_min_threshold': float(config['labMinThreshold']),
+            'report_min_threshold': float(config['reportMinThreshold']),
+            'lab_unlock_report_threshold': float(config['labUnlockReportThreshold']),
+            'associate_min': float(config['associateMin']),
+            'professional_min': float(config['professionalMin']),
+            'elite_min': float(config['eliteMin']),
+            'is_published': config['isPublished'],
+            'created_at': config['createdAt'].isoformat() if config['createdAt'] else None,
+            'updated_at': config['updatedAt'].isoformat() if config['updatedAt'] else None,
+            'statistics': {
+                'total_attempts': stats['total'],
+                'passed': stats['passed'],
+                'failed': stats['failed'],
+                'in_progress': stats['in_progress'],
+                'pool_distribution': {
+                    'A': stats['pool_a_count'],
+                    'B': stats['pool_b_count'],
+                    'C': stats['pool_c_count']
+                }
+            }
+        }
+
+
+@api_router.put("/admin/certification-exams/{config_id}")
+async def admin_update_certification_exam(config_id: str, data: CertificationExamConfigUpdate, admin: dict = Depends(require_admin)):
+    """Update certification exam configuration (only if no attempts exist)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Check if exam exists
+        config = await conn.fetchrow('SELECT * FROM certification_exam_configs WHERE id = $1', config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Certification exam not found")
+        
+        # Check if there are any attempts
+        attempt_count = await conn.fetchval(
+            'SELECT COUNT(*) FROM certification_exam_attempts WHERE "examConfigId" = $1',
+            config_id
+        )
+        if attempt_count > 0:
+            raise HTTPException(status_code=400, detail=f"Cannot modify exam with {attempt_count} existing attempts")
+        
+        # Build update query dynamically
+        updates = []
+        params = []
+        param_idx = 1
+        
+        if data.name is not None:
+            updates.append(f'name = ${param_idx}')
+            params.append(data.name)
+            param_idx += 1
+        
+        if data.pool_a_challenge_ids is not None:
+            valid, error, _, _ = await validate_certification_pool(data.pool_a_challenge_ids, conn)
+            if not valid:
+                raise HTTPException(status_code=400, detail=f"Pool A validation failed: {error}")
+            updates.append(f'"poolAChallengeIds" = ${param_idx}')
+            params.append(data.pool_a_challenge_ids)
+            param_idx += 1
+        
+        if data.pool_b_challenge_ids is not None:
+            valid, error, _, _ = await validate_certification_pool(data.pool_b_challenge_ids, conn)
+            if not valid:
+                raise HTTPException(status_code=400, detail=f"Pool B validation failed: {error}")
+            updates.append(f'"poolBChallengeIds" = ${param_idx}')
+            params.append(data.pool_b_challenge_ids)
+            param_idx += 1
+        
+        if data.pool_c_challenge_ids is not None:
+            valid, error, _, _ = await validate_certification_pool(data.pool_c_challenge_ids, conn)
+            if not valid:
+                raise HTTPException(status_code=400, detail=f"Pool C validation failed: {error}")
+            updates.append(f'"poolCChallengeIds" = ${param_idx}')
+            params.append(data.pool_c_challenge_ids)
+            param_idx += 1
+        
+        if data.global_duration_hours is not None:
+            updates.append(f'"globalDurationHours" = ${param_idx}')
+            params.append(data.global_duration_hours)
+            param_idx += 1
+        
+        if data.ctf_duration_hours is not None:
+            updates.append(f'"ctfDurationHours" = ${param_idx}')
+            params.append(data.ctf_duration_hours)
+            param_idx += 1
+        
+        if data.report_duration_hours is not None:
+            updates.append(f'"reportDurationHours" = ${param_idx}')
+            params.append(data.report_duration_hours)
+            param_idx += 1
+        
+        if not updates:
+            return {'message': 'No changes provided'}
+        
+        updates.append(f'"updatedAt" = NOW()')
+        params.append(config_id)
+        
+        query = f'UPDATE certification_exam_configs SET {", ".join(updates)} WHERE id = ${param_idx}'
+        await conn.execute(query, *params)
+        
+        return {'message': 'Certification exam updated successfully'}
+
+
+@api_router.delete("/admin/certification-exams/{config_id}")
+async def admin_delete_certification_exam(config_id: str, admin: dict = Depends(require_admin)):
+    """Delete certification exam configuration (only if no attempts exist)"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Check if exam exists
+        config = await conn.fetchrow('SELECT id FROM certification_exam_configs WHERE id = $1', config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Certification exam not found")
+        
+        # Check if there are any attempts
+        attempt_count = await conn.fetchval(
+            'SELECT COUNT(*) FROM certification_exam_attempts WHERE "examConfigId" = $1',
+            config_id
+        )
+        if attempt_count > 0:
+            raise HTTPException(status_code=400, detail=f"Cannot delete exam with {attempt_count} existing attempts")
+        
+        await conn.execute('DELETE FROM certification_exam_configs WHERE id = $1', config_id)
+        return {'message': 'Certification exam deleted successfully'}
+
+
+@api_router.put("/admin/certification-exams/{config_id}/publish")
+async def admin_publish_certification_exam(config_id: str, admin: dict = Depends(require_admin)):
+    """Publish or unpublish a certification exam"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        config = await conn.fetchrow('SELECT id, "isPublished" FROM certification_exam_configs WHERE id = $1', config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Certification exam not found")
+        
+        new_status = not config['isPublished']
+        await conn.execute(
+            'UPDATE certification_exam_configs SET "isPublished" = $1, "updatedAt" = NOW() WHERE id = $2',
+            new_status, config_id
+        )
+        
+        return {
+            'message': f'Certification exam {"published" if new_status else "unpublished"} successfully',
+            'is_published': new_status
+        }
+
+
+@api_router.get("/admin/certification-exams/{config_id}/attempts")
+async def admin_list_certification_attempts(
+    config_id: str,
+    status: Optional[str] = None,
+    pool_filter: Optional[str] = None,
+    admin: dict = Depends(require_admin)
+):
+    """List all student attempts for a certification exam"""
+    db_pool = await Database.get_pool()
+    async with db_pool.acquire() as conn:
+        # Verify exam exists
+        config = await conn.fetchrow('SELECT id FROM certification_exam_configs WHERE id = $1', config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="Certification exam not found")
+        
+        # Build query with optional filters
+        query = '''
+            SELECT cea.*, u.name as student_name, u.email as student_email
+            FROM certification_exam_attempts cea
+            JOIN users u ON cea."userId" = u.id
+            WHERE cea."examConfigId" = $1
+        '''
+        params = [config_id]
+        param_idx = 2
+        
+        if status:
+            query += f' AND cea.status = ${param_idx}'
+            params.append(status.upper())
+            param_idx += 1
+        
+        if pool_filter:
+            query += f' AND cea."assignedPool" = ${param_idx}'
+            params.append(pool_filter.upper())
+            param_idx += 1
+        
+        query += ' ORDER BY cea."redeemedAt" DESC'
+        
+        attempts = await conn.fetch(query, *params)
+        
+        return [{
+            'id': str(a['id']),
+            'user_id': str(a['userId']),
+            'student_name': a['student_name'] or 'Unknown',
+            'student_email': a['student_email'],
+            'assigned_pool': a['assignedPool'],
+            'status': a['status'],
+            'mcq_score': float(a['mcqScore']) if a['mcqScore'] else None,
+            'mcq_correct': a['mcqCorrect'],
+            'mcq_wrong': a['mcqWrong'],
+            'mcq_total': a['mcqTotal'],
+            'lab_score': float(a['labScore']) if a['labScore'] else None,
+            'lab_points_earned': a['labPointsEarned'],
+            'lab_total_points': a['labTotalPoints'],
+            'report_score': float(a['reportTotalScore']) if a['reportTotalScore'] else None,
+            'final_score': float(a['finalScore']) if a['finalScore'] else None,
+            'passed': a['passed'],
+            'certification_level': a['certificationLevel'],
+            'redeemed_at': a['redeemedAt'].isoformat() if a['redeemedAt'] else None,
+            'global_expires_at': a['globalExpiresAt'].isoformat() if a['globalExpiresAt'] else None,
+            'lab_started_at': a['labStartedAt'].isoformat() if a['labStartedAt'] else None,
+            'lab_expires_at': a['labExpiresAt'].isoformat() if a['labExpiresAt'] else None,
+            'lab_completed_at': a['labCompletedAt'].isoformat() if a['labCompletedAt'] else None,
+            'report_unlocked_at': a['reportUnlockedAt'].isoformat() if a['reportUnlockedAt'] else None,
+            'report_uploaded_at': a['reportUploadedAt'].isoformat() if a['reportUploadedAt'] else None,
+            'report_graded_at': a['reportGradedAt'].isoformat() if a['reportGradedAt'] else None
+        } for a in attempts]
 
 
 # ===========================================
@@ -7285,6 +7910,858 @@ async def student_get_final_quiz(course_id: str, current_user: dict = Depends(ge
                 'order_index': q['order_index'],
             } for q in questions],
             'attempts': [dict(a) for a in attempts],
+        }
+
+
+# ===========================================
+# STUDENT: CERTIFICATION EXAMS
+# ===========================================
+
+class CertificationFlagSubmit(BaseModel):
+    """Submit a flag for a certification exam challenge"""
+    challenge_id: str
+    flag: str
+
+
+def calculate_time_remaining(expires_at: datetime) -> int:
+    """Calculate seconds remaining until expiration"""
+    if not expires_at:
+        return 0
+    now = datetime.now(timezone.utc)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    diff = (expires_at - now).total_seconds()
+    return max(0, int(diff))
+
+
+@api_router.get("/student/certification-exams")
+async def student_get_certification_exams(current_user: dict = Depends(get_current_user)):
+    """
+    Get all certification exams the student is enrolled in.
+    Returns exam status, timing info, and component scores.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get all attempts for this user
+        attempts = await conn.fetch('''
+            SELECT cea.*, cec.name as exam_name, cec."examType" as exam_type,
+                   cec."isPublished" as is_published,
+                   cec."globalDurationHours", cec."ctfDurationHours", cec."reportDurationHours",
+                   cec."labUnlockReportThreshold"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea."userId" = $1
+            ORDER BY cea."redeemedAt" DESC
+        ''', current_user['id'])
+        
+        result = []
+        for a in attempts:
+            # Calculate time remaining for each timer
+            global_remaining = calculate_time_remaining(a['globalExpiresAt'])
+            lab_remaining = calculate_time_remaining(a['labExpiresAt']) if a['labExpiresAt'] else None
+            report_remaining = calculate_time_remaining(a['reportExpiresAt']) if a['reportExpiresAt'] else None
+            
+            # Determine component states
+            mcq_completed = a['status'] not in ('MCQ_PENDING',)
+            lab_started = a['labStartedAt'] is not None
+            lab_completed = a['status'] in ('LAB_COMPLETED', 'REPORT_PENDING', 'REPORT_UPLOADED', 'PENDING_REVIEW', 'GRADED')
+            report_unlocked = a['reportUnlockedAt'] is not None
+            report_uploaded = a['reportUploadedAt'] is not None
+            
+            result.append({
+                'id': str(a['examConfigId']),
+                'attempt_id': str(a['id']),
+                'name': a['exam_name'],
+                'exam_type': a['exam_type'],
+                'status': a['status'],
+                'is_published': a['is_published'],
+                'time_remaining': {
+                    'global': global_remaining,
+                    'lab': lab_remaining,
+                    'report': report_remaining
+                },
+                'components': {
+                    'mcq': {
+                        'completed': mcq_completed,
+                        'score': float(a['mcqScore']) if a['mcqScore'] else None,
+                        'correct': a['mcqCorrect'],
+                        'total': a['mcqTotal']
+                    },
+                    'lab': {
+                        'started': lab_started,
+                        'completed': lab_completed,
+                        'score': float(a['labScore']) if a['labScore'] else None,
+                        'points_earned': a['labPointsEarned'],
+                        'total_points': a['labTotalPoints']
+                    },
+                    'report': {
+                        'unlocked': report_unlocked,
+                        'unlock_threshold': float(a['labUnlockReportThreshold']),
+                        'uploaded': report_uploaded,
+                        'score': float(a['reportTotalScore']) if a['reportTotalScore'] else None
+                    }
+                },
+                'final_score': float(a['finalScore']) if a['finalScore'] else None,
+                'passed': a['passed'],
+                'certification_level': a['certificationLevel'],
+                'redeemed_at': a['redeemedAt'].isoformat() if a['redeemedAt'] else None
+            })
+        
+        return result
+
+
+@api_router.post("/student/certification-exams/{exam_config_id}/start-lab")
+async def student_start_certification_lab(exam_config_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Start the lab component of a certification exam.
+    - Assigns a random pool (A, B, or C)
+    - Randomizes challenge order within the pool
+    - Starts the CTF timer (12h or remaining global time, whichever is less)
+    - Returns challenges WITHOUT revealing pool assignment
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get the attempt
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec."poolAChallengeIds", cec."poolBChallengeIds", cec."poolCChallengeIds",
+                   cec."ctfDurationHours", cec."isPublished"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea."examConfigId" = $1 AND cea."userId" = $2
+        ''', exam_config_id, current_user['id'])
+        
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+        
+        if not attempt['isPublished']:
+            raise HTTPException(status_code=400, detail="This certification exam is not yet published")
+        
+        # Check if MCQ is completed
+        if attempt['status'] == 'MCQ_PENDING':
+            raise HTTPException(status_code=400, detail="You must complete the MCQ component first")
+        
+        # Check if lab already started
+        if attempt['labStartedAt'] is not None:
+            raise HTTPException(status_code=400, detail="Lab has already been started")
+        
+        # Check if global timer expired
+        now = datetime.now(timezone.utc)
+        global_expires = attempt['globalExpiresAt']
+        if global_expires.tzinfo is None:
+            global_expires = global_expires.replace(tzinfo=timezone.utc)
+        
+        if now >= global_expires:
+            # Mark as expired
+            await conn.execute(
+                'UPDATE certification_exam_attempts SET status = $1, "updatedAt" = NOW() WHERE id = $2',
+                'EXPIRED', attempt['id']
+            )
+            raise HTTPException(status_code=400, detail="Your 48-hour window has expired")
+        
+        # RANDOM POOL ASSIGNMENT
+        assigned_pool = random.choice(['A', 'B', 'C'])
+        
+        # Get challenge IDs for assigned pool
+        if assigned_pool == 'A':
+            challenge_ids = attempt['poolAChallengeIds']
+        elif assigned_pool == 'B':
+            challenge_ids = attempt['poolBChallengeIds']
+        else:
+            challenge_ids = attempt['poolCChallengeIds']
+        
+        # RANDOMIZE ORDER within pool (0-6 indices)
+        randomized_order = list(range(len(challenge_ids)))
+        random.shuffle(randomized_order)
+        
+        # Calculate lab expiration (12h OR global remaining, whichever is less)
+        ctf_hours = attempt['ctfDurationHours'] or 12
+        ctf_expiry = now + timedelta(hours=ctf_hours)
+        lab_expires_at = min(ctf_expiry, global_expires)
+        
+        # Update the attempt
+        await conn.execute('''
+            UPDATE certification_exam_attempts SET
+                "assignedPool" = $1,
+                "labStartedAt" = $2,
+                "labExpiresAt" = $3,
+                "labChallengeOrder" = $4,
+                status = 'LAB_IN_PROGRESS',
+                "updatedAt" = NOW()
+            WHERE id = $5
+        ''', assigned_pool, now, lab_expires_at, randomized_order, attempt['id'])
+        
+        # Fetch challenge details (in randomized order)
+        challenges = await conn.fetch('''
+            SELECT c.id, c.title, c.description, c.difficulty, c.hints,
+                   c."dockerImage", c."hasDockr" as has_docker,
+                   cat.name as category
+            FROM ctf_public_challenges c
+            LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
+            WHERE c.id = ANY($1::uuid[])
+        ''', challenge_ids)
+        
+        # Map challenges by ID
+        id_to_challenge = {str(c['id']): c for c in challenges}
+        
+        # Return challenges in randomized order (using indices)
+        ordered_challenges = []
+        for idx in randomized_order:
+            cid = challenge_ids[idx]
+            c = id_to_challenge.get(cid)
+            if c:
+                difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
+                cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+                hints = json.loads(c['hints']) if isinstance(c['hints'], str) else (c['hints'] or [])
+                
+                ordered_challenges.append({
+                    'id': str(c['id']),
+                    'title': c['title'],
+                    'description': c['description'],
+                    'difficulty': difficulty,
+                    'points': cert_points,
+                    'category': c['category'] or 'Uncategorized',
+                    'has_docker': c['has_docker'] or bool(c['dockerImage']),
+                    'hints': [{'index': i, 'cost': h.get('cost', 10)} for i, h in enumerate(hints)],
+                    'solved': False
+                })
+        
+        return {
+            'attempt_id': str(attempt['id']),
+            'challenges': ordered_challenges,
+            'time_remaining': calculate_time_remaining(lab_expires_at),
+            'lab_expires_at': lab_expires_at.isoformat()
+        }
+
+
+@api_router.get("/student/certification-exams/attempts/{attempt_id}/challenges")
+async def student_get_certification_challenges(attempt_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get the challenges for an in-progress certification lab exam.
+    Returns challenges in the randomized order with solve status.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get the attempt
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec."poolAChallengeIds", cec."poolBChallengeIds", cec."poolCChallengeIds"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea.id = $1 AND cea."userId" = $2
+        ''', attempt_id, current_user['id'])
+        
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+        
+        if attempt['labStartedAt'] is None:
+            raise HTTPException(status_code=400, detail="Lab has not been started yet")
+        
+        # Get challenge IDs for assigned pool
+        assigned_pool = attempt['assignedPool']
+        if assigned_pool == 'A':
+            challenge_ids = attempt['poolAChallengeIds']
+        elif assigned_pool == 'B':
+            challenge_ids = attempt['poolBChallengeIds']
+        else:
+            challenge_ids = attempt['poolCChallengeIds']
+        
+        # Get solved challenge IDs
+        solved_challenges = attempt['labCompletedChallenges'] or []
+        if isinstance(solved_challenges, str):
+            solved_challenges = json.loads(solved_challenges)
+        solved_ids = {c['challenge_id'] for c in solved_challenges}
+        
+        # Fetch challenge details
+        challenges = await conn.fetch('''
+            SELECT c.id, c.title, c.description, c.difficulty, c.hints,
+                   c."dockerImage", c."hasDockr" as has_docker,
+                   cat.name as category
+            FROM ctf_public_challenges c
+            LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
+            WHERE c.id = ANY($1::uuid[])
+        ''', challenge_ids)
+        
+        # Map challenges by ID
+        id_to_challenge = {str(c['id']): c for c in challenges}
+        
+        # Get randomized order
+        randomized_order = attempt['labChallengeOrder'] or list(range(len(challenge_ids)))
+        
+        # Return challenges in randomized order
+        ordered_challenges = []
+        for idx in randomized_order:
+            cid = challenge_ids[idx]
+            c = id_to_challenge.get(cid)
+            if c:
+                difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
+                cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+                hints = json.loads(c['hints']) if isinstance(c['hints'], str) else (c['hints'] or [])
+                
+                ordered_challenges.append({
+                    'id': str(c['id']),
+                    'title': c['title'],
+                    'description': c['description'],
+                    'difficulty': difficulty,
+                    'points': cert_points,
+                    'category': c['category'] or 'Uncategorized',
+                    'has_docker': c['has_docker'] or bool(c['dockerImage']),
+                    'hints': [{'index': i, 'cost': h.get('cost', 10)} for i, h in enumerate(hints)],
+                    'solved': str(c['id']) in solved_ids
+                })
+        
+        # Calculate time remaining
+        lab_remaining = calculate_time_remaining(attempt['labExpiresAt'])
+        report_remaining = calculate_time_remaining(attempt['reportExpiresAt']) if attempt['reportExpiresAt'] else None
+        
+        return {
+            'attempt_id': str(attempt['id']),
+            'status': attempt['status'],
+            'challenges': ordered_challenges,
+            'lab_points_earned': attempt['labPointsEarned'],
+            'lab_total_points': attempt['labTotalPoints'],
+            'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+            'report_unlocked': attempt['reportUnlockedAt'] is not None,
+            'time_remaining': {
+                'lab': lab_remaining,
+                'report': report_remaining
+            }
+        }
+
+
+@api_router.post("/student/certification-exams/attempts/{attempt_id}/submit")
+async def student_submit_certification_flag(
+    attempt_id: str, 
+    data: CertificationFlagSubmit, 
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Submit a flag for a certification exam challenge.
+    - Auto-scores based on certification difficulty points
+    - Unlocks report upload when lab score >= 80%
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get the attempt with exam config
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec."poolAChallengeIds", cec."poolBChallengeIds", cec."poolCChallengeIds",
+                   cec."labUnlockReportThreshold", cec."reportDurationHours"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea.id = $1 AND cea."userId" = $2
+        ''', attempt_id, current_user['id'])
+        
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+        
+        # Check status
+        if attempt['status'] not in ('LAB_IN_PROGRESS',):
+            raise HTTPException(status_code=400, detail=f"Cannot submit flags in status: {attempt['status']}")
+        
+        # Check if lab timer expired
+        now = datetime.now(timezone.utc)
+        lab_expires = attempt['labExpiresAt']
+        if lab_expires:
+            if lab_expires.tzinfo is None:
+                lab_expires = lab_expires.replace(tzinfo=timezone.utc)
+            if now >= lab_expires:
+                await conn.execute(
+                    'UPDATE certification_exam_attempts SET status = $1, "labCompletedAt" = $2, "updatedAt" = NOW() WHERE id = $3',
+                    'LAB_COMPLETED', now, attempt['id']
+                )
+                raise HTTPException(status_code=400, detail="Your lab time has expired")
+        
+        # Get challenge IDs for assigned pool
+        assigned_pool = attempt['assignedPool']
+        if assigned_pool == 'A':
+            challenge_ids = attempt['poolAChallengeIds']
+        elif assigned_pool == 'B':
+            challenge_ids = attempt['poolBChallengeIds']
+        else:
+            challenge_ids = attempt['poolCChallengeIds']
+        
+        # Verify challenge is in the pool
+        if data.challenge_id not in challenge_ids:
+            raise HTTPException(status_code=400, detail="Challenge is not in your assigned pool")
+        
+        # Check if already solved
+        solved_challenges = attempt['labCompletedChallenges'] or []
+        if isinstance(solved_challenges, str):
+            solved_challenges = json.loads(solved_challenges)
+        
+        if any(c['challenge_id'] == data.challenge_id for c in solved_challenges):
+            return {
+                'correct': False,
+                'message': 'Challenge already solved',
+                'points': 0,
+                'lab_points_earned': attempt['labPointsEarned'],
+                'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+                'report_unlocked': attempt['reportUnlockedAt'] is not None
+            }
+        
+        # Get challenge and verify flag
+        challenge = await conn.fetchrow('''
+            SELECT id, title, difficulty, flag FROM ctf_public_challenges WHERE id = $1
+        ''', data.challenge_id)
+        
+        if not challenge:
+            raise HTTPException(status_code=404, detail="Challenge not found")
+        
+        # Check flag (case-insensitive comparison, trim whitespace)
+        correct = data.flag.strip().lower() == challenge['flag'].strip().lower()
+        
+        if not correct:
+            return {
+                'correct': False,
+                'message': 'Incorrect flag',
+                'points': 0,
+                'lab_points_earned': attempt['labPointsEarned'],
+                'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+                'report_unlocked': attempt['reportUnlockedAt'] is not None
+            }
+        
+        # Calculate points for this challenge
+        difficulty = challenge['difficulty'].upper() if challenge['difficulty'] else 'MEDIUM'
+        points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+        
+        # Update solved challenges
+        solved_challenges.append({
+            'challenge_id': data.challenge_id,
+            'title': challenge['title'],
+            'difficulty': difficulty,
+            'points': points,
+            'solved_at': now.isoformat()
+        })
+        
+        # Calculate new totals
+        new_points_earned = attempt['labPointsEarned'] + points
+        new_score = (new_points_earned / attempt['labTotalPoints']) * 100
+        
+        # Prepare update data
+        update_data = {
+            'labPointsEarned': new_points_earned,
+            'labScore': new_score,
+            'labCompletedChallenges': json.dumps(solved_challenges)
+        }
+        
+        # Check if report should be unlocked (at threshold, e.g., 80%)
+        unlock_threshold = float(attempt['labUnlockReportThreshold'] or 80)
+        report_unlocked = attempt['reportUnlockedAt'] is not None
+        
+        if new_score >= unlock_threshold and not report_unlocked:
+            # Unlock report upload
+            report_hours = attempt['reportDurationHours'] or 3
+            global_expires = attempt['globalExpiresAt']
+            if global_expires.tzinfo is None:
+                global_expires = global_expires.replace(tzinfo=timezone.utc)
+            
+            report_expiry = now + timedelta(hours=report_hours)
+            report_expires_at = min(report_expiry, global_expires)
+            
+            update_data['reportUnlockedAt'] = now
+            update_data['reportExpiresAt'] = report_expires_at
+            update_data['status'] = 'REPORT_PENDING'
+            report_unlocked = True
+        
+        # Check if all challenges solved
+        all_solved = len(solved_challenges) == 7
+        if all_solved and 'status' not in update_data:
+            update_data['labCompletedAt'] = now
+            if new_score >= unlock_threshold:
+                update_data['status'] = 'REPORT_PENDING'
+            else:
+                update_data['status'] = 'LAB_COMPLETED'
+        
+        # Build update query
+        set_clauses = []
+        params = []
+        param_idx = 1
+        
+        for key, value in update_data.items():
+            # Convert camelCase to snake_case for DB columns
+            db_column = f'"{key}"'
+            set_clauses.append(f'{db_column} = ${param_idx}')
+            params.append(value)
+            param_idx += 1
+        
+        set_clauses.append('"updatedAt" = NOW()')
+        params.append(attempt['id'])
+        
+        query = f'UPDATE certification_exam_attempts SET {", ".join(set_clauses)} WHERE id = ${param_idx}'
+        await conn.execute(query, *params)
+        
+        return {
+            'correct': True,
+            'message': 'Flag correct!',
+            'points': points,
+            'challenge_title': challenge['title'],
+            'lab_points_earned': new_points_earned,
+            'lab_score': round(new_score, 2),
+            'challenges_solved': len(solved_challenges),
+            'challenges_total': 7,
+            'report_unlocked': report_unlocked,
+            'all_solved': all_solved
+        }
+
+
+# ===========================================
+# STUDENT: CERTIFICATION REPORT UPLOAD
+# ===========================================
+
+@api_router.post("/student/certification-exams/attempts/{attempt_id}/report")
+async def student_upload_certification_report(
+    attempt_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload a report for a certification exam.
+    - Only allowed when report is unlocked (lab score >= 80%)
+    - Only allowed within report deadline
+    - Accepts PDF and DOCX files (max 50MB)
+    """
+    import mimetypes
+    
+    # Validate file type
+    allowed_types = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    allowed_extensions = ['.pdf', '.docx']
+    
+    content_type = file.content_type
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+    
+    if content_type not in allowed_types and ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are allowed")
+    
+    # 50MB Limit
+    MAX_SIZE = 50 * 1024 * 1024
+    
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get the attempt
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec.name as exam_name
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea.id = $1 AND cea."userId" = $2
+        ''', attempt_id, current_user['id'])
+        
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+        
+        # Check if report upload is unlocked
+        if attempt['reportUnlockedAt'] is None:
+            raise HTTPException(status_code=400, detail="Report upload is not unlocked. You need at least 80% lab score.")
+        
+        # Check status
+        if attempt['status'] not in ('REPORT_PENDING', 'LAB_IN_PROGRESS', 'LAB_COMPLETED'):
+            raise HTTPException(status_code=400, detail=f"Cannot upload report in status: {attempt['status']}")
+        
+        # Check if report deadline expired
+        now = datetime.now(timezone.utc)
+        report_expires = attempt['reportExpiresAt']
+        if report_expires:
+            if report_expires.tzinfo is None:
+                report_expires = report_expires.replace(tzinfo=timezone.utc)
+            if now >= report_expires:
+                await conn.execute(
+                    'UPDATE certification_exam_attempts SET status = $1, "updatedAt" = NOW() WHERE id = $2',
+                    'PENDING_REVIEW', attempt['id']
+                )
+                raise HTTPException(status_code=400, detail="Your report upload deadline has expired")
+        
+        # Read file content
+        content = await file.read()
+        file_size = len(content)
+        
+        if file_size > MAX_SIZE:
+            raise HTTPException(status_code=413, detail="File too large. Maximum size is 50MB.")
+        
+        # Create uploads directory if it doesn't exist
+        upload_dir = ROOT_DIR / "uploads" / "certification-reports"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        clean_filename = "".join(c for c in filename if c.isalnum() or c in "._- ").strip()
+        if not clean_filename:
+            clean_filename = f"report{ext}"
+        
+        storage_name = f"{attempt_id}_{clean_filename}"
+        file_path = upload_dir / storage_name
+        
+        # Delete old file if exists
+        if attempt['reportFileUrl']:
+            old_file = ROOT_DIR / attempt['reportFileUrl'].lstrip('/')
+            if old_file.exists():
+                old_file.unlink()
+        
+        # Save file
+        try:
+            with open(file_path, "wb") as f:
+                f.write(content)
+        except Exception as e:
+            logger.error(f"Report upload failed: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save report file")
+        
+        # Update attempt with report info
+        report_url = f"/uploads/certification-reports/{storage_name}"
+        await conn.execute('''
+            UPDATE certification_exam_attempts SET
+                "reportFileUrl" = $1,
+                "reportUploadedAt" = $2,
+                status = 'REPORT_UPLOADED',
+                "updatedAt" = NOW()
+            WHERE id = $3
+        ''', report_url, now, attempt['id'])
+        
+        return {
+            'success': True,
+            'report_url': report_url,
+            'uploaded_at': now.isoformat(),
+            'file_size': file_size,
+            'filename': clean_filename
+        }
+
+
+# ===========================================
+# ADMIN: CERTIFICATION REPORT GRADING
+# ===========================================
+
+@api_router.get("/admin/certification-exams/reports/pending")
+async def admin_get_pending_reports(admin: dict = Depends(require_admin)):
+    """Get all certification exam reports pending review"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        reports = await conn.fetch('''
+            SELECT cea.id, cea."userId", cea."examConfigId", cea.status,
+                   cea."mcqScore", cea."labScore", cea."labPointsEarned", cea."labTotalPoints",
+                   cea."reportFileUrl", cea."reportUploadedAt",
+                   u.name as student_name, u.email as student_email,
+                   cec.name as exam_name
+            FROM certification_exam_attempts cea
+            JOIN users u ON cea."userId" = u.id
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea.status IN ('REPORT_UPLOADED', 'PENDING_REVIEW')
+            ORDER BY cea."reportUploadedAt" ASC
+        ''')
+        
+        return [{
+            'attempt_id': str(r['id']),
+            'user_id': str(r['userId']),
+            'student_name': r['student_name'] or 'Unknown',
+            'student_email': r['student_email'],
+            'exam_name': r['exam_name'],
+            'exam_config_id': str(r['examConfigId']),
+            'status': r['status'],
+            'mcq_score': float(r['mcqScore']) if r['mcqScore'] else None,
+            'lab_score': float(r['labScore']) if r['labScore'] else None,
+            'lab_points_earned': r['labPointsEarned'],
+            'lab_total_points': r['labTotalPoints'],
+            'report_file_url': r['reportFileUrl'],
+            'report_uploaded_at': r['reportUploadedAt'].isoformat() if r['reportUploadedAt'] else None
+        } for r in reports]
+
+
+@api_router.get("/admin/certification-exams/reports/{attempt_id}")
+async def admin_get_report_details(attempt_id: str, admin: dict = Depends(require_admin)):
+    """Get detailed information about a certification exam attempt for grading"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, u.name as student_name, u.email as student_email,
+                   cec.name as exam_name, cec."examType",
+                   cec."mcqWeight", cec."labWeight", cec."reportWeight",
+                   cec."passThreshold", cec."labMinThreshold", cec."reportMinThreshold",
+                   cec."associateMin", cec."professionalMin", cec."eliteMin"
+            FROM certification_exam_attempts cea
+            JOIN users u ON cea."userId" = u.id
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea.id = $1
+        ''', attempt_id)
+        
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+        
+        return {
+            'attempt_id': str(attempt['id']),
+            'user_id': str(attempt['userId']),
+            'student_name': attempt['student_name'] or 'Unknown',
+            'student_email': attempt['student_email'],
+            'exam_name': attempt['exam_name'],
+            'exam_type': attempt['examType'],
+            'assigned_pool': attempt['assignedPool'],
+            'status': attempt['status'],
+            # MCQ Component
+            'mcq': {
+                'score': float(attempt['mcqScore']) if attempt['mcqScore'] else None,
+                'correct': attempt['mcqCorrect'],
+                'wrong': attempt['mcqWrong'],
+                'total': attempt['mcqTotal'],
+                'weight': float(attempt['mcqWeight'])
+            },
+            # Lab Component
+            'lab': {
+                'score': float(attempt['labScore']) if attempt['labScore'] else None,
+                'points_earned': attempt['labPointsEarned'],
+                'total_points': attempt['labTotalPoints'],
+                'weight': float(attempt['labWeight']),
+                'completed_challenges': attempt['labCompletedChallenges']
+            },
+            # Report Component
+            'report': {
+                'file_url': attempt['reportFileUrl'],
+                'uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
+                'weight': float(attempt['reportWeight']),
+                'grading': {
+                    'clarity': attempt['reportClarityScore'],
+                    'technical': attempt['reportTechnicalScore'],
+                    'reproducibility': attempt['reportReproducibilityScore'],
+                    'impact': attempt['reportImpactScore'],
+                    'remediation': attempt['reportRemediationScore'],
+                    'total': float(attempt['reportTotalScore']) if attempt['reportTotalScore'] else None,
+                    'feedback': attempt['reportFeedback']
+                } if attempt['reportGradedAt'] else None
+            },
+            # Thresholds
+            'thresholds': {
+                'pass': float(attempt['passThreshold']),
+                'lab_min': float(attempt['labMinThreshold']),
+                'report_min': float(attempt['reportMinThreshold']),
+                'associate_min': float(attempt['associateMin']),
+                'professional_min': float(attempt['professionalMin']),
+                'elite_min': float(attempt['eliteMin'])
+            },
+            # Final Result (if graded)
+            'result': {
+                'final_score': float(attempt['finalScore']) if attempt['finalScore'] else None,
+                'passed': attempt['passed'],
+                'certification_level': attempt['certificationLevel'],
+                'graded_at': attempt['reportGradedAt'].isoformat() if attempt['reportGradedAt'] else None
+            } if attempt['reportGradedAt'] else None,
+            # Timing
+            'timing': {
+                'redeemed_at': attempt['redeemedAt'].isoformat() if attempt['redeemedAt'] else None,
+                'global_expires_at': attempt['globalExpiresAt'].isoformat() if attempt['globalExpiresAt'] else None,
+                'lab_started_at': attempt['labStartedAt'].isoformat() if attempt['labStartedAt'] else None,
+                'lab_completed_at': attempt['labCompletedAt'].isoformat() if attempt['labCompletedAt'] else None,
+                'report_unlocked_at': attempt['reportUnlockedAt'].isoformat() if attempt['reportUnlockedAt'] else None,
+                'report_expires_at': attempt['reportExpiresAt'].isoformat() if attempt['reportExpiresAt'] else None
+            }
+        }
+
+
+@api_router.post("/admin/certification-exams/reports/{attempt_id}/grade")
+async def admin_grade_certification_report(
+    attempt_id: str, 
+    data: ReportGradeRequest, 
+    admin: dict = Depends(require_admin)
+):
+    """
+    Grade a certification exam report and calculate final score.
+    - Calculates report total (sum of 5 criteria, max 100)
+    - Calculates final weighted score
+    - Determines pass/fail and certification level
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        # Get attempt with config
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec."mcqWeight", cec."labWeight", cec."reportWeight",
+                   cec."passThreshold", cec."labMinThreshold", cec."reportMinThreshold",
+                   cec."associateMin", cec."professionalMin", cec."eliteMin"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea.id = $1
+        ''', attempt_id)
+        
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+        
+        # Check if report was uploaded
+        if not attempt['reportFileUrl']:
+            raise HTTPException(status_code=400, detail="No report uploaded for this attempt")
+        
+        # Calculate report total (max 100)
+        report_total = data.clarity + data.technical + data.reproducibility + data.impact + data.remediation
+        
+        # Get scores
+        mcq_score = float(attempt['mcqScore']) if attempt['mcqScore'] else 0
+        lab_score = float(attempt['labScore']) if attempt['labScore'] else 0
+        
+        # Calculate weighted contributions
+        mcq_weight = float(attempt['mcqWeight'])
+        lab_weight = float(attempt['labWeight'])
+        report_weight = float(attempt['reportWeight'])
+        
+        mcq_contribution = mcq_score * mcq_weight
+        lab_contribution = lab_score * lab_weight
+        report_contribution = report_total * report_weight
+        
+        final_score = mcq_contribution + lab_contribution + report_contribution
+        
+        # Get thresholds
+        pass_threshold = float(attempt['passThreshold'])
+        lab_min = float(attempt['labMinThreshold'])
+        report_min = float(attempt['reportMinThreshold'])
+        associate_min = float(attempt['associateMin'])
+        professional_min = float(attempt['professionalMin'])
+        elite_min = float(attempt['eliteMin'])
+        
+        # Determine pass/fail
+        passed = (
+            final_score >= pass_threshold and
+            lab_score >= lab_min and
+            report_total >= report_min
+        )
+        
+        # Determine certification level
+        certification_level = None
+        if passed:
+            if final_score >= elite_min:
+                certification_level = 'Elite'
+            elif final_score >= professional_min:
+                certification_level = 'Professional'
+            else:  # 70-79.99
+                certification_level = 'Associate'
+        
+        now = datetime.now(timezone.utc)
+        
+        # Update attempt with grading results
+        await conn.execute('''
+            UPDATE certification_exam_attempts SET
+                "reportClarityScore" = $1,
+                "reportTechnicalScore" = $2,
+                "reportReproducibilityScore" = $3,
+                "reportImpactScore" = $4,
+                "reportRemediationScore" = $5,
+                "reportTotalScore" = $6,
+                "reportFeedback" = $7,
+                "reportGradedAt" = $8,
+                "reportGradedById" = $9,
+                "finalScore" = $10,
+                passed = $11,
+                "certificationLevel" = $12,
+                status = 'GRADED',
+                "updatedAt" = NOW()
+            WHERE id = $13
+        ''', data.clarity, data.technical, data.reproducibility, data.impact, data.remediation,
+             report_total, data.feedback, now, admin['id'],
+             round(final_score, 2), passed, certification_level, attempt['id'])
+        
+        return {
+            'success': True,
+            'report_score': report_total,
+            'final_score': round(final_score, 2),
+            'passed': passed,
+            'certification_level': certification_level,
+            'breakdown': {
+                'mcq': f"{mcq_score:.1f}% × {mcq_weight:.2f} = {mcq_contribution:.1f}%",
+                'lab': f"{lab_score:.1f}% × {lab_weight:.2f} = {lab_contribution:.1f}%",
+                'report': f"{report_total}% × {report_weight:.2f} = {report_contribution:.1f}%"
+            },
+            'thresholds': {
+                'overall': f"≥{pass_threshold}% (got {round(final_score, 2)}%)",
+                'lab': f"≥{lab_min}% (got {lab_score:.1f}%)",
+                'report': f"≥{report_min}% (got {report_total}%)"
+            }
         }
 
 
