@@ -440,9 +440,8 @@ const VPNAccess = ({ user, logout }) => {
               </h3>
 
               <div className="space-y-6">
-                <div className="flex gap-4 overflow-x-auto pb-2">
                 {/* Linux */}
-                <div className="min-w-[250px] flex-1">
+                <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">LINUX</Badge>
                   </div>
@@ -468,7 +467,7 @@ sudo wg-quick up <username>`}
                 </div>
 
                 {/* macOS */}
-                <div className="min-w-[250px] flex-1">
+                <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">macOS</Badge>
                   </div>
@@ -494,7 +493,7 @@ sudo wg-quick up <username>`}
                 </div>
 
                 {/* Windows */}
-                <div className="min-w-[250px] flex-1">
+                <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">WINDOWS</Badge>
                   </div>
@@ -518,7 +517,6 @@ Move-Item -Path "$env:USERPROFILE\\Downloads\\<username>.conf" \\
                       <Copy className="w-3 h-3" /> COPY
                     </button>
                   </div>
-                </div>
                 </div>
 
                 {/* Alternative: Absolute Path */}
