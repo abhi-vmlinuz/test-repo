@@ -362,6 +362,123 @@ const VPNAccess = ({ user, logout }) => {
                 LAUNCH LAB
               </Button>
             </motion.div>
+
+            {/* CLI Connection Guide */}
+            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border-2 border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5">
+                <Terminal className="w-12 h-12 text-zinc-900 dark:text-white" />
+              </div>
+
+              <h3 className="text-lg font-black text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-zinc-500 dark:text-zinc-400" /> CLI Connection
+              </h3>
+
+              <div className="space-y-6">
+                {/* Linux */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">LINUX</Badge>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
+                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
+{`# Install WireGuard
+sudo apt install wireguard  # Ubuntu/Debian
+sudo dnf install wireguard-tools  # Fedora
+
+# Copy config to /etc/wireguard/
+sudo cp ~/Downloads/<username>.conf /etc/wireguard/<username>.conf
+
+# Connect using interface name (without .conf)
+sudo wg-quick up <username>`}
+                    </pre>
+                    <button
+                      onClick={() => copyToClipboard(`sudo cp ~/Downloads/${user?.username || 'your_username'}.conf /etc/wireguard/${user?.username || 'your_username'}.conf\nsudo wg-quick up ${user?.username || 'your_username'}`, 'Linux commands')}
+                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
+                    >
+                      <Copy className="w-3 h-3" /> COPY
+                    </button>
+                  </div>
+                </div>
+
+                {/* macOS */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">macOS</Badge>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
+                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
+{`# Install WireGuard via Homebrew
+brew install wireguard-tools
+
+# Copy config (create directory if needed)
+sudo mkdir -p /usr/local/etc/wireguard
+sudo cp ~/Downloads/<username>.conf /usr/local/etc/wireguard/<username>.conf
+
+# Connect
+sudo wg-quick up <username>`}
+                    </pre>
+                    <button
+                      onClick={() => copyToClipboard(`brew install wireguard-tools\nsudo mkdir -p /usr/local/etc/wireguard\nsudo cp ~/Downloads/${user?.username || 'your_username'}.conf /usr/local/etc/wireguard/${user?.username || 'your_username'}.conf\nsudo wg-quick up ${user?.username || 'your_username'}`, 'macOS commands')}
+                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
+                    >
+                      <Copy className="w-3 h-3" /> COPY
+                    </button>
+                  </div>
+                </div>
+
+                {/* Windows */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">WINDOWS</Badge>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
+                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
+{`# Download WireGuard installer from wireguard.com
+
+# Move config to WireGuard config folder
+Move-Item -Path "$env:USERPROFILE\\Downloads\\<username>.conf" \\
+  -Destination "$env:APPDATA\\WireGuard\\Configs\\<username>.conf"
+
+# Or copy manually:
+# C:\\Users\\YourUsername\\AppData\\Roaming\\WireGuard\\Configs\\
+
+# Connect via WireGuard GUI app`}
+                    </pre>
+                    <button
+                      onClick={() => copyToClipboard(`Move-Item -Path "$env:USERPROFILE\\\\Downloads\\\\${user?.username || 'your_username'}.conf" -Destination "$env:APPDATA\\\\WireGuard\\\\Configs\\\\${user?.username || 'your_username'}.conf"`, 'Windows commands')}
+                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
+                    >
+                      <Copy className="w-3 h-3" /> COPY
+                    </button>
+                  </div>
+                </div>
+
+                {/* Alternative: Absolute Path */}
+                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="outline" className="border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 font-bold text-[10px]">ALTERNATIVE</Badge>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950/20 rounded-xl p-4 border border-amber-200 dark:border-amber-900">
+                    <p className="text-[10px] text-amber-800 dark:text-amber-300 mb-2 font-medium leading-relaxed">
+                      Use absolute path if you don't want to copy to /etc/wireguard:
+                    </p>
+                    <pre className="text-[10px] font-mono text-amber-900 dark:text-amber-200 leading-relaxed overflow-x-auto">
+{`sudo wg-quick up /full/path/to/<username>.conf`}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Disconnect */}
+                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                  <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">DISCONNECT</p>
+                  <div className="bg-red-50 dark:bg-red-950/20 rounded-xl p-4 border border-red-200 dark:border-red-900">
+                    <code className="block text-[10px] font-mono text-red-900 dark:text-red-200">
+                      sudo wg-quick down {user?.username || 'zecurx'}
+                    </code>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Sidebar Area */}
@@ -425,123 +542,6 @@ const VPNAccess = ({ user, logout }) => {
                 <div className="flex gap-4">
                   <div className="w-6 h-6 rounded-full bg-zinc-800 text-white border border-zinc-700 flex items-center justify-center text-[10px] font-black shrink-0 shadow-lg">3</div>
                   <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">Import config into your client and click <span className="text-white font-bold tracking-tight">Activate</span>.</p>
-                </div>
-              </div>
-            </div>
-
-            {/* CLI Connection Guide */}
-            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border-2 border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-5">
-                <Terminal className="w-12 h-12 text-zinc-900 dark:text-white" />
-              </div>
-
-              <h3 className="text-lg font-black text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-zinc-500 dark:text-zinc-400" /> CLI Connection
-              </h3>
-
-              <div className="space-y-6">
-                {/* Linux */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">LINUX</Badge>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
-                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
-{`# Install WireGuard
-sudo apt install wireguard  # Ubuntu/Debian
-sudo dnf install wireguard-tools  # Fedora
-
-# Copy config to /etc/wireguard/
-sudo cp ~/Downloads/<username>.conf /etc/wireguard/<username>.conf
-
-# Connect using interface name (without .conf)
-sudo wg-quick up <username>`}
-                    </pre>
-                    <button 
-                      onClick={() => copyToClipboard(`sudo cp ~/Downloads/${user?.username || 'your_username'}.conf /etc/wireguard/${user?.username || 'your_username'}.conf\nsudo wg-quick up ${user?.username || 'your_username'}`, 'Linux commands')}
-                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
-                    >
-                      <Copy className="w-3 h-3" /> COPY
-                    </button>
-                  </div>
-                </div>
-
-                {/* macOS */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">macOS</Badge>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
-                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
-{`# Install WireGuard via Homebrew
-brew install wireguard-tools
-
-# Copy config (create directory if needed)
-sudo mkdir -p /usr/local/etc/wireguard
-sudo cp ~/Downloads/<username>.conf /usr/local/etc/wireguard/<username>.conf
-
-# Connect
-sudo wg-quick up <username>`}
-                    </pre>
-                    <button 
-                      onClick={() => copyToClipboard(`brew install wireguard-tools\nsudo mkdir -p /usr/local/etc/wireguard\nsudo cp ~/Downloads/${user?.username || 'your_username'}.conf /usr/local/etc/wireguard/${user?.username || 'your_username'}.conf\nsudo wg-quick up ${user?.username || 'your_username'}`, 'macOS commands')}
-                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
-                    >
-                      <Copy className="w-3 h-3" /> COPY
-                    </button>
-                  </div>
-                </div>
-
-                {/* Windows */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">WINDOWS</Badge>
-                  </div>
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
-                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
-{`# Download WireGuard installer from wireguard.com
-
-# Move config to WireGuard config folder
-Move-Item -Path "$env:USERPROFILE\\Downloads\\<username>.conf" \\
-  -Destination "$env:APPDATA\\WireGuard\\Configs\\<username>.conf"
-
-# Or copy manually:
-# C:\\Users\\YourUsername\\AppData\\Roaming\\WireGuard\\Configs\\
-
-# Connect via WireGuard GUI app`}
-                    </pre>
-                    <button 
-                      onClick={() => copyToClipboard(`Move-Item -Path "$env:USERPROFILE\\\\Downloads\\\\${user?.username || 'your_username'}.conf" -Destination "$env:APPDATA\\\\WireGuard\\\\Configs\\\\${user?.username || 'your_username'}.conf"`, 'Windows commands')}
-                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
-                    >
-                      <Copy className="w-3 h-3" /> COPY
-                    </button>
-                  </div>
-                </div>
-
-                {/* Alternative: Absolute Path */}
-                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Badge variant="outline" className="border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 font-bold text-[10px]">ALTERNATIVE</Badge>
-                  </div>
-                  <div className="bg-amber-50 dark:bg-amber-950/20 rounded-xl p-4 border border-amber-200 dark:border-amber-900">
-                    <p className="text-[10px] text-amber-800 dark:text-amber-300 mb-2 font-medium leading-relaxed">
-                      Use absolute path if you don't want to copy to /etc/wireguard:
-                    </p>
-                    <pre className="text-[10px] font-mono text-amber-900 dark:text-amber-200 leading-relaxed overflow-x-auto">
-{`sudo wg-quick up /full/path/to/<username>.conf`}
-                    </pre>
-                  </div>
-                </div>
-
-                {/* Disconnect */}
-                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
-                  <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">DISCONNECT</p>
-                  <div className="bg-red-50 dark:bg-red-950/20 rounded-xl p-4 border border-red-200 dark:border-red-900">
-                    <code className="block text-[10px] font-mono text-red-900 dark:text-red-200">
-                      sudo wg-quick down {user?.username || 'zecurx'}
-                    </code>
-                  </div>
                 </div>
               </div>
             </div>
