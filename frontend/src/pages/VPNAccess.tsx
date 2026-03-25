@@ -446,19 +446,19 @@ const VPNAccess = ({ user, logout }) => {
                     <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">LINUX</Badge>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
-                    <code className="block text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                      # Install WireGuard<br />
-                      sudo apt install wireguard  # Ubuntu/Debian<br />
-                      sudo dnf install wireguard-tools  # Fedora<br />
-                      <br />
-                      # Copy config to /etc/wireguard/<br />
-                      sudo cp ~/Downloads/{user?.username || 'zecurx'}.conf /etc/wireguard/{user?.username || 'zecurx'}.conf<br />
-                      <br />
-                      # Connect using interface name (without .conf)<br />
-                      sudo wg-quick up {user?.username || 'zecurx'}
-                    </code>
+                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
+{`# Install WireGuard
+sudo apt install wireguard  # Ubuntu/Debian
+sudo dnf install wireguard-tools  # Fedora
+
+# Copy config to /etc/wireguard/
+sudo cp ~/Downloads/<username>.conf /etc/wireguard/<username>.conf
+
+# Connect using interface name (without .conf)
+sudo wg-quick up <username>`}
+                    </pre>
                     <button 
-                      onClick={() => copyToClipboard(`sudo cp ~/Downloads/${user?.username || 'zecurx'}.conf /etc/wireguard/${user?.username || 'zecurx'}.conf\nsudo wg-quick up ${user?.username || 'zecurx'}`, 'Linux commands')}
+                      onClick={() => copyToClipboard(`sudo cp ~/Downloads/${user?.username || 'your_username'}.conf /etc/wireguard/${user?.username || 'your_username'}.conf\nsudo wg-quick up ${user?.username || 'your_username'}`, 'Linux commands')}
                       className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
                     >
                       <Copy className="w-3 h-3" /> COPY
@@ -472,19 +472,46 @@ const VPNAccess = ({ user, logout }) => {
                     <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">macOS</Badge>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
-                    <code className="block text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                      # Install WireGuard via Homebrew<br />
-                      brew install wireguard-tools<br />
-                      <br />
-                      # Copy config (create directory if needed)<br />
-                      sudo mkdir -p /usr/local/etc/wireguard<br />
-                      sudo cp ~/Downloads/{user?.username || 'zecurx'}.conf /usr/local/etc/wireguard/{user?.username || 'zecurx'}.conf<br />
-                      <br />
-                      # Connect<br />
-                      sudo wg-quick up {user?.username || 'zecurx'}
-                    </code>
+                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
+{`# Install WireGuard via Homebrew
+brew install wireguard-tools
+
+# Copy config (create directory if needed)
+sudo mkdir -p /usr/local/etc/wireguard
+sudo cp ~/Downloads/<username>.conf /usr/local/etc/wireguard/<username>.conf
+
+# Connect
+sudo wg-quick up <username>`}
+                    </pre>
                     <button 
-                      onClick={() => copyToClipboard(`brew install wireguard-tools\nsudo mkdir -p /usr/local/etc/wireguard\nsudo cp ~/Downloads/${user?.username || 'zecurx'}.conf /usr/local/etc/wireguard/${user?.username || 'zecurx'}.conf\nsudo wg-quick up ${user?.username || 'zecurx'}`, 'macOS commands')}
+                      onClick={() => copyToClipboard(`brew install wireguard-tools\nsudo mkdir -p /usr/local/etc/wireguard\nsudo cp ~/Downloads/${user?.username || 'your_username'}.conf /usr/local/etc/wireguard/${user?.username || 'your_username'}.conf\nsudo wg-quick up ${user?.username || 'your_username'}`, 'macOS commands')}
+                      className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
+                    >
+                      <Copy className="w-3 h-3" /> COPY
+                    </button>
+                  </div>
+                </div>
+
+                {/* Windows */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge variant="secondary" className="bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-bold text-[10px]">WINDOWS</Badge>
+                  </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2">
+                    <pre className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400 leading-relaxed overflow-x-auto">
+{`# Download WireGuard installer from wireguard.com
+
+# Move config to WireGuard config folder
+Move-Item -Path "$env:USERPROFILE\\Downloads\\<username>.conf" \\
+  -Destination "$env:APPDATA\\WireGuard\\Configs\\<username>.conf"
+
+# Or copy manually:
+# C:\\Users\\YourUsername\\AppData\\Roaming\\WireGuard\\Configs\\
+
+# Connect via WireGuard GUI app`}
+                    </pre>
+                    <button 
+                      onClick={() => copyToClipboard(`Move-Item -Path "$env:USERPROFILE\\\\Downloads\\\\${user?.username || 'your_username'}.conf" -Destination "$env:APPDATA\\\\WireGuard\\\\Configs\\\\${user?.username || 'your_username'}.conf"`, 'Windows commands')}
                       className="flex items-center gap-1.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-bold uppercase tracking-wider"
                     >
                       <Copy className="w-3 h-3" /> COPY
@@ -501,9 +528,9 @@ const VPNAccess = ({ user, logout }) => {
                     <p className="text-[10px] text-amber-800 dark:text-amber-300 mb-2 font-medium leading-relaxed">
                       Use absolute path if you don't want to copy to /etc/wireguard:
                     </p>
-                    <code className="block text-[10px] font-mono text-amber-900 dark:text-amber-200 leading-relaxed">
-                      sudo wg-quick up /full/path/to/{user?.username || 'zecurx'}.conf
-                    </code>
+                    <pre className="text-[10px] font-mono text-amber-900 dark:text-amber-200 leading-relaxed overflow-x-auto">
+{`sudo wg-quick up /full/path/to/<username>.conf`}
+                    </pre>
                   </div>
                 </div>
 
