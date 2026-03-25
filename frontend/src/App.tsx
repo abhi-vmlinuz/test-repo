@@ -50,6 +50,12 @@ import CertificationExamDetails from '@/pages/admin/certification/CertificationE
 import CertificationAttemptsList from '@/pages/admin/certification/CertificationAttemptsList';
 import ReportGradingPage from '@/pages/admin/certification/ReportGradingPage';
 
+// Student Certification Pages
+import StudentCertificationExams from '@/pages/student/certification/StudentCertificationExams';
+import StudentCertificationLab from '@/pages/student/certification/StudentCertificationLab';
+import StudentCertificationReport from '@/pages/student/certification/StudentCertificationReport';
+import StudentCertificationStatus from '@/pages/student/certification/StudentCertificationStatus';
+
 import { FeatureProvider } from '@/contexts/FeatureContext';
 
 // Student Pages
@@ -217,6 +223,10 @@ function App() {
               <Route path="course/:courseId/final-quiz" element={<StudentQuiz user={user} />} />
               <Route path="progress" element={<StudentProgress user={user} />} />
               <Route path="achievements" element={<StudentAchievements user={user} />} />
+              <Route path="certification-exams" element={<StudentCertificationExams />} />
+              <Route path="certification-exams/:examId/lab" element={<StudentCertificationLab />} />
+              <Route path="certification-exams/:examId/report" element={<StudentCertificationReport />} />
+              <Route path="certification-exams/:examId/status" element={<StudentCertificationStatus />} />
             </Route>
           </Routes>
         </BrowserRouter>

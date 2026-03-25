@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Shield, BookOpen, Target, Award, LogOut, ChevronRight, LayoutDashboard, Menu, X, User } from 'lucide-react';
+import { Shield, BookOpen, Target, Award, LogOut, ChevronRight, LayoutDashboard, Menu, X, User, GraduationCap } from 'lucide-react';
 import CreativeBackground from '../../components/CreativeBackground';
 
 const StudentLayout = ({ user, logout }) => {
@@ -21,6 +21,7 @@ const StudentLayout = ({ user, logout }) => {
         { id: 'courses', icon: BookOpen, label: 'My Courses', path: '/student/courses' },
         { id: 'progress', icon: Target, label: 'Progress', path: '/student/progress' },
         { id: 'achievements', icon: Award, label: 'Achievements', path: '/student/achievements' },
+        { id: 'certification', icon: GraduationCap, label: 'Certification Exams', path: '/student/certification-exams' },
     ];
 
     const isActive = (path) => {
