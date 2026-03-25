@@ -43,6 +43,13 @@ import AdminFeatureFlags from '@/pages/admin/AdminFeatureFlags';
 import AdminActiveSessions from '@/pages/admin/AdminActiveSessions';
 import TerminalPage from '@/pages/TerminalPage';
 
+// Certification Exam Pages
+import CertificationExamsList from '@/pages/admin/certification/CertificationExamsList';
+import CertificationExamForm from '@/pages/admin/certification/CertificationExamForm';
+import CertificationExamDetails from '@/pages/admin/certification/CertificationExamDetails';
+import CertificationAttemptsList from '@/pages/admin/certification/CertificationAttemptsList';
+import ReportGradingPage from '@/pages/admin/certification/ReportGradingPage';
+
 import { FeatureProvider } from '@/contexts/FeatureContext';
 
 // Student Pages
@@ -182,6 +189,12 @@ function App() {
               <Route path="student-portal" element={<AdminStudentPortal user={user} />} />
               <Route path="nexus" element={<AdminNexus user={user} logout={logout} />} />
               <Route path="registry" element={<AdminImageRegistry />} />
+              <Route path="certification-exams" element={<CertificationExamsList />} />
+              <Route path="certification-exams/create" element={<CertificationExamForm />} />
+              <Route path="certification-exams/edit/:id" element={<CertificationExamForm />} />
+              <Route path="certification-exams/:id" element={<CertificationExamDetails />} />
+              <Route path="certification-exams/:id/attempts" element={<CertificationAttemptsList />} />
+              <Route path="certification-exams/grade-report/:attemptId" element={<ReportGradingPage />} />
               {user?.role === 'superadmin' && (
                 <>
                   <Route path="feature-flags" element={<AdminFeatureFlags user={user} />} />
