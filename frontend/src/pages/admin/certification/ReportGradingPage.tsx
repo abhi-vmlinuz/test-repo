@@ -53,7 +53,7 @@ const ReportGradingPage = () => {
     const fetchAttemptDetails = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/api/admin/certification-exams/reports/${attemptId}`);
+            const response = await axios.get(`${API}/admin/certification-exams/reports/${attemptId}`);
             setAttempt(response.data);
         } catch (error: any) {
             toast('Failed to load attempt details', 'error');
@@ -108,7 +108,7 @@ const ReportGradingPage = () => {
 
         setSubmitting(true);
         try {
-            await axios.post(`${API}/api/admin/certification-exams/reports/${attemptId}/grade`, {
+            await axios.post(`${API}/admin/certification-exams/reports/${attemptId}/grade`, {
                 ...criteria,
                 comments
             });

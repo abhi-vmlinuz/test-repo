@@ -55,7 +55,7 @@ const CertificationExamDetails = () => {
     const fetchExamDetails = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/api/admin/certification-exams/${id}`);
+            const response = await axios.get(`${API}/admin/certification-exams/${id}`);
             setExam(response.data);
         } catch (error: any) {
             toast('Failed to load exam details', 'error');
@@ -69,7 +69,7 @@ const CertificationExamDetails = () => {
         if (!exam) return;
         setToggling(true);
         try {
-            await axios.put(`${API}/api/admin/certification-exams/${id}/publish`, {
+            await axios.put(`${API}/admin/certification-exams/${id}/publish`, {
                 is_published: !exam.is_published
             });
             toast(`Exam ${exam.is_published ? 'unpublished' : 'published'} successfully`, 'success');
@@ -85,7 +85,7 @@ const CertificationExamDetails = () => {
     const handleDelete = async () => {
         setDeleting(true);
         try {
-            await axios.delete(`${API}/api/admin/certification-exams/${id}`);
+            await axios.delete(`${API}/admin/certification-exams/${id}`);
             toast('Exam deleted successfully', 'success');
             navigate('/admin/certification-exams');
         } catch (error: any) {

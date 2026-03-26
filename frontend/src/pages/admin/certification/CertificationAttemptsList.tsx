@@ -60,8 +60,8 @@ const CertificationAttemptsList = () => {
         setLoading(true);
         try {
             const [attemptsRes, examRes] = await Promise.all([
-                axios.get(`${API}/api/admin/certification-exams/${id}/attempts`),
-                axios.get(`${API}/api/admin/certification-exams/${id}`)
+                axios.get(`${API}/admin/certification-exams/${id}/attempts`),
+                axios.get(`${API}/admin/certification-exams/${id}`)
             ]);
             setAttempts(attemptsRes.data.attempts);
             setExamTitle(examRes.data.lms_exam_title);

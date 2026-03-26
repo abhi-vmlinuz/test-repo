@@ -61,7 +61,7 @@ const StudentCertificationLab = () => {
     const fetchLabDetails = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/api/student/certification-exams/${examId}/lab`);
+            const response = await axios.get(`${API}/student/certification-exams/${examId}/lab`);
             setLab(response.data);
         } catch (error: any) {
             if (error.response?.status === 404) {
@@ -79,7 +79,7 @@ const StudentCertificationLab = () => {
     const handleStartLab = async () => {
         setStartingLab(true);
         try {
-            await axios.post(`${API}/api/student/certification-exams/${examId}/start-lab`);
+            await axios.post(`${API}/student/certification-exams/${examId}/start-lab`);
             toast.success('Lab started! Good luck!');
             await fetchLabDetails();
         } catch (error: any) {
@@ -103,7 +103,7 @@ const StudentCertificationLab = () => {
         setSubmittingFlag(challengeId);
         try {
             const response = await axios.post(
-                `${API}/api/student/certification-exams/attempts/${lab.attempt_id}/submit`,
+                `${API}/student/certification-exams/attempts/${lab.attempt_id}/submit`,
                 {
                     challenge_id: challengeId,
                     flag: flag

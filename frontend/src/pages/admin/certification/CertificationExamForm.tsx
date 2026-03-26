@@ -52,7 +52,7 @@ const CertificationExamForm = () => {
 
     const fetchAvailableChallenges = async () => {
         try {
-            const response = await axios.get(`${API}/api/admin/certification-exams/available-challenges`);
+            const response = await axios.get(`${API}/admin/certification-exams/available-challenges`);
             setAvailableChallenges(response.data.challenges);
         } catch (error: any) {
             toast('Failed to load challenges', 'error');
@@ -62,7 +62,7 @@ const CertificationExamForm = () => {
 
     const fetchLMSExams = async () => {
         try {
-            const response = await axios.get(`${API}/api/admin/certification-exams/lms-final-exams`);
+            const response = await axios.get(`${API}/admin/certification-exams/lms-final-exams`);
             setLmsExams(response.data.final_exams);
         } catch (error: any) {
             toast('Failed to load LMS exams', 'error');
@@ -73,7 +73,7 @@ const CertificationExamForm = () => {
     const fetchExamData = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/api/admin/certification-exams/${id}`);
+            const response = await axios.get(`${API}/admin/certification-exams/${id}`);
             const exam = response.data;
             setFormData({
                 lmsFinalExamId: exam.lms_final_exam_id.toString(),
@@ -130,10 +130,10 @@ const CertificationExamForm = () => {
             };
 
             if (isEditMode) {
-                await axios.put(`${API}/api/admin/certification-exams/${id}`, payload);
+                await axios.put(`${API}/admin/certification-exams/${id}`, payload);
                 toast('Certification exam updated successfully', 'success');
             } else {
-                await axios.post(`${API}/api/admin/certification-exams`, payload);
+                await axios.post(`${API}/admin/certification-exams`, payload);
                 toast('Certification exam created successfully', 'success');
             }
 

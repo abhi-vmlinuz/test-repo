@@ -42,7 +42,7 @@ const StudentCertificationReport = () => {
     const fetchReportStatus = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/api/student/certification-exams/${examId}/report-status`);
+            const response = await axios.get(`${API}/student/certification-exams/${examId}/report-status`);
             setReportStatus(response.data);
         } catch (error: any) {
             toast.error('Failed to load report status');
@@ -100,7 +100,7 @@ const StudentCertificationReport = () => {
             formData.append('report', selectedFile);
 
             await axios.post(
-                `${API}/api/student/certification-exams/attempts/${reportStatus.attempt_id}/report`,
+                `${API}/student/certification-exams/attempts/${reportStatus.attempt_id}/report`,
                 formData,
                 {
                     headers: {

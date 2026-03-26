@@ -53,7 +53,7 @@ const StudentCertificationStatus = () => {
     const fetchStatus = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/api/student/certification-exams/${examId}/status`);
+            const response = await axios.get(`${API}/student/certification-exams/${examId}/status`);
             setStatus(response.data);
         } catch (error: any) {
             toast.error('Failed to load exam status');

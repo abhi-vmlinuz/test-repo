@@ -48,7 +48,7 @@ const StudentCertificationExams = () => {
     const fetchExams = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/api/student/certification-exams`);
+            const response = await axios.get(`${API}/student/certification-exams`);
             setExams(response.data.exams);
         } catch (error: any) {
             toast.error('Failed to load certification exams');
