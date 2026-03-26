@@ -3326,6 +3326,8 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
             'hard': []
         }
         
+        print(f"[DEBUG] admin_get_available_certification_challenges: Total rows from DB: {len(challenges)}")
+        
         seen_ids = set()
         for c in challenges:
             challenge_id = str(c['id'])
@@ -3346,7 +3348,11 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
                 'is_published': bool(c['is_published'])
             }
             
+            print(f"[DEBUG] Challenge: id={challenge_id}, title={c['title']}, difficulty={difficulty}, is_published={c['is_published']}")
+            
             result[difficulty.lower()].append(challenge_data)
+        
+        print(f"[DEBUG] Result counts: easy={len(result['easy'])}, medium={len(result['medium'])}, hard={len(result['hard'])}")
         
         return result
 
