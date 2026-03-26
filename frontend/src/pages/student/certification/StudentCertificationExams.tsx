@@ -6,19 +6,24 @@ import { Clock, PlayCircle, FileText, CheckCircle2, XCircle, AlertCircle, Award,
 import { Badge } from '@/components/ui/badge';
 
 interface CertificationExam {
-    exam_id: number;
+    exam_id: string;
     exam_title: string;
     exam_description: string;
-    attempt_id: number | null;
+    attempt_id: string | null;
     status: string | null;
     mcq_score: number | null;
     lab_score: number | null;
     report_score: number | null;
     final_score: number | null;
     certification_level: string | null;
-    global_timer_end: string | null;
-    lab_timer_end: string | null;
-    report_timer_end: string | null;
+    global_timer_end?: string | null;
+    lab_timer_end?: string | null;
+    report_timer_end?: string | null;
+    time_remaining?: {
+        global?: number | null;
+        lab?: number | null;
+        report?: number | null;
+    };
     can_start_lab: boolean;
     can_upload_report: boolean;
     created_at: string | null;
@@ -49,7 +54,27 @@ const StudentCertificationExams = () => {
         setLoading(true);
         try {
             const response = await axios.get(`${API}/student/certification-exams`);
-            setExams(response.data.exams);
+            const raw = response.data?.exams || response.data || [];
+            const normalized: CertificationExam[] = raw.map((exam: any) => ({
+                exam_id: String(exam.exam_id || exam.id || exam.examConfigId || ''),
+                exam_title: exam.exam_title || exam.name || exam.exam_name || '',
+                exam_description: exam.exam_description || exam.description || '',
+                attempt_id: exam.attempt_id ? String(exam.attempt_id) : exam.attemptId ? String(exam.attemptId) : null,
+                status: exam.status || null,
+                mcq_score: exam.mcq_score ?? exam.components?.mcq?.score ?? null,
+                lab_score: exam.lab_score ?? exam.components?.lab?.score ?? null,
+                report_score: exam.report_score ?? exam.components?.report?.score ?? null,
+                final_score: exam.final_score ?? null,
+                certification_level: exam.certification_level ?? exam.certificationLevel ?? null,
+                global_timer_end: exam.global_timer_end ?? null,
+                lab_timer_end: exam.lab_timer_end ?? null,
+                report_timer_end: exam.report_timer_end ?? null,
+                time_remaining: exam.time_remaining ?? null,
+                can_start_lab: exam.can_start_lab ?? exam.components?.lab?.started === false,
+                can_upload_report: exam.can_upload_report ?? exam.components?.report?.unlocked ?? false,
+                created_at: exam.created_at || exam.redeemed_at || null,
+            }));
+            setExams(normalized);
         } catch (error: any) {
             toast.error('Failed to load certification exams');
             console.error(error);
@@ -58,9 +83,20 @@ const StudentCertificationExams = () => {
         }
     };
 
-    const getTimerStatus = (timerEnd: string | null): { label: string; color: string; expired: boolean } => {
+    const getTimerStatus = (timerEnd: string | null, secondsRemaining?: number | null): { label: string; color: string; expired: boolean } => {
+        if (secondsRemaining != null) {
+            if (secondsRemaining <= 0) return { label: 'Expired', color: 'text-red-600', expired: true };
+            const hours = Math.floor(secondsRemaining / 3600);
+            const minutes = Math.floor((secondsRemaining % 3600) / 60);
+            return {
+                label: `${hours}h ${minutes}m remaining`,
+                color: hours < 6 ? 'text-orange-600' : 'text-green-600',
+                expired: false
+            };
+        }
+
         if (!timerEnd) return { label: 'Not Started', color: 'text-gray-500', expired: false };
-        
+
         const now = new Date();
         const end = new Date(timerEnd);
         const diff = end.getTime() - now.getTime();
@@ -143,9 +179,9 @@ const StudentCertificationExams = () => {
             ) : (
                 <div className="space-y-6">
                     {exams.map(exam => {
-                        const globalTimer = getTimerStatus(exam.global_timer_end);
-                        const labTimer = getTimerStatus(exam.lab_timer_end);
-                        const reportTimer = getTimerStatus(exam.report_timer_end);
+                        const globalTimer = getTimerStatus(exam.global_timer_end || null, exam.time_remaining?.global ?? null);
+                        const labTimer = getTimerStatus(exam.lab_timer_end || null, exam.time_remaining?.lab ?? null);
+                        const reportTimer = getTimerStatus(exam.report_timer_end || null, exam.time_remaining?.report ?? null);
                         
                         return (
                             <div key={exam.exam_id} className="bg-white rounded-lg shadow-lg p-6">
@@ -214,8 +250,8 @@ const StudentCertificationExams = () => {
                                 )}
 
                                 {/* Timers */}
-                                {exam.global_timer_end && (
-                                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                                    {(exam.global_timer_end || exam.time_remaining?.global != null) && (
+                                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
                                         <div className="grid grid-cols-3 gap-4 text-sm">
                                             <div>
                                                 <p className="text-gray-600 mb-1 flex items-center gap-2">

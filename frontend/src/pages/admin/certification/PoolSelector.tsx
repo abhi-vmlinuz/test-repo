@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Plus, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface Challenge {
-    id: number;
+    id: string;
     title: string;
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
     points: number;
@@ -12,9 +12,9 @@ interface Challenge {
 
 interface PoolSelectorProps {
     poolName: string; // 'A', 'B', or 'C'
-    selectedChallenges: number[];
+    selectedChallenges: string[];
     availableChallenges: Challenge[];
-    onChange: (challengeIds: number[]) => void;
+    onChange: (challengeIds: string[]) => void;
 }
 
 const POINTS_MAP = {
@@ -50,7 +50,7 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
         return matchesSearch && matchesDifficulty;
     });
 
-    const handleToggleChallenge = (challengeId: number) => {
+    const handleToggleChallenge = (challengeId: string) => {
         if (selectedChallenges.includes(challengeId)) {
             onChange(selectedChallenges.filter(id => id !== challengeId));
         } else {
@@ -58,7 +58,7 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
         }
     };
 
-    const handleRemoveChallenge = (challengeId: number) => {
+    const handleRemoveChallenge = (challengeId: string) => {
         onChange(selectedChallenges.filter(id => id !== challengeId));
     };
 

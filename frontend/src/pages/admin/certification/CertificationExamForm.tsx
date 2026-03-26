@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { PoolSelector } from './PoolSelector';
 
 interface Challenge {
-    id: number;
+    id: string;
     title: string;
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
     points: number;
@@ -15,13 +15,13 @@ interface Challenge {
 }
 
 interface LMSExam {
-    id: number;
+    id: string;
     title: string;
     description: string;
 }
 
 interface PoolData {
-    challengeIds: number[];
+    challengeIds: string[];
 }
 
 const CertificationExamForm = () => {
@@ -36,9 +36,9 @@ const CertificationExamForm = () => {
 
     const [formData, setFormData] = useState({
         lmsFinalExamId: '',
-        poolA: [] as number[],
-        poolB: [] as number[],
-        poolC: [] as number[],
+        poolA: [] as string[],
+        poolB: [] as string[],
+        poolC: [] as string[],
         isPublished: false
     });
 
@@ -53,7 +53,13 @@ const CertificationExamForm = () => {
     const fetchAvailableChallenges = async () => {
         try {
             const response = await axios.get(`${API}/admin/certification-exams/available-challenges`);
-            setAvailableChallenges(response.data.challenges);
+            const data = response.data || {};
+            const merged = [
+                ...(data.easy || []),
+                ...(data.medium || []),
+                ...(data.hard || [])
+            ];
+            setAvailableChallenges(merged);
         } catch (error: any) {
             toast('Failed to load challenges', 'error');
             console.error(error);
@@ -76,10 +82,10 @@ const CertificationExamForm = () => {
             const response = await axios.get(`${API}/admin/certification-exams/${id}`);
             const exam = response.data;
             setFormData({
-                lmsFinalExamId: exam.lms_final_exam_id.toString(),
-                poolA: exam.pool_a.map((c: any) => c.challenge_id),
-                poolB: exam.pool_b.map((c: any) => c.challenge_id),
-                poolC: exam.pool_c.map((c: any) => c.challenge_id),
+                lmsFinalExamId: String(exam.lms_final_exam_id || ''),
+                poolA: (exam.pool_a_challenge_ids || exam.pool_a || []).map((c: any) => String(c.challenge_id || c.id || c)),
+                poolB: (exam.pool_b_challenge_ids || exam.pool_b || []).map((c: any) => String(c.challenge_id || c.id || c)),
+                poolC: (exam.pool_c_challenge_ids || exam.pool_c || []).map((c: any) => String(c.challenge_id || c.id || c)),
                 isPublished: exam.is_published
             });
         } catch (error: any) {
@@ -91,7 +97,7 @@ const CertificationExamForm = () => {
     };
 
     const validatePools = (): boolean => {
-        const validatePool = (challengeIds: number[]): boolean => {
+        const validatePool = (challengeIds: string[]): boolean => {
             if (challengeIds.length !== 7) return false;
             const challenges = availableChallenges.filter(c => challengeIds.includes(c.id));
             const totalPoints = challenges.reduce((sum, c) => {
@@ -122,11 +128,16 @@ const CertificationExamForm = () => {
         setSaving(true);
         try {
             const payload = {
-                lms_final_exam_id: parseInt(formData.lmsFinalExamId),
-                pool_a: formData.poolA,
-                pool_b: formData.poolB,
-                pool_c: formData.poolC,
-                is_published: formData.isPublished
+                lms_final_exam_id: formData.lmsFinalExamId,
+                pool_a_challenge_ids: formData.poolA,
+                pool_b_challenge_ids: formData.poolB,
+                pool_c_challenge_ids: formData.poolC,
+                is_published: formData.isPublished,
+                name: isEditMode
+                    ? undefined
+                    : formData.lmsFinalExamId
+                        ? `ZXCPPT - ${lmsExams.find(exam => exam.id === formData.lmsFinalExamId)?.title || 'Certification Exam'}`
+                        : 'ZXCPPT Certification Exam'
             };
 
             if (isEditMode) {
