@@ -104,7 +104,21 @@ class Database:
         if cls._pool is None:
             min_size = int(os.environ.get('DB_POOL_MIN', 5))
             max_size = int(os.environ.get('DB_POOL_MAX', 20))
-            cls._pool = await asyncpg.create_pool(DATABASE_URL, min_size=min_size, max_size=max_size)
+            async def init_connection(conn):
+                # Register uuid codec: asyncpg encodes/decodes uuid as str
+                await conn.set_type_codec(
+                    'uuid',
+                    encoder=str,
+                    decoder=str,
+                    schema='pg_catalog',
+                    format='text'
+                )
+        cls._pool = await asyncpg.create_pool(
+            DATABASE_URL,
+            min_size=min_size,
+            max_size=max_size,
+            init=init_connection
+        )
         return cls._pool
     
     @classmethod
@@ -648,7 +662,7 @@ async def verify_otp(conn, user_id: str, otp_code: str, purpose: str = 'force_lo
     if otp:
         # Mark as used
         await conn.execute('''
-            UPDATE ctf_otp_codes SET is_used = true, used_at = NOW() WHERE id = $1
+            UPDATE ctf_otp_codes SET is_used = true, used_at = NOW() WHERE id::text = $1
         ''', otp['id'])
         return True
     
@@ -923,7 +937,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
                        r.type as role_type
                 FROM users u
                 JOIN "Role" r ON u."roleId" = r.id
-                WHERE u.id = $1
+                WHERE u.id::text = $1
             ''', user_id)
             
             if not user:
@@ -1077,16 +1091,30 @@ async def login(credentials: UserLogin, request: Request):
         if user['role_type'] not in allowed_ctf_roles:
             if user['role_type'] == 'STUDENT':
                 # Check if student has any LMS enrollment with linked CTF course
+                # OR has an active certification exam attempt (cert students get access too)
                 has_ctf_access = await conn.fetchval('''
                     SELECT EXISTS (
                         SELECT 1 
                         FROM enrollments e
                         JOIN courses c ON e."courseId" = c.id
                         JOIN ctf_courses cc ON cc."lmsCourseId" = c.id
-                        WHERE e."userId" = $1 AND e.status = 'ACTIVE'
+                        WHERE e."userId"::text = $1 AND e.status = 'ACTIVE'
                     )
-                ''', user['id'])
-                
+                ''', str(user['id']))
+
+                if not has_ctf_access:
+                    # Also allow if student has a certification exam attempt
+                    has_cert_access = await conn.fetchval('''
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM certification_exam_attempts cea
+                            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+                            WHERE cea."userId"::text = $1
+                            AND cec."isPublished" = true
+                        )
+                    ''', str(user['id']))
+                    has_ctf_access = has_cert_access
+
                 if not has_ctf_access:
                     raise HTTPException(
                         status_code=403, 
@@ -1370,7 +1398,7 @@ async def confirm_password_reset(data: PasswordResetConfirm):
         
         # Update password
         await conn.execute('''
-            UPDATE users SET password = $1 WHERE id = $2
+            UPDATE users SET password = $1 WHERE id::text = $2
         ''', hashed_password, token_data['user_id'])
         
         # Consume token
@@ -1486,7 +1514,7 @@ async def upload_avatar(
         
         # 3. Update database
         async with pool.acquire() as conn:
-            await conn.execute('UPDATE users SET avatar_url = $1 WHERE id = $2', avatar_url, current_user['id'])
+            await conn.execute('UPDATE users SET avatar_url = $1 WHERE id::text = $2', avatar_url, current_user['id'])
             
         return {'avatar_url': avatar_url}
         
@@ -1542,7 +1570,7 @@ async def reset_avatar(current_user: dict = Depends(get_current_user)):
             None
         )
         
-        await conn.execute('UPDATE users SET avatar_url = $1 WHERE id = $2', new_avatar, current_user['id'])
+        await conn.execute('UPDATE users SET avatar_url = $1 WHERE id::text = $2', new_avatar, current_user['id'])
         
         return {'avatar_url': new_avatar}
 
@@ -1949,7 +1977,7 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                     # Only update if something changed to avoid redundant writes
                     if existing_by_github['github_avatar'] != github_avatar or existing_by_github['avatar_url'] is None:
                         await conn.execute(
-                            'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), github_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
+                            'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), github_avatar = $1, "updatedAt" = NOW() WHERE id::text = $2',
                             github_avatar, user_id
                         )
                 else:
@@ -1968,7 +1996,7 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                                 github_avatar = $2,
                                 avatar_url = COALESCE(avatar_url, $2),
                                 "updatedAt" = NOW()
-                            WHERE id = $3
+                            WHERE id::text = $3
                         ''', github_id, github_avatar, user_id)
                         logger.info(f"Linked GitHub {github_login} to existing user {github_email}")
                     else:
@@ -2008,7 +2036,7 @@ async def _handle_github_login_callback(code: str, state: Optional[str] = None):
                            r.type as role_type
                     FROM users u
                     JOIN "Role" r ON u."roleId" = r.id
-                    WHERE u.id = $1
+                    WHERE u.id::text = $1
                 ''', user_id)
                 
                 # Map roles
@@ -2247,7 +2275,7 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                     # Only update if something changed to avoid redundant writes
                     if existing_by_google['google_avatar'] != google_avatar or existing_by_google['avatar_url'] is None:
                         await conn.execute(
-                            'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), google_avatar = $1, "updatedAt" = NOW() WHERE id = $2',
+                            'UPDATE users SET avatar_url = COALESCE(avatar_url, $1), google_avatar = $1, "updatedAt" = NOW() WHERE id::text = $2',
                             google_avatar, user_id
                         )
                 else:
@@ -2266,7 +2294,7 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                                 google_avatar = $2,
                                 avatar_url = COALESCE(avatar_url, $2),
                                 "updatedAt" = NOW()
-                            WHERE id = $3
+                            WHERE id::text = $3
                         ''', google_id, google_avatar, user_id)
                         logger.info(f"Linked Google {google_email} to existing user")
                     else:
@@ -2304,7 +2332,7 @@ async def google_oauth_callback(code: str, state: Optional[str] = None):
                            r.type as role_type
                     FROM users u
                     JOIN "Role" r ON u."roleId" = r.id
-                    WHERE u.id = $1
+                    WHERE u.id::text = $1
                 ''', user_id)
                 
                 role_map = {
@@ -2495,7 +2523,7 @@ async def get_challenge(challenge_id: str, current_user: dict = Depends(get_curr
         progress = await conn.fetchrow('''
             SELECT solved, "hintsUsed", "solvedQuestions", "scoreEarned"
             FROM ctf_public_progress
-            WHERE "userId" = $1 AND "challengeId" = $2
+            WHERE "userId"::text = $1 AND "challengeId" = $2
         ''', current_user['id'], challenge_id)
         
         # Parse hints (always include text since hints are free)
@@ -2574,7 +2602,7 @@ async def submit_flag(submission: FlagSubmit, current_user: dict = Depends(get_c
         progress = await conn.fetchrow('''
             SELECT id, solved, "hintsUsed", "scoreEarned"
             FROM ctf_public_progress
-            WHERE "userId" = $1 AND "challengeId" = $2
+            WHERE "userId"::text = $1 AND "challengeId" = $2
         ''', current_user['id'], challenge_id)
         
         # Already solved?
@@ -2596,7 +2624,7 @@ async def submit_flag(submission: FlagSubmit, current_user: dict = Depends(get_c
             await conn.execute('''
                 UPDATE ctf_public_progress SET
                     solved = true, "scoreEarned" = $1, "solvedAt" = NOW(), "updatedAt" = NOW()
-                WHERE id = $2
+                WHERE id::text = $2
             ''', points_earned, progress['id'])
         else:
             await conn.execute('''
@@ -2609,13 +2637,13 @@ async def submit_flag(submission: FlagSubmit, current_user: dict = Depends(get_c
         # Update user score
         await conn.execute('''
             UPDATE users SET "ctfScore" = "ctfScore" + $1, "updatedAt" = NOW()
-            WHERE id = $2
+            WHERE id::text = $2
         ''', points_earned, current_user['id'])
         
         # Update solve count
         await conn.execute('''
             UPDATE ctf_public_challenges SET solves = solves + 1, "updatedAt" = NOW()
-            WHERE id = $1
+            WHERE id::text = $1
         ''', challenge_id)
         
         return {'correct': True, 'message': 'Correct flag!', 'points': points_earned}
@@ -2647,7 +2675,7 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
         progress = await conn.fetchrow('''
             SELECT id, "solvedQuestions", "scoreEarned"
             FROM ctf_public_progress
-            WHERE "userId" = $1 AND "challengeId" = $2
+            WHERE "userId"::text = $1 AND "challengeId" = $2
         ''', current_user['id'], challenge_id)
         
         solved_questions = list(progress['solvedQuestions']) if progress else []
@@ -2675,14 +2703,14 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
                     UPDATE ctf_public_progress SET
                         solved = true, "solvedQuestions" = $1, "scoreEarned" = $2, 
                         "solvedAt" = NOW(), "updatedAt" = NOW()
-                    WHERE id = $3
+                    WHERE id::text = $3
                 ''', solved_questions, total_earned, progress['id'])
             else:
                 # Not all questions solved yet - just update score and questions
                 await conn.execute('''
                     UPDATE ctf_public_progress SET
                         "solvedQuestions" = $1, "scoreEarned" = $2, "updatedAt" = NOW()
-                    WHERE id = $3
+                    WHERE id::text = $3
                 ''', solved_questions, total_earned, progress['id'])
         else:
             # New progress record - only mark solved if all questions answered (unlikely on first)
@@ -2697,14 +2725,14 @@ async def submit_question(submission: QuestionSubmit, current_user: dict = Depen
         # Update user score
         await conn.execute('''
             UPDATE users SET "ctfScore" = "ctfScore" + $1, "updatedAt" = NOW()
-            WHERE id = $2
+            WHERE id::text = $2
         ''', points_earned, current_user['id'])
         
         # Update solve count only when ALL questions are solved (challenge complete)
         if all_questions_solved and (not progress or not progress.get('solved', False)):
             await conn.execute('''
                 UPDATE ctf_public_challenges SET solves = solves + 1, "updatedAt" = NOW()
-                WHERE id = $1
+                WHERE id::text = $1
             ''', challenge_id)
         
         # Auto-destroy Nexus instance on challenge completion
@@ -2819,7 +2847,7 @@ async def unlock_hint(hint_request: HintRequest, current_user: dict = Depends(ge
         # Get or create progress
         progress = await conn.fetchrow('''
             SELECT id, "hintsUsed" FROM ctf_public_progress
-            WHERE "userId" = $1 AND "challengeId" = $2
+            WHERE "userId"::text = $1 AND "challengeId" = $2
         ''', current_user['id'], challenge_id)
         
         hints_used = list(progress['hintsUsed']) if progress else []
@@ -2833,7 +2861,7 @@ async def unlock_hint(hint_request: HintRequest, current_user: dict = Depends(ge
         if progress:
             await conn.execute('''
                 UPDATE ctf_public_progress SET "hintsUsed" = $1, "updatedAt" = NOW()
-                WHERE id = $2
+                WHERE id::text = $2
             ''', hints_used, progress['id'])
         else:
             await conn.execute('''
@@ -2920,8 +2948,8 @@ async def get_my_stats(current_user: dict = Depends(get_current_user)):
         # Get general stats in one query
         basic_stats = await conn.fetchrow('''
             SELECT 
-                (SELECT COUNT(*) FROM ctf_public_progress WHERE "userId" = $1 AND solved = true) as solved_count,
-                (SELECT COALESCE(SUM("scoreEarned"), 0) FROM ctf_public_progress WHERE "userId" = $1) as total_points,
+                (SELECT COUNT(*) FROM ctf_public_progress WHERE "userId"::text = $1 AND solved = true) as solved_count,
+                (SELECT COALESCE(SUM("scoreEarned"), 0) FROM ctf_public_progress WHERE "userId"::text = $1) as total_points,
                 (SELECT COUNT(*) + 1 FROM users WHERE "ctfScore" > (SELECT "ctfScore" FROM users WHERE id::text = $1)) as rank,
                 (SELECT COUNT(*) FROM ctf_public_challenges WHERE "isPublished" = true) as total_challenges
         ''', current_user['id'])
@@ -2955,7 +2983,7 @@ async def get_my_stats(current_user: dict = Depends(get_current_user)):
                 DATE("solvedAt") as date,
                 COUNT(*) as count
             FROM ctf_public_progress
-            WHERE "userId" = $1 
+            WHERE "userId"::text = $1 
                 AND solved = true 
                 AND "solvedAt" >= NOW() - INTERVAL '365 days'
             GROUP BY DATE("solvedAt")
@@ -3014,7 +3042,7 @@ async def get_public_profile(user_id: str):
             SELECT 
                 COUNT(*) FILTER (WHERE solved = true) as challenges_solved,
                 COALESCE(SUM("scoreEarned"), 0) as total_points
-            FROM ctf_public_progress WHERE "userId" = $1
+            FROM ctf_public_progress WHERE "userId"::text = $1
         ''', user_id)
         
         # Get category breakdown
@@ -3037,7 +3065,7 @@ async def get_public_profile(user_id: str):
                 DATE("solvedAt") as date,
                 COUNT(*) as count
             FROM ctf_public_progress
-            WHERE "userId" = $1 
+            WHERE "userId"::text = $1 
                 AND solved = true 
                 AND "solvedAt" >= NOW() - INTERVAL '365 days'
             GROUP BY DATE("solvedAt")
@@ -3533,6 +3561,7 @@ async def admin_get_certification_exam(config_id: str, admin: dict = Depends(req
                     difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
                     result.append({
                         'id': str(c['id']),
+                        'challenge_id': str(c['id']),  # alias for frontend compatibility
                         'title': c['title'],
                         'difficulty': difficulty,
                         'category': c['category'] or 'Uncategorized',
@@ -3590,6 +3619,8 @@ async def admin_get_certification_exam(config_id: str, admin: dict = Depends(req
             'is_published': config['isPublished'],
             'created_at': config['createdAt'].isoformat() if config['createdAt'] else None,
             'updated_at': config['updatedAt'].isoformat() if config['updatedAt'] else None,
+            'total_attempts': stats['total'],
+            'passed_attempts': stats['passed'],
             'statistics': {
                 'total_attempts': stats['total'],
                 'passed': stats['passed'],
@@ -3716,7 +3747,7 @@ async def admin_publish_certification_exam(config_id: str, admin: dict = Depends
         
         new_status = not config['isPublished']
         await conn.execute(
-            'UPDATE certification_exam_configs SET "isPublished" = $1, "updatedAt" = NOW() WHERE id = $2',
+            'UPDATE certification_exam_configs SET "isPublished" = $1, "updatedAt" = NOW() WHERE id::text = $2',
             new_status, config_id
         )
         
@@ -3827,7 +3858,7 @@ async def admin_update_category(category_id: str, data: CategoryCreate, admin: d
     async with pool.acquire() as conn:
         await conn.execute('''
             UPDATE ctf_categories SET name = $1, description = $2, icon = $3, "updatedAt" = NOW()
-            WHERE id = $4
+            WHERE id::text = $4
         ''', data.name, data.description, data.icon, category_id)
         return {'success': True}
 
@@ -3913,7 +3944,7 @@ async def admin_get_user_detail(user_id: str, admin: dict = Depends(require_admi
                    r.type as role_type
             FROM users u
             JOIN "Role" r ON u."roleId" = r.id
-            WHERE u.id = $1
+            WHERE u.id::text = $1
         ''', user_id)
         
         if not user:
@@ -3958,7 +3989,7 @@ async def admin_update_user(user_id: str, data: UserUpdate, admin: dict = Depend
             # Update BOTH isLocked (CTF uses this) AND isActive (LMS uses this)
             # is_banned=True means: isLocked=True, isActive=False
             await conn.execute('''
-                UPDATE users SET "isLocked" = $1, "isActive" = $2, "updatedAt" = NOW() WHERE id = $3
+                UPDATE users SET "isLocked" = $1, "isActive" = $2, "updatedAt" = NOW() WHERE id::text = $3
             ''', data.is_banned, not data.is_banned, user_id)
         
         if data.role is not None:
@@ -3973,7 +4004,7 @@ async def admin_update_user(user_id: str, data: UserUpdate, admin: dict = Depend
             role_row = await conn.fetchrow('SELECT id FROM "Role" WHERE type = $1', role_type)
             if role_row:
                 await conn.execute('''
-                    UPDATE users SET "roleId" = $1, "updatedAt" = NOW() WHERE id = $2
+                    UPDATE users SET "roleId" = $1, "updatedAt" = NOW() WHERE id::text = $2
                 ''', role_row['id'], user_id)
         
         return {'success': True}
@@ -3985,11 +4016,11 @@ async def admin_reset_user_progress(user_id: str, admin: dict = Depends(require_
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         # Delete public progress
-        await conn.execute('DELETE FROM ctf_public_progress WHERE "userId" = $1', user_id)
+        await conn.execute('DELETE FROM ctf_public_progress WHERE "userId"::text = $1', user_id)
         
         # Reset score
         await conn.execute('''
-            UPDATE users SET "ctfScore" = 0, "updatedAt" = NOW() WHERE id = $1
+            UPDATE users SET "ctfScore" = 0, "updatedAt" = NOW() WHERE id::text = $1
         ''', user_id)
         
         return {'success': True}
@@ -4009,7 +4040,7 @@ async def admin_delete_user(user_id: str, admin: dict = Depends(require_admin)):
             SELECT u.id, r.type as role_type
             FROM users u
             JOIN "Role" r ON u."roleId" = r.id
-            WHERE u.id = $1
+            WHERE u.id::text = $1
         ''', user_id)
         
         if not target_user:
@@ -4186,7 +4217,7 @@ async def admin_update_challenge(challenge_id: str, data: PublicChallengeCreate,
                 hints = $10, questions = $11, tags = $12, ports = $13, "isPublished" = $14,
                 "hasDocker" = $15, "challengePackId" = $16, "isMultiContainer" = $17,
                 "updatedAt" = NOW()
-            WHERE id = $18
+            WHERE id::text = $18
         ''', data.category_id, data.title, data.description, data.difficulty.upper(),
              data.points, data.flag, data.author, data.docker_image, None,  # dockerCommand deprecated
              json.dumps(hints), json.dumps(questions), json.dumps(tags), json.dumps(ports), data.is_published,
@@ -4663,7 +4694,7 @@ async def delete_challenge_artifact(artifact_id: str, admin: dict = Depends(requ
     """Delete an artifact"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow('SELECT file_path FROM ctf_challenge_artifacts WHERE id = $1', uuid.UUID(artifact_id))
+        row = await conn.fetchrow('SELECT file_path FROM ctf_challenge_artifacts WHERE id::text = $1', uuid.UUID(artifact_id))
         if not row:
             raise HTTPException(status_code=404, detail="Artifact not found")
         
@@ -4671,7 +4702,7 @@ async def delete_challenge_artifact(artifact_id: str, admin: dict = Depends(requ
         if file_path.exists():
             file_path.unlink()
             
-        await conn.execute('DELETE FROM ctf_challenge_artifacts WHERE id = $1', uuid.UUID(artifact_id))
+        await conn.execute('DELETE FROM ctf_challenge_artifacts WHERE id::text = $1', uuid.UUID(artifact_id))
         return {"success": True}
 
 @api_router.get("/artifacts/download/{artifact_id}")
@@ -4679,7 +4710,7 @@ async def download_artifact(artifact_id: str):
     """Download an artifact"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        row = await conn.fetchrow('SELECT file_path, filename, mime_type FROM ctf_challenge_artifacts WHERE id = $1', uuid.UUID(artifact_id))
+        row = await conn.fetchrow('SELECT file_path, filename, mime_type FROM ctf_challenge_artifacts WHERE id::text = $1', uuid.UUID(artifact_id))
         if not row:
             raise HTTPException(status_code=404, detail="Artifact not found")
             
@@ -6261,14 +6292,14 @@ async def delete_challenge_pack(pack_id: str, admin: dict = Depends(require_admi
         async with pool.acquire() as conn:
             # Check if pack exists
             pack = await conn.fetchrow(
-                "SELECT id, pack_name, display_name FROM challenge_packs WHERE id = $1",
+                "SELECT id, pack_name, display_name FROM challenge_packs WHERE id::text = $1",
                 pack_id
             )
             if not pack:
                 raise HTTPException(status_code=404, detail="Challenge pack not found")
             
             # Delete the pack
-            await conn.execute("DELETE FROM challenge_packs WHERE id = $1", pack_id)
+            await conn.execute("DELETE FROM challenge_packs WHERE id::text = $1", pack_id)
             
             logger.info(f"Challenge pack '{pack['display_name']}' ({pack_id}) deleted by admin {admin.get('email')}")
             
@@ -6572,7 +6603,7 @@ async def admin_update_challenge_with_docker(
                     "categoryId" = $1, title = $2, description = $3, difficulty = $4::"CtfDifficulty",
                     points = $5, flag = $6, "dockerImage" = $7, "dockerCommand" = $8,
                     hints = $9, questions = $10, "isPublished" = $11, "updatedAt" = NOW()
-                WHERE id = $12
+                WHERE id::text = $12
             ''', data.get('category_id'), data.get('title'), data.get('description'),
                  data.get('difficulty', 'medium').upper(), data.get('points', 100), data.get('flag', ''),
                  docker_image, None,  # dockerCommand deprecated
@@ -6605,19 +6636,19 @@ async def get_student_stats(current_user: dict = Depends(get_current_user)):
     async with pool.acquire() as conn:
         # Get enrollments count
         enrollments = await conn.fetchval('''
-            SELECT COUNT(*) FROM ctf_enrollments WHERE "userId" = $1
+            SELECT COUNT(*) FROM ctf_enrollments WHERE "userId"::text = $1
         ''', current_user['id'])
         
         # Get completed challenges
         completed = await conn.fetchval('''
             SELECT COUNT(*) FROM ctf_progress 
-            WHERE "userId" = $1 AND "isCompleted" = true
+            WHERE "userId"::text = $1 AND "isCompleted" = true
         ''', current_user['id'])
         
         # Get total points
         total_points = await conn.fetchval('''
             SELECT COALESCE(SUM("pointsEarned"), 0) FROM ctf_progress 
-            WHERE "userId" = $1
+            WHERE "userId"::text = $1
         ''', current_user['id'])
         
         return {
@@ -6747,7 +6778,7 @@ async def join_course(data: JoinCourseRequest, current_user: dict = Depends(get_
         # Check if already enrolled
         existing = await conn.fetchrow('''
             SELECT id FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', current_user['id'], code['ctfCourseId'])
         
         if existing:
@@ -6763,7 +6794,7 @@ async def join_course(data: JoinCourseRequest, current_user: dict = Depends(get_
         # Mark code as used
         await conn.execute('''
             UPDATE ctf_enrollment_codes SET "isUsed" = true, "usedAt" = NOW()
-            WHERE id = $1
+            WHERE id::text = $1
         ''', code['id'])
         
         return {
@@ -6781,7 +6812,7 @@ async def get_student_course(course_id: str, current_user: dict = Depends(get_cu
         # Verify enrollment
         enrollment = await conn.fetchrow('''
             SELECT id FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', current_user['id'], course_id)
         
         if not enrollment:
@@ -6832,7 +6863,7 @@ async def get_student_module(module_id: str, current_user: dict = Depends(get_cu
         # Verify enrollment
         enrollment = await conn.fetchrow('''
             SELECT id FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', current_user['id'], module['ctfCourseId'])
         
         if not enrollment:
@@ -6890,7 +6921,7 @@ async def get_student_challenge(challenge_id: str, current_user: dict = Depends(
         # Verify enrollment
         enrollment = await conn.fetchrow('''
             SELECT id FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', current_user['id'], challenge['ctfCourseId'])
         
         if not enrollment:
@@ -6900,7 +6931,7 @@ async def get_student_challenge(challenge_id: str, current_user: dict = Depends(
         progress = await conn.fetchrow('''
             SELECT "flagsSolved", "hintsUsed", "pointsEarned", "isCompleted"
             FROM ctf_progress
-            WHERE "userId" = $1 AND "challengeId" = $2
+            WHERE "userId"::text = $1 AND "challengeId" = $2
         ''', current_user['id'], challenge_id)
         
         # Parse flags (hide actual flag values, show count and points)
@@ -6975,7 +7006,7 @@ async def submit_student_flag(submission: StudentFlagSubmit, current_user: dict 
         # Get enrollment
         enrollment = await conn.fetchrow('''
             SELECT id FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', current_user['id'], challenge['ctfCourseId'])
         
         if not enrollment:
@@ -6995,7 +7026,7 @@ async def submit_student_flag(submission: StudentFlagSubmit, current_user: dict 
         progress = await conn.fetchrow('''
             SELECT id, "flagsSolved", "hintsUsed", "pointsEarned"
             FROM ctf_progress
-            WHERE "userId" = $1 AND "challengeId" = $2
+            WHERE "userId"::text = $1 AND "challengeId" = $2
         ''', current_user['id'], submission.challenge_id)
         
         flags_solved = list(progress['flagsSolved']) if progress else []
@@ -7022,7 +7053,7 @@ async def submit_student_flag(submission: StudentFlagSubmit, current_user: dict 
                     "flagsSolved" = $1, "pointsEarned" = $2, "isCompleted" = $3,
                     "completedAt" = CASE WHEN $3 THEN NOW() ELSE "completedAt" END,
                     "updatedAt" = NOW()
-                WHERE id = $4
+                WHERE id::text = $4
             ''', flags_solved, total_points, is_complete, progress['id'])
         else:
             await conn.execute('''
@@ -7037,14 +7068,14 @@ async def submit_student_flag(submission: StudentFlagSubmit, current_user: dict 
         # Update user score
         await conn.execute('''
             UPDATE users SET "ctfScore" = "ctfScore" + $1, "updatedAt" = NOW()
-            WHERE id = $2
+            WHERE id::text = $2
         ''', flag_points, current_user['id'])
         
         # Update solve count if first flag
         if len(flags_solved) == 1:
             await conn.execute('''
                 UPDATE ctf_challenges SET "solveCount" = "solveCount" + 1
-                WHERE id = $1
+                WHERE id::text = $1
             ''', submission.challenge_id)
         
         return {
@@ -7083,7 +7114,7 @@ async def unlock_student_hint(challenge_id: str, hint_index: int, current_user: 
         # Get enrollment
         enrollment = await conn.fetchrow('''
             SELECT id FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', current_user['id'], challenge['ctfCourseId'])
         
         if not enrollment:
@@ -7093,7 +7124,7 @@ async def unlock_student_hint(challenge_id: str, hint_index: int, current_user: 
         progress = await conn.fetchrow('''
             SELECT id, "hintsUsed", "flagsSolved", "pointsEarned"
             FROM ctf_progress
-            WHERE "userId" = $1 AND "challengeId" = $2
+            WHERE "userId"::text = $1 AND "challengeId" = $2
         ''', current_user['id'], challenge_id)
         
         hints_used = list(progress['hintsUsed']) if progress else []
@@ -7106,7 +7137,7 @@ async def unlock_student_hint(challenge_id: str, hint_index: int, current_user: 
         if progress:
             await conn.execute('''
                 UPDATE ctf_progress SET "hintsUsed" = $1, "updatedAt" = NOW()
-                WHERE id = $2
+                WHERE id::text = $2
             ''', hints_used, progress['id'])
         else:
             await conn.execute('''
@@ -7235,7 +7266,7 @@ async def admin_create_course(data: CourseCreate, admin: dict = Depends(require_
         if data.lms_course_id:
             # Verify LMS course exists and isn't already linked
             lms_course = await conn.fetchrow(
-                'SELECT id, title FROM courses WHERE id = $1', data.lms_course_id
+                'SELECT id, title FROM courses WHERE id::text = $1', data.lms_course_id
             )
             if not lms_course:
                 raise HTTPException(status_code=404, detail="LMS course not found")
@@ -7286,24 +7317,24 @@ async def admin_update_course(course_id: str, data: CourseUpdate, admin: dict = 
         # Update LMS course
         if data.name:
             await conn.execute(
-                'UPDATE courses SET title = $1, "updatedAt" = NOW() WHERE id = $2',
+                'UPDATE courses SET title = $1, "updatedAt" = NOW() WHERE id::text = $2',
                 data.name, ctf_course['lmsCourseId']
             )
         if data.code:
             await conn.execute(
-                'UPDATE courses SET "courseCode" = $1, slug = $2, "updatedAt" = NOW() WHERE id = $3',
+                'UPDATE courses SET "courseCode" = $1, slug = $2, "updatedAt" = NOW() WHERE id::text = $3',
                 data.code, data.code.lower(), ctf_course['lmsCourseId']
             )
         if data.description:
             await conn.execute(
-                'UPDATE courses SET description = $1, "updatedAt" = NOW() WHERE id = $2',
+                'UPDATE courses SET description = $1, "updatedAt" = NOW() WHERE id::text = $2',
                 data.description, ctf_course['lmsCourseId']
             )
         
         # Update CTF course color
         if data.color:
             await conn.execute(
-                'UPDATE ctf_courses SET color = $1, "updatedAt" = NOW() WHERE id = $2',
+                'UPDATE ctf_courses SET color = $1, "updatedAt" = NOW() WHERE id::text = $2',
                 data.color, course_id
             )
         
@@ -7326,7 +7357,7 @@ async def admin_delete_course(course_id: str, admin: dict = Depends(require_admi
         await conn.execute('DELETE FROM ctf_courses WHERE id::text = $1', course_id)
         
         # Optionally delete LMS course too
-        await conn.execute('DELETE FROM courses WHERE id = $1', ctf_course['lmsCourseId'])
+        await conn.execute('DELETE FROM courses WHERE id::text = $1', ctf_course['lmsCourseId'])
         
         return {'success': True}
 
@@ -7374,7 +7405,7 @@ async def admin_delete_module(module_id: str, admin: dict = Depends(require_admi
     """Delete a module"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM ctf_modules WHERE id = $1', module_id)
+        await conn.execute('DELETE FROM ctf_modules WHERE id::text = $1', module_id)
         return {'success': True}
 
 
@@ -7480,7 +7511,7 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
     """Delete a challenge"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM ctf_challenges WHERE id = $1', challenge_id)
+        await conn.execute('DELETE FROM ctf_challenges WHERE id::text = $1', challenge_id)
         return {'success': True}
 
 
@@ -7533,14 +7564,14 @@ async def admin_create_or_update_quiz(module_id: str, data: dict, admin: dict = 
             await conn.execute('''
                 UPDATE module_quizzes SET title = $1, description = $2, time_limit = $3,
                     passing_percentage = $4, is_published = $5, updated_at = NOW()
-                WHERE id = $6
+                WHERE id::text = $6
             ''', data.get('title', 'Module Quiz'), data.get('description', ''),
                 data.get('time_limit', 3600), data.get('passing_percentage', 80),
                 data.get('is_published', False), existing['id'])
             return {'id': str(existing['id']), 'updated': True}
         else:
             # Get course_id from LMS modules table
-            module = await conn.fetchrow('SELECT "courseId" FROM modules WHERE id = $1', module_id)
+            module = await conn.fetchrow('SELECT "courseId" FROM modules WHERE id::text = $1', module_id)
             course_id = str(module['courseId']) if module else data.get('course_id')
             quiz = await conn.fetchrow('''
                 INSERT INTO module_quizzes (module_id, course_id, title, description, time_limit,
@@ -7631,7 +7662,7 @@ async def admin_delete_question(quiz_id: str, question_id: str, admin: dict = De
     """Delete a quiz question"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM module_quiz_questions WHERE id = $1', uuid.UUID(question_id))
+        await conn.execute('DELETE FROM module_quiz_questions WHERE id::text = $1', uuid.UUID(question_id))
         return {'success': True}
 
 
@@ -7641,7 +7672,7 @@ async def admin_toggle_quiz_publish(quiz_id: str, admin: dict = Depends(require_
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
-            'UPDATE module_quizzes SET is_published = NOT is_published, updated_at = NOW() WHERE id = $1',
+            'UPDATE module_quizzes SET is_published = NOT is_published, updated_at = NOW() WHERE id::text = $1',
             uuid.UUID(quiz_id)
         )
         return {'success': True}
@@ -7704,7 +7735,7 @@ async def student_start_quiz(quiz_id: str, current_user: dict = Depends(get_curr
     """Start a quiz attempt"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        quiz = await conn.fetchrow('SELECT * FROM module_quizzes WHERE id = $1', uuid.UUID(quiz_id))
+        quiz = await conn.fetchrow('SELECT * FROM module_quizzes WHERE id::text = $1', uuid.UUID(quiz_id))
         if not quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
 
@@ -7766,7 +7797,7 @@ async def student_submit_quiz(quiz_id: str, data: dict, current_user: dict = Dep
         answers = data.get('answers', {})  # {question_id: selected_answer}
 
         attempt = await conn.fetchrow(
-            'SELECT * FROM module_quiz_attempts WHERE id = $1 AND user_id = $2',
+            'SELECT * FROM module_quiz_attempts WHERE id::text = $1 AND user_id = $2',
             uuid.UUID(attempt_id), current_user['id']
         )
         if not attempt:
@@ -7774,7 +7805,7 @@ async def student_submit_quiz(quiz_id: str, data: dict, current_user: dict = Dep
         if attempt['completed_at']:
             raise HTTPException(status_code=400, detail="Attempt already submitted")
 
-        quiz = await conn.fetchrow('SELECT * FROM module_quizzes WHERE id = $1', uuid.UUID(quiz_id))
+        quiz = await conn.fetchrow('SELECT * FROM module_quizzes WHERE id::text = $1', uuid.UUID(quiz_id))
         questions = await conn.fetch(
             'SELECT id, correct_answer FROM module_quiz_questions WHERE quiz_id = $1', uuid.UUID(quiz_id)
         )
@@ -7812,7 +7843,7 @@ async def student_submit_quiz(quiz_id: str, data: dict, current_user: dict = Dep
             UPDATE module_quiz_attempts SET
                 answers = $1, score = $2, max_score = $3, percentage = $4,
                 passed = $5, completed_at = NOW(), time_spent = $6, cooldown_until = $7
-            WHERE id = $8
+            WHERE id::text = $8
         ''', json.dumps(answers), int(score), max_score, percentage,
             passed, time_spent, cooldown_until, uuid.UUID(attempt_id))
 
@@ -7977,7 +8008,7 @@ async def student_get_certification_exams(current_user: dict = Depends(get_curre
                    cec."labUnlockReportThreshold"
             FROM certification_exam_attempts cea
             JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
-            WHERE cea."userId" = $1
+            WHERE cea."userId"::text = $1
             ORDER BY cea."redeemedAt" DESC
         ''', current_user['id'])
         
@@ -8080,7 +8111,7 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
         if now >= global_expires:
             # Mark as expired
             await conn.execute(
-                'UPDATE certification_exam_attempts SET status = $1, "updatedAt" = NOW() WHERE id = $2',
+                'UPDATE certification_exam_attempts SET status = $1, "updatedAt" = NOW() WHERE id::text = $2',
                 'EXPIRED', attempt['id']
             )
             raise HTTPException(status_code=400, detail="Your 48-hour window has expired")
@@ -8114,8 +8145,8 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
                 "labChallengeOrder" = $4,
                 status = 'LAB_IN_PROGRESS',
                 "updatedAt" = NOW()
-            WHERE id = $5
-        ''', assigned_pool, now, lab_expires_at, randomized_order, attempt['id'])
+            WHERE id::text = $5
+        ''', assigned_pool, now, lab_expires_at, randomized_order, str(attempt['id']))
         
         # Fetch challenge details (in randomized order)
         challenges = await conn.fetch('''
@@ -8291,7 +8322,7 @@ async def student_submit_certification_flag(
                 lab_expires = lab_expires.replace(tzinfo=timezone.utc)
             if now >= lab_expires:
                 await conn.execute(
-                    'UPDATE certification_exam_attempts SET status = $1, "labCompletedAt" = $2, "updatedAt" = NOW() WHERE id = $3',
+                    'UPDATE certification_exam_attempts SET status = $1, "labCompletedAt" = $2, "updatedAt" = NOW() WHERE id::text = $3',
                     'LAB_COMPLETED', now, attempt['id']
                 )
                 raise HTTPException(status_code=400, detail="Your lab time has expired")
@@ -8490,7 +8521,7 @@ async def student_upload_certification_report(
                 report_expires = report_expires.replace(tzinfo=timezone.utc)
             if now >= report_expires:
                 await conn.execute(
-                    'UPDATE certification_exam_attempts SET status = $1, "updatedAt" = NOW() WHERE id = $2',
+                    'UPDATE certification_exam_attempts SET status = $1, "updatedAt" = NOW() WHERE id::text = $2',
                     'PENDING_REVIEW', attempt['id']
                 )
                 raise HTTPException(status_code=400, detail="Your report upload deadline has expired")
@@ -8536,7 +8567,7 @@ async def student_upload_certification_report(
                 "reportUploadedAt" = $2,
                 status = 'REPORT_UPLOADED',
                 "updatedAt" = NOW()
-            WHERE id = $3
+            WHERE id::text = $3
         ''', report_url, now, attempt['id'])
         
         return {
@@ -8768,7 +8799,7 @@ async def admin_grade_certification_report(
                 "certificationLevel" = $12,
                 status = 'GRADED',
                 "updatedAt" = NOW()
-            WHERE id = $13
+            WHERE id::text = $13
         ''', data.clarity, data.technical, data.reproducibility, data.impact, data.remediation,
              report_total, data.feedback, now, admin['id'],
              round(final_score, 2), passed, certification_level, attempt['id'])
@@ -8867,7 +8898,7 @@ async def admin_delete_enrollment_code(code_id: str, admin: dict = Depends(requi
     """Delete an enrollment code"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM ctf_enrollment_codes WHERE id = $1', code_id)
+        await conn.execute('DELETE FROM ctf_enrollment_codes WHERE id::text = $1', code_id)
         return {'success': True}
 
 
@@ -8879,7 +8910,7 @@ async def admin_enroll_user(data: EnrollUserRequest, admin: dict = Depends(requi
         # Check if already enrolled
         existing = await conn.fetchrow('''
             SELECT id FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', data.user_id, data.course_id)
         
         if existing:
@@ -8901,7 +8932,7 @@ async def admin_unenroll_user(data: UnenrollUserRequest, admin: dict = Depends(r
     async with pool.acquire() as conn:
         await conn.execute('''
             DELETE FROM ctf_enrollments 
-            WHERE "userId" = $1 AND "ctfCourseId" = $2
+            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
         ''', data.user_id, data.course_id)
         return {'success': True}
 
@@ -9021,7 +9052,7 @@ async def mark_all_notifications_read(current_user: dict = Depends(get_current_u
     async with pool.acquire() as conn:
         await conn.execute('''
             UPDATE ctf_user_notifications SET read = true
-            WHERE "userId" = $1 AND read = false
+            WHERE "userId"::text = $1 AND read = false
         ''', current_user['id'])
         return {'success': True}
 
@@ -9033,7 +9064,7 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
     async with pool.acquire() as conn:
         await conn.execute('''
             UPDATE ctf_user_notifications SET read = true
-            WHERE id = $1 AND "userId" = $2
+            WHERE id::text = $1 AND "userId" = $2
         ''', notification_id, current_user['id'])
         return {'success': True}
 
@@ -9084,7 +9115,7 @@ async def start_docker_instance(challenge_id: str, current_user: dict = Depends(
         if challenge['isMultiContainer'] and challenge['challengePackId']:
             challenge_pack = await conn.fetchrow('''
                 SELECT id, pack_name, display_name, images, combined_ports
-                FROM challenge_packs WHERE id = $1
+                FROM challenge_packs WHERE id::text = $1
             ''', challenge['challengePackId'])
             
             if not challenge_pack:
@@ -10634,7 +10665,7 @@ async def force_logout_session(session_id: str, admin: dict = Depends(require_su
     """Force logout a specific session (superadmin only)"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        result = await conn.execute('UPDATE ctf_active_sessions SET is_active = false WHERE id = $1', session_id)
+        result = await conn.execute('UPDATE ctf_active_sessions SET is_active = false WHERE id::text = $1', session_id)
         
         if result == 'UPDATE 0':
             raise HTTPException(status_code=404, detail="Session not found or already inactive")
