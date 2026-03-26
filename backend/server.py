@@ -3253,13 +3253,13 @@ async def validate_certification_pool(challenge_ids: List[str], conn) -> tuple:
     """
     if len(challenge_ids) != 7:
         return False, f"Pool must have exactly 7 challenges (has {len(challenge_ids)})", 0, []
-    
-    # Fetch challenges
+
+    # Fetch challenges - use text[]::uuid[] cast chain so asyncpg can pass str list safely
     challenges = await conn.fetch('''
         SELECT c.id, c.title, c.difficulty, cat.name as category
         FROM ctf_public_challenges c
         LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
-        WHERE c.id = ANY($1::uuid[])
+        WHERE c.id = ANY($1::text[]::uuid[])
     ''', challenge_ids)
     
     if len(challenges) != 7:
@@ -3397,20 +3397,28 @@ async def admin_create_certification_exam(data: CertificationExamConfigCreate, a
     Create a new certification exam configuration with 3 pools.
     Each pool must have exactly 7 challenges totaling 120 points.
     """
+    # Convert lms_final_exam_id string to uuid.UUID for asyncpg type safety
+    import uuid as _uuid
+    try:
+        lms_exam_uuid = _uuid.UUID(data.lms_final_exam_id)
+    except (ValueError, AttributeError):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid LMS Final Exam ID format (must be UUID)")
+
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         # Check if LMS final exam exists
         lms_exam = await conn.fetchrow(
             'SELECT id, title FROM final_exams WHERE id = $1',
-            data.lms_final_exam_id
+            lms_exam_uuid
         )
         if not lms_exam:
             raise HTTPException(status_code=404, detail="LMS Final Exam not found")
         
         # Check if already linked
         existing = await conn.fetchrow(
-            'SELECT id FROM certification_exam_configs WHERE "lmsFinalExamId" = $1',
-            data.lms_final_exam_id
+            'SELECT id FROM certification_exam_configs WHERE "lmsFinalExamId" = $1::uuid',
+            lms_exam_uuid
         )
         if existing:
             raise HTTPException(status_code=409, detail="This LMS Final Exam already has a certification exam configuration")
@@ -3450,7 +3458,7 @@ async def admin_create_certification_exam(data: CertificationExamConfigCreate, a
                 70.00, 80.00, 90.00,
                 false, $10, NOW(), NOW()
             )
-        ''', config_id, data.name, data.lms_final_exam_id,
+        ''', config_id, data.name, lms_exam_uuid,
              data.pool_a_challenge_ids, data.pool_b_challenge_ids, data.pool_c_challenge_ids,
              data.global_duration_hours, data.ctf_duration_hours, data.report_duration_hours,
              admin['id'])
