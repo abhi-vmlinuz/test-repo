@@ -3306,7 +3306,7 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
                    cat.id as category_id, cat.name as category
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
-            WHERE UPPER(c.difficulty) IN ('EASY', 'MEDIUM', 'HARD')
+            WHERE UPPER(c.difficulty::text) IN ('EASY', 'MEDIUM', 'HARD')
 
             UNION ALL
 
@@ -3315,7 +3315,7 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
                    NULL as category_id, m.name as category
             FROM ctf_challenges ch
             LEFT JOIN ctf_modules m ON ch."ctfModuleId" = m.id
-            WHERE UPPER(ch.difficulty) IN ('EASY', 'MEDIUM', 'HARD')
+            WHERE UPPER(ch.difficulty::text) IN ('EASY', 'MEDIUM', 'HARD')
 
             ORDER BY difficulty, title
         ''')
