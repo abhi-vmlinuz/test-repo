@@ -3344,7 +3344,7 @@ async def admin_get_lms_final_exams(admin: dict = Depends(require_admin)):
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         exams = await conn.fetch('''
-            SELECT fe.id, fe.title, fe.description, fe.status,
+            SELECT fe.id, fe.title, fe.description, fe."isPublished" as is_published,
                    c.title as course_title, c.id as course_id,
                    CASE WHEN cec.id IS NOT NULL THEN true ELSE false END as has_certification,
                    cec.id as certification_config_id, cec.name as certification_name
@@ -3358,7 +3358,7 @@ async def admin_get_lms_final_exams(admin: dict = Depends(require_admin)):
             'id': str(e['id']),
             'title': e['title'],
             'description': e['description'],
-            'status': e['status'],
+            'is_published': e['is_published'],
             'course_title': e['course_title'],
             'course_id': str(e['course_id']) if e['course_id'] else None,
             'has_certification': e['has_certification'],
