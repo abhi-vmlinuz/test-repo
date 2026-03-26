@@ -1449,7 +1449,7 @@ async def upload_avatar(
     
     # 1. Fetch current avatar for cleanup
     async with pool.acquire() as conn:
-        old_avatar = await conn.fetchval('SELECT avatar_url FROM users WHERE id = $1', current_user['id'])
+        old_avatar = await conn.fetchval('SELECT avatar_url FROM users WHERE id::text = $1', current_user['id'])
         
         # Cleanup old local file if it exists
         if old_avatar and ('/uploads/avatars/' in old_avatar or '/api/uploads/avatars/' in old_avatar):
@@ -1505,17 +1505,17 @@ async def reset_avatar(current_user: dict = Depends(get_current_user)):
         try:
             user = await conn.fetchrow('''
                 SELECT avatar_url, avatar, google_avatar, github_avatar
-                FROM users WHERE id = $1
+                FROM users WHERE id::text = $1
             ''', current_user['id'])
         except Exception:
             # Some columns don't exist, try simpler query
             try:
                 user = await conn.fetchrow('''
-                    SELECT avatar_url, avatar FROM users WHERE id = $1
+                    SELECT avatar_url, avatar FROM users WHERE id::text = $1
                 ''', current_user['id'])
             except Exception:
                 user = await conn.fetchrow('''
-                    SELECT avatar_url FROM users WHERE id = $1
+                    SELECT avatar_url FROM users WHERE id::text = $1
                 ''', current_user['id'])
         
         if not user:
@@ -2922,7 +2922,7 @@ async def get_my_stats(current_user: dict = Depends(get_current_user)):
             SELECT 
                 (SELECT COUNT(*) FROM ctf_public_progress WHERE "userId" = $1 AND solved = true) as solved_count,
                 (SELECT COALESCE(SUM("scoreEarned"), 0) FROM ctf_public_progress WHERE "userId" = $1) as total_points,
-                (SELECT COUNT(*) + 1 FROM users WHERE "ctfScore" > (SELECT "ctfScore" FROM users WHERE id = $1)) as rank,
+                (SELECT COUNT(*) + 1 FROM users WHERE "ctfScore" > (SELECT "ctfScore" FROM users WHERE id::text = $1)) as rank,
                 (SELECT COUNT(*) FROM ctf_public_challenges WHERE "isPublished" = true) as total_challenges
         ''', current_user['id'])
 
@@ -2998,7 +2998,7 @@ async def get_public_profile(user_id: str):
         # Get user basic info
         user = await conn.fetchrow('''
             SELECT id, name, "ctfScore" as score, avatar_url, bio, social_links, "createdAt" as created_at
-            FROM users WHERE id = $1
+            FROM users WHERE id::text = $1
         ''', user_id)
         
         if not user:
@@ -3136,7 +3136,7 @@ async def admin_delete_category(category_id: str, admin: dict = Depends(require_
     """Delete a category"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM ctf_categories WHERE id = $1', category_id)
+        await conn.execute('DELETE FROM ctf_categories WHERE id::text = $1', category_id)
         return {'success': True}
 
 
@@ -3196,7 +3196,7 @@ async def admin_delete_public_challenge(challenge_id: str, admin: dict = Depends
     """Delete a public challenge"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM ctf_public_challenges WHERE id = $1', challenge_id)
+        await conn.execute('DELETE FROM ctf_public_challenges WHERE id::text = $1', challenge_id)
         return {'success': True}
 
 
@@ -3507,7 +3507,7 @@ async def admin_get_certification_exam(config_id: str, admin: dict = Depends(req
             SELECT cec.*, fe.title as lms_exam_title
             FROM certification_exam_configs cec
             LEFT JOIN final_exams fe ON cec."lmsFinalExamId" = fe.id
-            WHERE cec.id = $1
+            WHERE cec.id::text = $1
         ''', config_id)
         
         if not config:
@@ -3555,7 +3555,7 @@ async def admin_get_certification_exam(config_id: str, admin: dict = Depends(req
                 COUNT(*) FILTER (WHERE "assignedPool" = 'B') as pool_b_count,
                 COUNT(*) FILTER (WHERE "assignedPool" = 'C') as pool_c_count
             FROM certification_exam_attempts
-            WHERE "examConfigId" = $1
+            WHERE "examConfigId"::text = $1
         ''', config_id)
         
         return {
@@ -3607,13 +3607,13 @@ async def admin_update_certification_exam(config_id: str, data: CertificationExa
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         # Check if exam exists
-        config = await conn.fetchrow('SELECT * FROM certification_exam_configs WHERE id = $1', config_id)
+        config = await conn.fetchrow('SELECT * FROM certification_exam_configs WHERE id::text = $1', config_id)
         if not config:
             raise HTTPException(status_code=404, detail="Certification exam not found")
         
         # Check if there are any attempts
         attempt_count = await conn.fetchval(
-            'SELECT COUNT(*) FROM certification_exam_attempts WHERE "examConfigId" = $1',
+            'SELECT COUNT(*) FROM certification_exam_attempts WHERE "examConfigId"::text = $1',
             config_id
         )
         if attempt_count > 0:
@@ -3686,19 +3686,19 @@ async def admin_delete_certification_exam(config_id: str, admin: dict = Depends(
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         # Check if exam exists
-        config = await conn.fetchrow('SELECT id FROM certification_exam_configs WHERE id = $1', config_id)
+        config = await conn.fetchrow('SELECT id FROM certification_exam_configs WHERE id::text = $1', config_id)
         if not config:
             raise HTTPException(status_code=404, detail="Certification exam not found")
         
         # Check if there are any attempts
         attempt_count = await conn.fetchval(
-            'SELECT COUNT(*) FROM certification_exam_attempts WHERE "examConfigId" = $1',
+            'SELECT COUNT(*) FROM certification_exam_attempts WHERE "examConfigId"::text = $1',
             config_id
         )
         if attempt_count > 0:
             raise HTTPException(status_code=400, detail=f"Cannot delete exam with {attempt_count} existing attempts")
         
-        await conn.execute('DELETE FROM certification_exam_configs WHERE id = $1', config_id)
+        await conn.execute('DELETE FROM certification_exam_configs WHERE id::text = $1', config_id)
         return {'message': 'Certification exam deleted successfully'}
 
 
@@ -3707,7 +3707,7 @@ async def admin_publish_certification_exam(config_id: str, admin: dict = Depends
     """Publish or unpublish a certification exam"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        config = await conn.fetchrow('SELECT id, "isPublished" FROM certification_exam_configs WHERE id = $1', config_id)
+        config = await conn.fetchrow('SELECT id, "isPublished" FROM certification_exam_configs WHERE id::text = $1', config_id)
         if not config:
             raise HTTPException(status_code=404, detail="Certification exam not found")
         
@@ -3734,7 +3734,7 @@ async def admin_list_certification_attempts(
     db_pool = await Database.get_pool()
     async with db_pool.acquire() as conn:
         # Verify exam exists
-        config = await conn.fetchrow('SELECT id FROM certification_exam_configs WHERE id = $1', config_id)
+        config = await conn.fetchrow('SELECT id FROM certification_exam_configs WHERE id::text = $1', config_id)
         if not config:
             raise HTTPException(status_code=404, detail="Certification exam not found")
         
@@ -3743,7 +3743,7 @@ async def admin_list_certification_attempts(
             SELECT cea.*, u.name as student_name, u.email as student_email
             FROM certification_exam_attempts cea
             JOIN users u ON cea."userId" = u.id
-            WHERE cea."examConfigId" = $1
+            WHERE cea."examConfigId"::text = $1
         '''
         params = [config_id]
         param_idx = 2
@@ -3834,7 +3834,7 @@ async def admin_remove_category(category_id: str, admin: dict = Depends(require_
     """Delete a category"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM ctf_categories WHERE id = $1', category_id)
+        await conn.execute('DELETE FROM ctf_categories WHERE id::text = $1', category_id)
         return {'success': True}
 
 
@@ -4029,7 +4029,7 @@ async def admin_delete_user(user_id: str, admin: dict = Depends(require_admin)):
         # Note: Foreign key cascades should handle related data (progress, submissions, etc.)
         # but let's be explicit about crucial data if needed. 
         # Assuming standard CASCADE setup in DB schema.
-        await conn.execute('DELETE FROM users WHERE id = $1', user_id)
+        await conn.execute('DELETE FROM users WHERE id::text = $1', user_id)
         
         return {'success': True}
 
@@ -4197,7 +4197,7 @@ async def admin_delete_challenge(challenge_id: str, admin: dict = Depends(requir
     """Delete a challenge"""
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        await conn.execute('DELETE FROM ctf_public_challenges WHERE id = $1', challenge_id)
+        await conn.execute('DELETE FROM ctf_public_challenges WHERE id::text = $1', challenge_id)
         return {'success': True}
 
 
@@ -7275,7 +7275,7 @@ async def admin_update_course(course_id: str, data: CourseUpdate, admin: dict = 
     async with pool.acquire() as conn:
         # Get LMS course ID
         ctf_course = await conn.fetchrow(
-            'SELECT "lmsCourseId" FROM ctf_courses WHERE id = $1', course_id
+            'SELECT "lmsCourseId" FROM ctf_courses WHERE id::text = $1', course_id
         )
         if not ctf_course:
             raise HTTPException(status_code=404, detail="Course not found")
@@ -7314,13 +7314,13 @@ async def admin_delete_course(course_id: str, admin: dict = Depends(require_admi
     async with pool.acquire() as conn:
         # Get LMS course ID
         ctf_course = await conn.fetchrow(
-            'SELECT "lmsCourseId" FROM ctf_courses WHERE id = $1', course_id
+            'SELECT "lmsCourseId" FROM ctf_courses WHERE id::text = $1', course_id
         )
         if not ctf_course:
             raise HTTPException(status_code=404, detail="Course not found")
         
         # Delete CTF course (cascades to modules, challenges, etc.)
-        await conn.execute('DELETE FROM ctf_courses WHERE id = $1', course_id)
+        await conn.execute('DELETE FROM ctf_courses WHERE id::text = $1', course_id)
         
         # Optionally delete LMS course too
         await conn.execute('DELETE FROM courses WHERE id = $1', ctf_course['lmsCourseId'])
@@ -8051,7 +8051,7 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
                    cec."ctfDurationHours", cec."isPublished"
             FROM certification_exam_attempts cea
             JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
-            WHERE cea."examConfigId" = $1 AND cea."userId" = $2
+            WHERE cea."examConfigId"::text = $1 AND cea."userId" = $2
         ''', exam_config_id, current_user['id'])
         
         if not attempt:
@@ -8323,7 +8323,7 @@ async def student_submit_certification_flag(
         
         # Get challenge and verify flag
         challenge = await conn.fetchrow('''
-            SELECT id, title, difficulty, flag FROM ctf_public_challenges WHERE id = $1
+            SELECT id, title, difficulty, flag FROM ctf_public_challenges WHERE id::text = $1
         ''', data.challenge_id)
         
         if not challenge:
