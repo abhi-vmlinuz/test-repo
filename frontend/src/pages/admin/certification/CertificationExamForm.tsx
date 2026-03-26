@@ -63,7 +63,7 @@ const CertificationExamForm = () => {
     const fetchLMSExams = async () => {
         try {
             const response = await axios.get(`${API}/admin/certification-exams/lms-final-exams`);
-            setLmsExams(response.data.final_exams);
+            setLmsExams(response.data.final_exams || response.data || []);
         } catch (error: any) {
             toast('Failed to load LMS exams', 'error');
             console.error(error);

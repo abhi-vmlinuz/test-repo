@@ -3354,7 +3354,8 @@ async def admin_get_lms_final_exams(admin: dict = Depends(require_admin)):
             ORDER BY fe."createdAt" DESC
         ''')
         
-        return [{
+        return {
+            'final_exams': [{
             'id': str(e['id']),
             'title': e['title'],
             'description': e['description'],
@@ -3365,6 +3366,7 @@ async def admin_get_lms_final_exams(admin: dict = Depends(require_admin)):
             'certification_config_id': str(e['certification_config_id']) if e['certification_config_id'] else None,
             'certification_name': e['certification_name']
         } for e in exams]
+        }
 
 
 @api_router.post("/admin/certification-exams")
