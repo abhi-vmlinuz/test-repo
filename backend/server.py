@@ -113,12 +113,12 @@ class Database:
                     schema='pg_catalog',
                     format='text'
                 )
-        cls._pool = await asyncpg.create_pool(
-            DATABASE_URL,
-            min_size=min_size,
-            max_size=max_size,
-            init=init_connection
-        )
+            cls._pool = await asyncpg.create_pool(
+                DATABASE_URL,
+                min_size=min_size,
+                max_size=max_size,
+                init=init_connection
+            )
         return cls._pool
     
     @classmethod
@@ -8103,10 +8103,11 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
             raise HTTPException(status_code=400, detail="Lab has already been started")
         
         # Check if global timer expired
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()  # offset-naive to match TIMESTAMP columns
         global_expires = attempt['globalExpiresAt']
-        if global_expires.tzinfo is None:
-            global_expires = global_expires.replace(tzinfo=timezone.utc)
+        # Normalize to offset-naive (DB stores plain TIMESTAMP)
+        if hasattr(global_expires, 'tzinfo') and global_expires.tzinfo is not None:
+            global_expires = global_expires.replace(tzinfo=None)
         
         if now >= global_expires:
             # Mark as expired
@@ -8151,7 +8152,7 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
         # Fetch challenge details (in randomized order)
         challenges = await conn.fetch('''
             SELECT c.id, c.title, c.description, c.difficulty, c.hints,
-                   c."dockerImage", c."hasDockr" as has_docker,
+                   c."dockerImage", c."hasDocker" as has_docker,
                    cat.name as category
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
@@ -8231,7 +8232,7 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
         # Fetch challenge details
         challenges = await conn.fetch('''
             SELECT c.id, c.title, c.description, c.difficulty, c.hints,
-                   c."dockerImage", c."hasDockr" as has_docker,
+                   c."dockerImage", c."hasDocker" as has_docker,
                    cat.name as category
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
