@@ -196,6 +196,7 @@ function App() {
               <Route path="nexus" element={<AdminNexus user={user} logout={logout} />} />
               <Route path="registry" element={<AdminImageRegistry />} />
               <Route path="certification-exams" element={<CertificationExamsList />} />
+              <Route path="certification-exams/new" element={<CertificationExamForm />} />
               <Route path="certification-exams/create" element={<CertificationExamForm />} />
               <Route path="certification-exams/edit/:id" element={<CertificationExamForm />} />
               <Route path="certification-exams/:id" element={<CertificationExamDetails />} />

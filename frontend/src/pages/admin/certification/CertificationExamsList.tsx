@@ -88,7 +88,7 @@ const CertificationExamsList = () => {
           </p>
         </div>
         <Button
-          onClick={() => navigate('/admin/certification-exams/new')}
+          onClick={() => navigate('/admin/certification-exams/create')}
           className="flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -130,7 +130,7 @@ const CertificationExamsList = () => {
           <p className="mb-4" style={{ color: 'var(--text-muted)' }}>
             Create your first certification exam to get started
           </p>
-          <Button onClick={() => navigate('/admin/certification-exams/new')}>
+          <Button onClick={() => navigate('/admin/certification-exams/create')}>
             <Plus className="w-4 h-4 mr-2" />
             Create Exam
           </Button>
