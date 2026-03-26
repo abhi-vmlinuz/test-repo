@@ -3301,16 +3301,16 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         challenges = await conn.fetch('''
-            SELECT c.id, c.title, c.difficulty, c.points as original_points,
+            SELECT c.id::text, c.title, c.difficulty::text as difficulty, c.points as original_points,
                    c."isPublished" as is_published,
-                   cat.id as category_id, cat.name as category
+                   cat.id::text as category_id, cat.name as category
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
             WHERE UPPER(c.difficulty::text) IN ('EASY', 'MEDIUM', 'HARD')
 
             UNION ALL
 
-            SELECT ch.id, ch.title, ch.difficulty, ch.points as original_points,
+            SELECT ch.id::text, ch.title, ch.difficulty::text as difficulty, ch.points as original_points,
                    ch."isPublished" as is_published,
                    NULL as category_id, m.name as category
             FROM ctf_challenges ch
