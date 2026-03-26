@@ -3307,7 +3307,17 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
             WHERE UPPER(c.difficulty) IN ('EASY', 'MEDIUM', 'HARD')
-            ORDER BY c.difficulty, c.title
+
+            UNION ALL
+
+            SELECT ch.id, ch.title, ch.difficulty, ch.points as original_points,
+                   ch."isPublished" as is_published,
+                   NULL as category_id, m.name as category
+            FROM ctf_challenges ch
+            LEFT JOIN ctf_modules m ON ch."ctfModuleId" = m.id
+            WHERE UPPER(ch.difficulty) IN ('EASY', 'MEDIUM', 'HARD')
+
+            ORDER BY difficulty, title
         ''')
         
         result = {
@@ -3316,12 +3326,17 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
             'hard': []
         }
         
+        seen_ids = set()
         for c in challenges:
+            challenge_id = str(c['id'])
+            if challenge_id in seen_ids:
+                continue
+            seen_ids.add(challenge_id)
             difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
             cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
             
             challenge_data = {
-                'id': str(c['id']),
+                'id': challenge_id,
                 'title': c['title'],
                 'category': c['category'] or 'Uncategorized',
                 'category_id': str(c['category_id']) if c['category_id'] else None,
