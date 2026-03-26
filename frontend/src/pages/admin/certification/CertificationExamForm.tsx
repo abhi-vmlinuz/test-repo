@@ -61,7 +61,8 @@ const CertificationExamForm = () => {
             ];
             setAvailableChallenges(merged);
         } catch (error: any) {
-            toast('Failed to load challenges', 'error');
+            const message = error?.response?.data?.detail || error?.response?.data?.message || 'Failed to load challenges';
+            toast(message, 'error');
             console.error(error);
         }
     };
