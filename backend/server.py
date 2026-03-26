@@ -3259,7 +3259,7 @@ async def validate_certification_pool(challenge_ids: List[str], conn) -> tuple:
         SELECT c.id, c.title, c.difficulty, cat.name as category
         FROM ctf_public_challenges c
         LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
-        WHERE c.id = ANY($1::text[]::uuid[])
+        WHERE c.id::text = ANY($1)
     ''', challenge_ids)
     
     if len(challenges) != 7:
@@ -3397,28 +3397,20 @@ async def admin_create_certification_exam(data: CertificationExamConfigCreate, a
     Create a new certification exam configuration with 3 pools.
     Each pool must have exactly 7 challenges totaling 120 points.
     """
-    # Convert lms_final_exam_id string to uuid.UUID for asyncpg type safety
-    import uuid as _uuid
-    try:
-        lms_exam_uuid = _uuid.UUID(data.lms_final_exam_id)
-    except (ValueError, AttributeError):
-        from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="Invalid LMS Final Exam ID format (must be UUID)")
-
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        # Check if LMS final exam exists
+        # Check if LMS final exam exists (pass str, cast to uuid in SQL)
         lms_exam = await conn.fetchrow(
-            'SELECT id, title FROM final_exams WHERE id = $1',
-            lms_exam_uuid
+            'SELECT id, title FROM final_exams WHERE id::text = $1',
+            data.lms_final_exam_id
         )
         if not lms_exam:
             raise HTTPException(status_code=404, detail="LMS Final Exam not found")
         
         # Check if already linked
         existing = await conn.fetchrow(
-            'SELECT id FROM certification_exam_configs WHERE "lmsFinalExamId" = $1::uuid',
-            lms_exam_uuid
+            'SELECT id FROM certification_exam_configs WHERE "lmsFinalExamId"::text = $1',
+            data.lms_final_exam_id
         )
         if existing:
             raise HTTPException(status_code=409, detail="This LMS Final Exam already has a certification exam configuration")
@@ -3458,7 +3450,7 @@ async def admin_create_certification_exam(data: CertificationExamConfigCreate, a
                 70.00, 80.00, 90.00,
                 false, $10, NOW(), NOW()
             )
-        ''', config_id, data.name, lms_exam_uuid,
+        ''', config_id, data.name, data.lms_final_exam_id,
              data.pool_a_challenge_ids, data.pool_b_challenge_ids, data.pool_c_challenge_ids,
              data.global_duration_hours, data.ctf_duration_hours, data.report_duration_hours,
              admin['id'])
@@ -3529,7 +3521,7 @@ async def admin_get_certification_exam(config_id: str, admin: dict = Depends(req
                 SELECT c.id, c.title, c.difficulty, cat.name as category
                 FROM ctf_public_challenges c
                 LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
-                WHERE c.id = ANY($1::uuid[])
+                WHERE c.id::text = ANY($1)
             ''', challenge_ids)
             
             # Maintain order from pool
@@ -8129,7 +8121,7 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
                    cat.name as category
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
-            WHERE c.id = ANY($1::uuid[])
+            WHERE c.id::text = ANY($1)
         ''', challenge_ids)
         
         # Map challenges by ID
@@ -8209,7 +8201,7 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
                    cat.name as category
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
-            WHERE c.id = ANY($1::uuid[])
+            WHERE c.id::text = ANY($1)
         ''', challenge_ids)
         
         # Map challenges by ID
