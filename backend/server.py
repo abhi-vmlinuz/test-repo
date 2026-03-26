@@ -3294,7 +3294,7 @@ async def validate_certification_pool(challenge_ids: List[str], conn) -> tuple:
 @api_router.get("/admin/certification-exams/available-challenges")
 async def admin_get_available_certification_challenges(admin: dict = Depends(require_admin)):
     """
-    Get all published CTF challenges available for certification exam pools.
+    Get all CTF challenges available for certification exam pools.
     Only returns EASY, MEDIUM, HARD challenges (EXPERT excluded).
     Grouped by difficulty with certification points.
     """
@@ -3302,11 +3302,11 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
     async with pool.acquire() as conn:
         challenges = await conn.fetch('''
             SELECT c.id, c.title, c.difficulty, c.points as original_points,
+                   c."isPublished" as is_published,
                    cat.id as category_id, cat.name as category
             FROM ctf_public_challenges c
             LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
-            WHERE c."isPublished" = true
-              AND UPPER(c.difficulty) IN ('EASY', 'MEDIUM', 'HARD')
+            WHERE UPPER(c.difficulty) IN ('EASY', 'MEDIUM', 'HARD')
             ORDER BY c.difficulty, c.title
         ''')
         
@@ -3327,7 +3327,8 @@ async def admin_get_available_certification_challenges(admin: dict = Depends(req
                 'category_id': str(c['category_id']) if c['category_id'] else None,
                 'difficulty': difficulty,
                 'points': cert_points,  # Certification points
-                'original_points': c['original_points']  # Challenge's own points
+                'original_points': c['original_points'],  # Challenge's own points
+                'is_published': bool(c['is_published'])
             }
             
             result[difficulty.lower()].append(challenge_data)
