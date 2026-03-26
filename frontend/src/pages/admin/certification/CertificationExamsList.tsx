@@ -84,7 +84,7 @@ const CertificationExamsList = () => {
             Certification Exams
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            Manage ZXCPPT certification exams with 3-pool system
+            Manage certification exams with 3-pool system
           </p>
         </div>
         <Button
