@@ -8,6 +8,7 @@ interface Challenge {
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
     points: number;
     category: string;
+    is_published?: boolean;
 }
 
 interface PoolSelectorProps {
@@ -110,6 +111,9 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
                                     <Badge className={DIFFICULTY_COLORS[challenge.difficulty]}>
                                         {challenge.difficulty}
                                     </Badge>
+                                    {challenge.is_published === false && (
+                                        <Badge className="bg-gray-200 text-gray-700">Unpublished</Badge>
+                                    )}
                                     <span className="text-sm font-medium">{challenge.title}</span>
                                     <span className="text-xs text-gray-500">{challenge.category}</span>
                                 </div>
@@ -181,6 +185,9 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
                                     <Badge className={DIFFICULTY_COLORS[challenge.difficulty]}>
                                         {challenge.difficulty}
                                     </Badge>
+                                    {challenge.is_published === false && (
+                                        <Badge className="bg-gray-200 text-gray-700">Unpublished</Badge>
+                                    )}
                                     <div className="flex-1">
                                         <p className="font-medium text-gray-900">{challenge.title}</p>
                                         <p className="text-xs text-gray-500">{challenge.category}</p>
