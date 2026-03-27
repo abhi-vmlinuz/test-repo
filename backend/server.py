@@ -8646,7 +8646,7 @@ async def student_submit_certification_flag(
             'challenge_title': challenge['title'],
             'lab_points_earned': new_points_earned,
             'lab_score': round(new_score, 2),
-            'challenges_solved': len(solved_challenges),
+            'challenges_solved': sum(1 for c in solved_challenges if c.get('solved_at')),
             'challenges_total': 7,
             'report_unlocked': report_actually_unlocked,
             'all_solved': all_solved
