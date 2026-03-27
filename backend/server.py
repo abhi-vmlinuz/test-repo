@@ -3484,7 +3484,8 @@ async def admin_list_certification_exams(admin: dict = Depends(require_admin)):
     async with pool.acquire() as conn:
         configs = await conn.fetch('''
             SELECT cec.*, fe.title as lms_exam_title, u.name as created_by_name,
-                   (SELECT COUNT(*) FROM certification_exam_attempts cea WHERE cea."examConfigId" = cec.id) as attempt_count
+                   (SELECT COUNT(*) FROM certification_exam_attempts cea WHERE cea."examConfigId" = cec.id) as attempt_count,
+                   (SELECT COUNT(*) FROM certification_exam_attempts cea WHERE cea."examConfigId" = cec.id AND cea.status NOT IN ('MCQ_COMPLETED', 'PENDING', 'MCQ_PENDING')) as active_attempt_count
             FROM certification_exam_configs cec
             LEFT JOIN final_exams fe ON cec."lmsFinalExamId" = fe.id
             LEFT JOIN users u ON cec."createdById" = u.id
@@ -3628,13 +3629,15 @@ async def admin_update_certification_exam(config_id: str, data: CertificationExa
         if not config:
             raise HTTPException(status_code=404, detail="Certification exam not found")
         
-        # Check if there are any attempts
-        attempt_count = await conn.fetchval(
-            'SELECT COUNT(*) FROM certification_exam_attempts WHERE "examConfigId"::text = $1',
+        # Block edit only when there are active/finalised attempts (not just reset ones)
+        active_count = await conn.fetchval(
+            '''SELECT COUNT(*) FROM certification_exam_attempts
+               WHERE "examConfigId"::text = $1
+               AND status NOT IN ('MCQ_COMPLETED', 'PENDING', 'MCQ_PENDING')''',
             config_id
         )
-        if attempt_count > 0:
-            raise HTTPException(status_code=400, detail=f"Cannot modify exam with {attempt_count} existing attempts")
+        if active_count > 0:
+            raise HTTPException(status_code=400, detail=f"Cannot modify exam: {active_count} attempt(s) are in progress or finalised. Reset all lab progress first.")
         
         # Build update query dynamically
         updates = []
