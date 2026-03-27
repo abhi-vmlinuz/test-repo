@@ -8274,20 +8274,19 @@ async def student_get_lab_by_config(exam_config_id: str, current_user: dict = De
 
             # Challenge progress from solved_map
             solved_entry = solved_map.get(cid)
-            is_solved = solved_entry is not None
-            solved_at = solved_entry.get('solved_at') if is_solved else None
-            tasks_solved = solved_entry.get('tasks_solved', []) if solved_entry else []
+            is_solved = solved_entry is not None and solved_entry.get('solved_at') is not None
+            solved_at = solved_entry.get('solved_at') if solved_entry else None
+            questions_solved = solved_entry.get('questions_solved', []) if solved_entry else []
+            # Backwards compatibility: also check old field name
+            if not questions_solved and solved_entry:
+                questions_solved = solved_entry.get('tasks_solved', [])
 
             # Total challenge points = cert_points (difficulty only)
             challenge_total_pts = cert_points
             total_points += challenge_total_pts
             if is_solved:
+                # Points only awarded when ALL questions are solved
                 earned_points += challenge_total_pts
-            else:
-                # Partial credit for solved tasks (using cert-based task points)
-                for ti in tasks_solved:
-                    if ti < len(tasks):
-                        earned_points += tasks[ti]['points']
 
             ordered_challenges.append({
                 'challenge_id': cid,
@@ -8302,7 +8301,7 @@ async def student_get_lab_by_config(exam_config_id: str, current_user: dict = De
                 'docker_image': c['dockerImage'],
                 'is_multi_container': bool(c['isMultiContainer']),
                 'tasks': tasks,
-                'tasks_solved': tasks_solved,
+                'questions_solved': questions_solved,
                 'is_solved': is_solved,
                 'solved_at': solved_at,
             })
@@ -8500,102 +8499,84 @@ async def student_submit_certification_flag(
                 'report_unlocked': attempt['reportUnlockedAt'] is not None
             }
         
-        # Get challenge and verify flag/task answer
+        # Get challenge and verify answer
         challenge = await conn.fetchrow('''
-            SELECT id, title, difficulty, flag, questions FROM ctf_public_challenges WHERE id::text = $1
+            SELECT id, title, difficulty, questions FROM ctf_public_challenges WHERE id::text = $1
         ''', data.challenge_id)
         
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
 
-        # Parse tasks
-        tasks_raw = json.loads(challenge['questions']) if isinstance(challenge['questions'], str) else (challenge['questions'] or [])
-
-        # Determine if this is a task submission or main flag submission
-        is_task_submission = data.question_index is not None
-
-        if is_task_submission:
-            qi = data.question_index
-            if qi < 0 or qi >= len(tasks_raw):
-                raise HTTPException(status_code=400, detail="Invalid task index")
-            task = tasks_raw[qi]
-            correct_answer = task.get('flag') or task.get('answer') or ''
-            correct = data.flag.strip().lower() == correct_answer.strip().lower()
-        else:
-            correct = data.flag.strip().lower() == (challenge['flag'] or '').strip().lower()
+        # Parse questions array - ALL challenges use questions array, no separate main flag
+        questions = json.loads(challenge['questions']) if isinstance(challenge['questions'], str) else (challenge['questions'] or [])
+        
+        if len(questions) == 0:
+            raise HTTPException(status_code=400, detail="Challenge has no questions configured")
+        
+        # Validate question index
+        qi = data.question_index
+        if qi is None:
+            raise HTTPException(status_code=400, detail="question_index is required")
+        if qi < 0 or qi >= len(questions):
+            raise HTTPException(status_code=400, detail=f"Invalid question index: {qi}. Challenge has {len(questions)} questions.")
+        
+        # Verify the answer
+        question = questions[qi]
+        correct_answer = question.get('flag') or question.get('answer') or ''
+        correct = data.flag.strip().lower() == correct_answer.strip().lower()
 
         if not correct:
             return {
                 'correct': False,
-                'message': 'Incorrect answer' if is_task_submission else 'Incorrect flag',
+                'message': 'Incorrect answer',
                 'points': 0,
                 'lab_points_earned': attempt['labPointsEarned'],
                 'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
                 'report_unlocked': attempt['reportUnlockedAt'] is not None
             }
         
-        # Calculate points
+        # Get difficulty points for this challenge
         difficulty = challenge['difficulty'].upper() if challenge['difficulty'] else 'MEDIUM'
         cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
 
-        # Find or create the solved entry for this challenge
+        # Find or create the progress entry for this challenge
         existing_entry = next((c for c in solved_challenges if c['challenge_id'] == data.challenge_id), None)
         if existing_entry is None:
             existing_entry = {
                 'challenge_id': data.challenge_id,
                 'title': challenge['title'],
                 'difficulty': difficulty,
-                'tasks_solved': [],
+                'questions_solved': [],  # Track which question indices are solved
                 'solved_at': None,
             }
             solved_challenges.append(existing_entry)
 
-        if is_task_submission:
-            qi = data.question_index
-            # Tasks don't award additional points - they're sub-steps of the challenge
-            # Only the base cert_points (from difficulty) are awarded when challenge is complete
-            # Check not already solved
-            if qi in existing_entry.get('tasks_solved', []):
-                return {
-                    'correct': False,
-                    'message': 'Task already solved',
-                    'points': 0,
-                    'lab_points_earned': attempt['labPointsEarned'],
-                    'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
-                    'report_unlocked': attempt['reportUnlockedAt'] is not None
-                }
-            existing_entry.setdefault('tasks_solved', []).append(qi)
-            points = 0  # No points for individual tasks
-
-            # Challenge is only complete when BOTH main flag AND all tasks are solved
-            all_tasks_done = set(existing_entry["tasks_solved"]) == set(range(len(tasks_raw)))
-            main_flag_done = existing_entry.get('main_flag_solved', False)
-            if all_tasks_done and main_flag_done:
-                existing_entry["solved_at"] = now.isoformat()
-                # Don't award cert_points here - already awarded when main flag was submitted
-        else:
-            # Main flag submission
-            if existing_entry.get('main_flag_solved'):
-                return {
-                    'correct': False,
-                    'message': 'Flag already submitted',
-                    'points': 0,
-                    'lab_points_earned': attempt['labPointsEarned'],
-                    'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
-                    'report_unlocked': attempt['reportUnlockedAt'] is not None
-                }
-            existing_entry['main_flag_solved'] = True
+        # Check if this question was already solved
+        questions_solved = existing_entry.get('questions_solved', [])
+        if qi in questions_solved:
+            return {
+                'correct': False,
+                'message': 'Question already solved',
+                'points': 0,
+                'lab_points_earned': attempt['labPointsEarned'],
+                'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+                'report_unlocked': attempt['reportUnlockedAt'] is not None
+            }
+        
+        # Mark this question as solved
+        questions_solved.append(qi)
+        existing_entry['questions_solved'] = questions_solved
+        
+        # Check if ALL questions are now solved (order doesn't matter)
+        all_questions_solved = set(questions_solved) == set(range(len(questions)))
+        
+        if all_questions_solved:
+            # Award full difficulty points only when ALL questions are completed
             points = cert_points
-
-            # Challenge is complete only when main flag AND all tasks are solved
-            if len(tasks_raw) == 0:
-                # No tasks required - challenge is complete
-                existing_entry['solved_at'] = now.isoformat()
-            else:
-                # Has tasks - check if all tasks are already solved
-                all_tasks_done = set(existing_entry.get('tasks_solved', [])) == set(range(len(tasks_raw)))
-                if all_tasks_done:
-                    existing_entry['solved_at'] = now.isoformat()
+            existing_entry['solved_at'] = now.isoformat()
+        else:
+            # No points until all questions are solved
+            points = 0
 
         # Calculate new totals (guard against zero total points after reset)
         new_points_earned = (attempt['labPointsEarned'] or 0) + points
