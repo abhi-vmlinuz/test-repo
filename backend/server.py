@@ -136,6 +136,7 @@ class Database:
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    force_login: bool = False  # If True, clears stale session and logs in
 
 class UserRegister(BaseModel):
     """Public CTF registration"""
@@ -1126,30 +1127,12 @@ async def login(credentials: UserLogin, request: Request):
                     detail="This account does not have CTF platform access."
                 )
         
-        # ========================================
-        # SINGLE SESSION CHECK
-        # ========================================
-        active_session = await get_active_session(conn, user['id'])
-        
-        if active_session:
-            # User already has an active session
-            # Return 409 Conflict with session info
-            session_info = {
-                'ip_address': active_session.get('ip_address', 'unknown'),
-                'created_at': active_session.get('created_at').isoformat() if active_session.get('created_at') else None,
-                'last_activity': active_session.get('last_activity_at').isoformat() if active_session.get('last_activity_at') else None
-            }
-            raise HTTPException(
-                status_code=409,  # Conflict
-                detail={
-                    'code': 'SESSION_CONFLICT',
-                    'message': 'This account is already logged in on another device.',
-                    'session_info': session_info,
-                    'user_id': user['id'],  # Needed for force logout
-                    'email': user['email']
-                }
-            )
-        
+        # Always clear any stale sessions to allow fresh login
+        await conn.execute(
+            'DELETE FROM ctf_active_sessions WHERE user_id::text = $1',
+            str(user['id'])
+        )
+
         # Map roles to CTF display roles
         role_map = {
             'SUPERADMIN': 'superadmin', 
@@ -7976,9 +7959,10 @@ async def student_get_final_quiz(course_id: str, current_user: dict = Depends(ge
 # ===========================================
 
 class CertificationFlagSubmit(BaseModel):
-    """Submit a flag for a certification exam challenge"""
+    """Submit a flag/task answer for a certification exam challenge"""
     challenge_id: str
     flag: str
+    question_index: Optional[int] = None  # None = main flag; 0,1,2... = task index
 
 
 def calculate_time_remaining(expires_at: datetime) -> int:
@@ -8192,6 +8176,133 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
         }
 
 
+@api_router.get("/student/certification-exams/{exam_config_id}/lab")
+async def student_get_lab_by_config(exam_config_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get lab details for a certification exam (by config ID).
+    Called by the frontend StudentCertificationLab page.
+    Returns 404 if lab not started yet (frontend shows 'Start Lab' button).
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec.name, cec."poolAChallengeIds", cec."poolBChallengeIds",
+                   cec."poolCChallengeIds", cec."labUnlockReportThreshold"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId"::text = $1
+            WHERE cea."userId"::text = $2
+        ''', exam_config_id, str(current_user['id']))
+
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+
+        if attempt['labStartedAt'] is None:
+            raise HTTPException(status_code=404, detail="Lab not started yet")
+
+        # Get challenge IDs for assigned pool
+        assigned_pool = attempt['assignedPool']
+        if assigned_pool == 'A':
+            challenge_ids = attempt['poolAChallengeIds']
+        elif assigned_pool == 'B':
+            challenge_ids = attempt['poolBChallengeIds']
+        else:
+            challenge_ids = attempt['poolCChallengeIds']
+
+        # Solved challenge IDs
+        solved_challenges = attempt['labCompletedChallenges'] or []
+        if isinstance(solved_challenges, str):
+            solved_challenges = json.loads(solved_challenges)
+        solved_map = {str(c['challenge_id']): c for c in solved_challenges}
+
+        # Fetch challenge details including tasks (questions) and docker info
+        challenges_raw = await conn.fetch('''
+            SELECT c.id, c.title, c.description, c.difficulty, c.points,
+                   c.questions, c."dockerImage", c."hasDocker", c."isMultiContainer",
+                   cat.name as category
+            FROM ctf_public_challenges c
+            LEFT JOIN ctf_categories cat ON c."categoryId" = cat.id
+            WHERE c.id::text = ANY($1)
+        ''', challenge_ids)
+
+        id_to_challenge = {str(c['id']): c for c in challenges_raw}
+
+        # Respect randomized order
+        randomized_order = attempt['labChallengeOrder'] or list(range(len(challenge_ids)))
+        ordered_challenges = []
+        total_points = 0
+        earned_points = 0
+
+        for idx in randomized_order:
+            if idx >= len(challenge_ids):
+                continue
+            cid = challenge_ids[idx]
+            c = id_to_challenge.get(cid)
+            if not c:
+                continue
+            difficulty = (c['difficulty'] or 'MEDIUM').upper()
+            cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+
+            # Parse tasks (questions) — strip flags from response
+            tasks_raw = json.loads(c['questions']) if isinstance(c['questions'], str) else (c['questions'] or [])
+            tasks = [{'question': t.get('question', ''), 'points': t.get('points', 0)} for t in tasks_raw]
+            total_task_points = sum(t['points'] for t in tasks)
+
+            # Challenge progress from solved_map
+            solved_entry = solved_map.get(cid)
+            is_solved = solved_entry is not None
+            solved_at = solved_entry.get('solved_at') if is_solved else None
+            tasks_solved = solved_entry.get('tasks_solved', []) if solved_entry else []
+
+            # Points: cert_points for main flag, task points per task
+            challenge_total_pts = cert_points + total_task_points
+            total_points += challenge_total_pts
+            if is_solved:
+                earned_points += challenge_total_pts
+            else:
+                # Partial credit for solved tasks
+                for ti in tasks_solved:
+                    if ti < len(tasks):
+                        earned_points += tasks[ti]['points']
+
+            ordered_challenges.append({
+                'challenge_id': cid,
+                'title': c['title'],
+                'description': c['description'],
+                'difficulty': difficulty,
+                'points': cert_points,
+                'task_points': total_task_points,
+                'total_points': challenge_total_pts,
+                'category': c['category'] or 'Uncategorized',
+                'has_docker': bool(c['hasDocker'] or c['dockerImage'] or c['isMultiContainer']),
+                'docker_image': c['dockerImage'],
+                'is_multi_container': bool(c['isMultiContainer']),
+                'tasks': tasks,
+                'tasks_solved': tasks_solved,
+                'is_solved': is_solved,
+                'solved_at': solved_at,
+            })
+
+        lab_score = round((earned_points / total_points * 100) if total_points > 0 else 0, 1)
+        threshold = attempt['labUnlockReportThreshold'] or 80
+        can_upload_report = attempt['reportUnlockedAt'] is not None or lab_score >= threshold
+
+        lab_expires = attempt['labExpiresAt']
+        lab_timer_end = lab_expires.isoformat() if lab_expires else None
+
+        return {
+            'exam_id': exam_config_id,
+            'exam_title': attempt['name'],
+            'attempt_id': str(attempt['id']),
+            'status': attempt['status'],
+            'challenges': ordered_challenges,
+            'lab_score': lab_score,
+            'total_points': total_points,
+            'earned_points': earned_points,
+            'lab_timer_end': lab_timer_end,
+            'can_upload_report': can_upload_report,
+        }
+
+
 @api_router.get("/student/certification-exams/attempts/{attempt_id}/challenges")
 async def student_get_certification_challenges(attempt_id: str, current_user: dict = Depends(get_current_user)):
     """
@@ -8356,40 +8467,104 @@ async def student_submit_certification_flag(
                 'report_unlocked': attempt['reportUnlockedAt'] is not None
             }
         
-        # Get challenge and verify flag
+        # Get challenge and verify flag/task answer
         challenge = await conn.fetchrow('''
-            SELECT id, title, difficulty, flag FROM ctf_public_challenges WHERE id::text = $1
+            SELECT id, title, difficulty, flag, questions FROM ctf_public_challenges WHERE id::text = $1
         ''', data.challenge_id)
         
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
-        
-        # Check flag (case-insensitive comparison, trim whitespace)
-        correct = data.flag.strip().lower() == challenge['flag'].strip().lower()
-        
+
+        # Parse tasks
+        tasks_raw = json.loads(challenge['questions']) if isinstance(challenge['questions'], str) else (challenge['questions'] or [])
+
+        # Determine if this is a task submission or main flag submission
+        is_task_submission = data.question_index is not None
+
+        if is_task_submission:
+            qi = data.question_index
+            if qi < 0 or qi >= len(tasks_raw):
+                raise HTTPException(status_code=400, detail="Invalid task index")
+            task = tasks_raw[qi]
+            correct_answer = task.get('flag') or task.get('answer') or ''
+            correct = data.flag.strip().lower() == correct_answer.strip().lower()
+        else:
+            correct = data.flag.strip().lower() == (challenge['flag'] or '').strip().lower()
+
         if not correct:
             return {
                 'correct': False,
-                'message': 'Incorrect flag',
+                'message': 'Incorrect answer' if is_task_submission else 'Incorrect flag',
                 'points': 0,
                 'lab_points_earned': attempt['labPointsEarned'],
                 'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
                 'report_unlocked': attempt['reportUnlockedAt'] is not None
             }
         
-        # Calculate points for this challenge
+        # Calculate points
         difficulty = challenge['difficulty'].upper() if challenge['difficulty'] else 'MEDIUM'
-        points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
-        
-        # Update solved challenges
-        solved_challenges.append({
-            'challenge_id': data.challenge_id,
-            'title': challenge['title'],
-            'difficulty': difficulty,
-            'points': points,
-            'solved_at': now.isoformat()
-        })
-        
+        cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+
+        # Find or create the solved entry for this challenge
+        existing_entry = next((c for c in solved_challenges if c['challenge_id'] == data.challenge_id), None)
+        if existing_entry is None:
+            existing_entry = {
+                'challenge_id': data.challenge_id,
+                'title': challenge['title'],
+                'difficulty': difficulty,
+                'tasks_solved': [],
+                'solved_at': None,
+            }
+            solved_challenges.append(existing_entry)
+
+        if is_task_submission:
+            qi = data.question_index
+            task_points = tasks_raw[qi].get('points', 0)
+            # Check not already solved
+            if qi in existing_entry.get('tasks_solved', []):
+                return {
+                    'correct': False,
+                    'message': 'Task already solved',
+                    'points': 0,
+                    'lab_points_earned': attempt['labPointsEarned'],
+                    'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+                    'report_unlocked': attempt['reportUnlockedAt'] is not None
+                }
+            existing_entry.setdefault('tasks_solved', []).append(qi)
+            points = task_points
+
+            # Check if ALL tasks AND main flag solved = challenge complete
+            all_tasks_done = set(existing_entry['tasks_solved']) == set(range(len(tasks_raw)))
+            has_main_flag = bool(challenge['flag'])
+            main_flag_solved = existing_entry.get('main_flag_solved', False)
+
+            if all_tasks_done and (not has_main_flag or main_flag_solved):
+                # Challenge fully solved
+                existing_entry['solved_at'] = now.isoformat()
+                points += cert_points  # Award base cert points too
+        else:
+            # Main flag submission
+            if existing_entry.get('main_flag_solved'):
+                return {
+                    'correct': False,
+                    'message': 'Flag already submitted',
+                    'points': 0,
+                    'lab_points_earned': attempt['labPointsEarned'],
+                    'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+                    'report_unlocked': attempt['reportUnlockedAt'] is not None
+                }
+            existing_entry['main_flag_solved'] = True
+            points = cert_points
+
+            # If no tasks, challenge is complete
+            if len(tasks_raw) == 0:
+                existing_entry['solved_at'] = now.isoformat()
+            else:
+                # Still needs tasks
+                all_tasks_done = set(existing_entry.get('tasks_solved', [])) == set(range(len(tasks_raw)))
+                if all_tasks_done:
+                    existing_entry['solved_at'] = now.isoformat()
+
         # Calculate new totals
         new_points_earned = attempt['labPointsEarned'] + points
         new_score = (new_points_earned / attempt['labTotalPoints']) * 100
@@ -8420,8 +8595,8 @@ async def student_submit_certification_flag(
             update_data['status'] = 'REPORT_PENDING'
             report_unlocked = True
         
-        # Check if all challenges solved
-        all_solved = len(solved_challenges) == 7
+        # Check if all challenges are fully solved (have a solved_at)
+        all_solved = all(c.get('solved_at') is not None for c in solved_challenges) and len(solved_challenges) == len(challenge_ids)
         if all_solved and 'status' not in update_data:
             update_data['labCompletedAt'] = now
             if new_score >= unlock_threshold:
@@ -8444,7 +8619,7 @@ async def student_submit_certification_flag(
         set_clauses.append('"updatedAt" = NOW()')
         params.append(attempt['id'])
         
-        query = f'UPDATE certification_exam_attempts SET {", ".join(set_clauses)} WHERE id = ${param_idx}'
+        query = f'UPDATE certification_exam_attempts SET {", ".join(set_clauses)} WHERE id::text = ${param_idx}'
         await conn.execute(query, *params)
         
         return {

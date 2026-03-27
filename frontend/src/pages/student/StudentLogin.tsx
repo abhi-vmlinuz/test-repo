@@ -18,23 +18,22 @@ const StudentLogin = ({ setUser }) => {
         invite_code: ''
     });
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e, force = false) => {
         e.preventDefault();
         setLoading(true);
 
         try {
             if (mode === 'login') {
-                // Login
                 const response = await axios.post(`${API}/student/login`, {
                     email: formData.email,
-                    password: formData.password
+                    password: formData.password,
+                    ...(force ? { force_login: true } : {})
                 });
                 localStorage.setItem('token', response.data.access_token);
                 setUser(response.data.user);
                 toast.success('Welcome back!');
                 navigate('/student');
             } else {
-                // Register with invite code
                 const response = await axios.post(`${API}/student/register`, {
                     email: formData.email,
                     password: formData.password,
@@ -46,12 +45,31 @@ const StudentLogin = ({ setUser }) => {
                 toast.success('Registration successful! Welcome to ZecurX Learn.');
                 navigate('/student');
             }
-        } catch (error) {
-            toast.error(error.response?.data?.detail || 'Authentication failed');
+        } catch (error: any) {
+            const detail = error.response?.data?.detail;
+            if (detail?.code === 'SESSION_CONFLICT' && !force) {
+                // Auto force-login — clear stale session and retry
+                try {
+                    const retry = await axios.post(`${API}/student/login`, {
+                        email: formData.email,
+                        password: formData.password,
+                        force_login: true
+                    });
+                    localStorage.setItem('token', retry.data.access_token);
+                    setUser(retry.data.user);
+                    toast.success('Welcome back!');
+                    navigate('/student');
+                } catch (retryErr: any) {
+                    toast.error(retryErr.response?.data?.detail || 'Login failed');
+                }
+            } else {
+                toast.error(typeof detail === 'string' ? detail : detail?.message || 'Authentication failed');
+            }
         } finally {
             setLoading(false);
         }
     };
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex">
