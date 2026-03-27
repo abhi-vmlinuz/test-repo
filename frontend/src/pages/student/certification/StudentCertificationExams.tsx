@@ -332,11 +332,17 @@ const StudentCertificationExams = () => {
                                         </button>
                                     )}
 
-                                    {/* Upload Report — report unlocked */}
-                                    {exam.can_upload_report && (
+                                    {/* Upload Report — always visible once lab started, locked until exam ends + score qualifies */}
+                                    {exam.status && ['LAB_IN_PROGRESS', 'LAB_COMPLETED', 'REPORT_UNLOCKED', 'REPORT_UPLOADED', 'GRADING_PENDING'].includes(exam.status) && (
                                         <button
-                                            onClick={() => handleUploadReport(exam.exam_id)}
-                                            className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
+                                            onClick={() => exam.can_upload_report ? handleUploadReport(exam.exam_id) : null}
+                                            disabled={!exam.can_upload_report}
+                                            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold ${
+                                                exam.can_upload_report
+                                                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                            }`}
+                                            title={!exam.can_upload_report ? 'End your exam and reach 80% lab score to unlock report upload' : ''}
                                         >
                                             <FileText className="w-5 h-5" />
                                             {exam.status === 'REPORT_UPLOADED' ? 'View Report Status' : 'Upload Report'}
