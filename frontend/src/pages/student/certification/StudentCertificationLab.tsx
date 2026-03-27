@@ -77,7 +77,9 @@ const StudentCertificationLab = () => {
     const [selectedIdx, setSelectedIdx] = useState(0);
     const [timeRemaining, setTimeRemaining] = useState('');
 
-    // Task submission state
+    // Submission state
+    const [flagInput, setFlagInput] = useState('');
+    const [submittingFlag, setSubmittingFlag] = useState(false);
     const [taskInputs, setTaskInputs] = useState<Record<number, string>>({});
     const [submittingTask, setSubmittingTask] = useState<number | null>(null);
     const [endingLab, setEndingLab] = useState(false);
@@ -118,7 +120,8 @@ const StudentCertificationLab = () => {
     useEffect(() => {
         if (!selectedChallenge) return;
         fetchArtifacts(selectedChallenge.challenge_id);
-        // Reset task inputs on challenge switch
+        // Reset inputs on challenge switch
+        setFlagInput('');
         setDockerInstance(null);
         // Check existing docker session
         if (selectedChallenge.has_docker) {
@@ -168,6 +171,28 @@ const StudentCertificationLab = () => {
         setTimeRemaining(formatTime(new Date(lab.lab_timer_end).getTime() - Date.now()));
         return () => clearInterval(iv);
     }, [lab?.lab_timer_end]);
+
+    const handleSubmitFlag = async () => {
+        if (!flagInput.trim() || !lab || !selectedChallenge) return;
+        setSubmittingFlag(true);
+        try {
+            const res = await axios.post(`${API}/student/certification-exams/attempts/${lab.attempt_id}/submit`, {
+                challenge_id: selectedChallenge.challenge_id,
+                flag: flagInput.trim(),
+            });
+            if (res.data.correct) {
+                toast.success(`Correct! +${res.data.points} pts`);
+                setFlagInput('');
+                await fetchLabDetails();
+            } else {
+                toast.error(res.data.message || 'Incorrect flag');
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.detail || 'Failed to submit');
+        } finally {
+            setSubmittingFlag(false);
+        }
+    };
 
     const handleStartLab = async () => {
         setStartingLab(true);
@@ -310,7 +335,7 @@ const StudentCertificationLab = () => {
     const solvedCount = lab.challenges.filter(c => c.is_solved).length;
     const challenge = selectedChallenge;
     const challengeArtifacts = artifacts[challenge?.challenge_id ?? ''] ?? [];
-    const hasFlag = challenge && !challenge.has_docker && challenge.tasks.length === 0;
+    const hasFlag = challenge && challenge.tasks.length === 0; // Main flag only (no sub-tasks)
     const hasTasks = (challenge?.tasks.length ?? 0) > 0;
 
     return (
@@ -611,6 +636,41 @@ const StudentCertificationLab = () => {
                                                 </div>
                                             );
                                         })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Main Flag Input — for challenges with a flag but NO tasks */}
+                            {hasFlag && !challenge.is_solved && (
+                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                                    <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+                                        <Flag className="w-4 h-4 text-blue-500" />
+                                        <h3 className="font-bold text-gray-900">Submit Flag</h3>
+                                    </div>
+                                    <div className="p-6">
+                                        <div className="flex gap-3">
+                                            <input
+                                                type="text"
+                                                value={flagInput}
+                                                onChange={e => !isExpired && setFlagInput(e.target.value)}
+                                                onKeyDown={e => !isExpired && e.key === 'Enter' && handleSubmitFlag()}
+                                                placeholder={isExpired ? 'Lab expired' : 'CTF{...}'}
+                                                readOnly={isExpired}
+                                                className={`flex-1 px-4 py-3 border rounded-xl text-sm outline-none font-mono ${
+                                                    isExpired ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' :
+                                                    'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white'
+                                                }`}
+                                            />
+                                            {!isExpired && (
+                                                <button
+                                                    onClick={handleSubmitFlag}
+                                                    disabled={submittingFlag || !flagInput.trim()}
+                                                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:bg-gray-300 transition-colors">
+                                                    {submittingFlag ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                                    Submit
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
