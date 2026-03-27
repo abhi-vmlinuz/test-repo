@@ -8592,9 +8592,14 @@ async def student_submit_certification_flag(
         new_points_earned = (attempt['labPointsEarned'] or 0) + points
         total_pts = attempt['labTotalPoints'] or 0
         if total_pts == 0:
-            # Recompute from current challenges list to avoid div-by-zero
-            total_pts = sum(ch.get('points', 0) for ch in solved_challenges) or 1
-        new_score = (new_points_earned / total_pts) * 100
+            # Recompute from ALL challenges in the pool (not just solved ones)
+            pool_challenges = await conn.fetch('''
+                SELECT difficulty FROM ctf_public_challenges WHERE id::text = ANY($1)
+            ''', challenge_ids)
+            total_pts = sum(CERTIFICATION_DIFFICULTY_POINTS.get(ch['difficulty'].upper() if ch['difficulty'] else 'MEDIUM', 20) for ch in pool_challenges) or 1
+        
+        # Calculate percentage score and clamp to max 100 to prevent database overflow
+        new_score = min(100.0, (new_points_earned / total_pts) * 100)
         
         # Prepare update data
         update_data = {
