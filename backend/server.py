@@ -8815,6 +8815,11 @@ async def student_get_report_status(exam_config_id: str, current_user: dict = De
         unlock_threshold = float(attempt['labUnlockReportThreshold'] or 80)
         report_unlocked = attempt['reportUnlockedAt'] is not None and current_lab_score >= unlock_threshold
 
+        report_file_url = attempt['reportFileUrl']
+        report_filename = None
+        if report_file_url:
+            report_filename = os.path.basename(report_file_url)
+
         return {
             'exam_id': str(attempt['examConfigId']),
             'exam_title': attempt['exam_name'],
@@ -8822,7 +8827,7 @@ async def student_get_report_status(exam_config_id: str, current_user: dict = De
             'lab_score': current_lab_score,
             'can_upload_report': report_unlocked and attempt['reportUploadedAt'] is None,
             'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
-            'report_filename': attempt['reportFileUrl'] if attempt['reportFileUrl'] else None,
+            'report_filename': report_filename,
             'report_timer_end': None,  # Report timer removed
             'status': attempt['status']
         }
@@ -9062,15 +9067,28 @@ async def admin_get_report_details(attempt_id: str, admin: dict = Depends(requir
         if not attempt:
             raise HTTPException(status_code=404, detail="Certification exam attempt not found")
         
+        report_file_url = attempt['reportFileUrl']
+        report_filename = None
+        if report_file_url:
+            report_filename = os.path.basename(report_file_url)
+
         return {
             'attempt_id': str(attempt['id']),
+            'exam_id': str(attempt['examConfigId']),
             'user_id': str(attempt['userId']),
             'student_name': attempt['student_name'] or 'Unknown',
             'student_email': attempt['student_email'],
             'exam_name': attempt['exam_name'],
+            'exam_title': attempt['exam_name'],
             'exam_type': attempt['examType'],
             'assigned_pool': attempt['assignedPool'],
             'status': attempt['status'],
+            # Flat compatibility fields
+            'mcq_score': float(attempt['mcqScore']) if attempt['mcqScore'] else 0,
+            'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+            'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
+            'report_filename': report_filename,
+            'report_file_url': report_file_url,
             # MCQ Component
             'mcq': {
                 'score': float(attempt['mcqScore']) if attempt['mcqScore'] else None,

@@ -6,8 +6,9 @@ import { ArrowLeft, Save, Loader2, AlertCircle, Download, FileText, CheckCircle2
 import { Badge } from '@/components/ui/badge';
 
 interface AttemptDetails {
-    attempt_id: number;
-    student_id: number;
+    attempt_id: string;
+    exam_id?: string;
+    student_id: string;
     student_name: string;
     student_email: string;
     exam_title: string;
@@ -15,10 +16,9 @@ interface AttemptDetails {
     status: string;
     mcq_score: number;
     lab_score: number;
-    report_filename: string;
-    report_path: string;
-    report_uploaded_at: string;
-    created_at: string;
+    report_filename: string | null;
+    report_file_url?: string | null;
+    report_uploaded_at: string | null;
 }
 
 interface GradingCriteria {
@@ -54,9 +54,26 @@ const ReportGradingPage = () => {
         setLoading(true);
         try {
             const response = await axios.get(`${API}/admin/certification-exams/reports/${attemptId}`);
-            setAttempt(response.data);
+            const raw = response.data || {};
+            const normalized: AttemptDetails = {
+                attempt_id: String(raw.attempt_id || raw.id || ''),
+                exam_id: raw.exam_id ? String(raw.exam_id) : undefined,
+                student_id: String(raw.student_id || raw.user_id || ''),
+                student_name: raw.student_name || 'Unknown',
+                student_email: raw.student_email || '-',
+                exam_title: raw.exam_title || raw.exam_name || 'Certification Exam',
+                assigned_pool: raw.assigned_pool || '-',
+                status: raw.status || 'REPORT_UPLOADED',
+                mcq_score: Number(raw.mcq_score ?? raw.mcq?.score ?? 0),
+                lab_score: Number(raw.lab_score ?? raw.lab?.score ?? 0),
+                report_filename: raw.report_filename || null,
+                report_file_url: raw.report_file_url || raw.report?.file_url || null,
+                report_uploaded_at: raw.report_uploaded_at || raw.report?.uploaded_at || null,
+            };
+
+            setAttempt(normalized);
         } catch (error: any) {
-            toast('Failed to load attempt details', 'error');
+            toast.error('Failed to load attempt details');
             console.error(error);
         } finally {
             setLoading(false);
@@ -102,22 +119,30 @@ const ReportGradingPage = () => {
         // Validate all criteria are filled
         const allFilled = Object.values(criteria).every(val => val > 0);
         if (!allFilled) {
-            toast('Please grade all criteria before submitting', 'error');
+            toast.error('Please grade all criteria before submitting');
             return;
         }
 
         setSubmitting(true);
         try {
             await axios.post(`${API}/admin/certification-exams/reports/${attemptId}/grade`, {
-                ...criteria,
-                comments
+                clarity: criteria.technical_accuracy,
+                technical: criteria.methodology,
+                reproducibility: criteria.documentation_quality,
+                impact: criteria.completeness,
+                remediation: criteria.professionalism,
+                feedback: comments
             });
             
-            toast('Report graded successfully', 'success');
-            navigate(-1); // Go back to previous page
+            toast.success('Report graded successfully');
+            if (attempt?.exam_id) {
+                navigate(`/admin/certification-exams/${attempt.exam_id}/attempts`);
+            } else {
+                navigate('/admin/certification-exams');
+            }
         } catch (error: any) {
             const errorMsg = error.response?.data?.detail || 'Failed to grade report';
-            toast(errorMsg, 'error');
+            toast.error(errorMsg);
             console.error(error);
         } finally {
             setSubmitting(false);
@@ -125,8 +150,15 @@ const ReportGradingPage = () => {
     };
 
     const handleDownloadReport = () => {
-        if (!attempt) return;
-        window.open(`${API}/uploads/certification-reports/${attempt.report_filename}`, '_blank');
+        if (!attempt?.report_file_url) {
+            toast.error('Report file is unavailable');
+            return;
+        }
+
+        const reportUrl = attempt.report_file_url.startsWith('/')
+            ? `${API}${attempt.report_file_url}`
+            : attempt.report_file_url;
+        window.open(reportUrl, '_blank', 'noopener,noreferrer');
     };
 
     if (loading) {
@@ -190,11 +222,11 @@ const ReportGradingPage = () => {
                         <p className="font-semibold text-gray-900">Pool {attempt.assigned_pool}</p>
                     </div>
                     <div>
-                        <p className="text-sm text-gray-600">Report Uploaded</p>
-                        <p className="font-semibold text-gray-900">
-                            {new Date(attempt.report_uploaded_at).toLocaleString()}
-                        </p>
-                    </div>
+                            <p className="text-sm text-gray-600">Report Uploaded</p>
+                            <p className="font-semibold text-gray-900">
+                                {attempt.report_uploaded_at ? new Date(attempt.report_uploaded_at).toLocaleString() : '-'}
+                            </p>
+                        </div>
                 </div>
             </div>
 
@@ -222,7 +254,7 @@ const ReportGradingPage = () => {
                 <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-xl font-semibold mb-2">Submitted Report</h2>
-                        <p className="text-sm text-gray-600">{attempt.report_filename}</p>
+                        <p className="text-sm text-gray-600">{attempt.report_filename || 'Report file'}</p>
                     </div>
                     <button
                         onClick={handleDownloadReport}

@@ -13,6 +13,7 @@ interface ReportStatus {
     can_upload_report: boolean;
     report_uploaded_at: string | null;
     report_filename: string | null;
+    report_file_url?: string | null;
     report_timer_end: string | null;
     status: string;
 }
