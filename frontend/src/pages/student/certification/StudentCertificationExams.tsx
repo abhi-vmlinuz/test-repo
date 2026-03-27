@@ -289,7 +289,8 @@ const StudentCertificationExams = () => {
                                 )}
 
                                 {/* Actions */}
-                                <div className="flex gap-3">
+                                <div className="flex flex-wrap gap-3">
+                                    {/* Start Lab — MCQ done, lab not started */}
                                     {exam.status === 'MCQ_COMPLETED' && exam.can_start_lab && !globalTimer.expired && (
                                         <button
                                             onClick={() => handleStartLab(exam.exam_id)}
@@ -300,7 +301,8 @@ const StudentCertificationExams = () => {
                                         </button>
                                     )}
                                     
-                                    {(exam.status === 'LAB_IN_PROGRESS' || exam.status === 'LAB_COMPLETED') && !labTimer.expired && (
+                                    {/* Continue Lab — lab active and timer not expired */}
+                                    {exam.status === 'LAB_IN_PROGRESS' && !labTimer.expired && (
                                         <button
                                             onClick={() => handleStartLab(exam.exam_id)}
                                             className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
@@ -309,8 +311,29 @@ const StudentCertificationExams = () => {
                                             Continue Lab
                                         </button>
                                     )}
-                                    
-                                    {exam.can_upload_report && !reportTimer.expired && (
+
+                                    {/* End Exam — lab in progress, let user finalize */}
+                                    {exam.status === 'LAB_IN_PROGRESS' && exam.attempt_id && (
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm('Are you sure you want to end the exam? This will finalize your lab score.')) return;
+                                                try {
+                                                    await axios.post(`${API}/student/certification-exams/attempts/${exam.attempt_id}/end-lab`);
+                                                    toast.success('Lab finalized! Check your results.');
+                                                    fetchExams();
+                                                } catch (err: any) {
+                                                    toast.error(err.response?.data?.detail || 'Failed to end exam');
+                                                }
+                                            }}
+                                            className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold"
+                                        >
+                                            <AlertCircle className="w-5 h-5" />
+                                            End Exam
+                                        </button>
+                                    )}
+
+                                    {/* Upload Report — report unlocked */}
+                                    {exam.can_upload_report && (
                                         <button
                                             onClick={() => handleUploadReport(exam.exam_id)}
                                             className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
@@ -319,7 +342,19 @@ const StudentCertificationExams = () => {
                                             {exam.status === 'REPORT_UPLOADED' ? 'View Report Status' : 'Upload Report'}
                                         </button>
                                     )}
+
+                                    {/* View Lab Results — expired or completed, report not unlocked */}
+                                    {(exam.status === 'LAB_COMPLETED' || (exam.status === 'LAB_IN_PROGRESS' && labTimer.expired)) && !exam.can_upload_report && (
+                                        <button
+                                            onClick={() => handleViewStatus(exam.exam_id)}
+                                            className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-semibold"
+                                        >
+                                            <Award className="w-5 h-5" />
+                                            View Lab Results
+                                        </button>
+                                    )}
                                     
+                                    {/* View Status — always available */}
                                     {exam.status && exam.status !== 'PENDING' && (
                                         <button
                                             onClick={() => handleViewStatus(exam.exam_id)}
