@@ -8801,7 +8801,6 @@ async def admin_reset_certification_attempt(attempt_id: str, current_user: dict 
         await conn.execute('''
             UPDATE certification_exam_attempts SET
                 status = 'MCQ_COMPLETED',
-                "assignedPool" = NULL,
                 "labStartedAt" = NULL,
                 "labExpiresAt" = NULL,
                 "labCompletedAt" = NULL,
