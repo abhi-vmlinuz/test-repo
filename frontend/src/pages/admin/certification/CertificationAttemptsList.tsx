@@ -64,8 +64,20 @@ const CertificationAttemptsList = () => {
                 axios.get(`${API}/admin/certification-exams/${id}/attempts`),
                 axios.get(`${API}/admin/certification-exams/${id}`)
             ]);
-            setAttempts(attemptsRes.data.attempts);
-            setExamTitle(examRes.data.lms_exam_title);
+            const rawAttempts = attemptsRes.data.attempts || attemptsRes.data || [];
+            // Normalize: backend returns `id` but frontend uses `attempt_id`
+            const normalized = rawAttempts.map((a: any) => ({
+                ...a,
+                attempt_id: a.attempt_id || a.id,
+                student_id: a.student_id || a.user_id,
+                global_timer_end: a.global_timer_end || a.global_expires_at,
+                lab_timer_end: a.lab_timer_end || a.lab_expires_at,
+                report_timer_end: a.report_timer_end || a.report_expires_at,
+                created_at: a.created_at || a.redeemed_at,
+                graded_at: a.graded_at || a.report_graded_at,
+            }));
+            setAttempts(normalized);
+            setExamTitle(examRes.data.lms_exam_title || examRes.data.name || '');
         } catch (error: any) {
             toast.error('Failed to load attempts');
             console.error(error);
