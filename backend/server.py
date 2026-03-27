@@ -8664,7 +8664,7 @@ async def student_end_certification_lab(attempt_id: str, current_user: dict = De
 
         new_status = 'LAB_COMPLETED'
         update_extra = ''
-        params = [now, attempt_id]
+        params = [attempt_id]
 
         if lab_score >= threshold and attempt['reportUnlockedAt'] is None:
             report_hours = attempt['reportDurationHours'] or 3
@@ -8677,8 +8677,8 @@ async def student_end_certification_lab(attempt_id: str, current_user: dict = De
 
         await conn.execute(f'''
             UPDATE certification_exam_attempts
-            SET status = \'{new_status}\', "labCompletedAt" = $1, "updatedAt" = NOW(){update_extra}
-            WHERE id::text = $2
+            SET status = \'{new_status}\', "labCompletedAt" = NOW(), "updatedAt" = NOW(){update_extra}
+            WHERE id::text = $1
         ''', *params)
 
         return {
