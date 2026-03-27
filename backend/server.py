@@ -8142,6 +8142,21 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
         # Map challenges by ID
         id_to_challenge = {str(c['id']): c for c in challenges}
         
+        # Compute total possible lab points from difficulty
+        total_lab_points = 0
+        for idx in randomized_order:
+            cid = challenge_ids[idx]
+            c = id_to_challenge.get(cid)
+            if c:
+                difficulty = c['difficulty'].upper() if c['difficulty'] else 'MEDIUM'
+                total_lab_points += CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
+
+        # Persist labTotalPoints so score calculation never divides by zero
+        await conn.execute(
+            'UPDATE certification_exam_attempts SET "labTotalPoints" = $1, "labPointsEarned" = 0, "labScore" = 0, "updatedAt" = NOW() WHERE id::text = $2',
+            total_lab_points, str(attempt['id'])
+        )
+
         # Return challenges in randomized order (using indices)
         ordered_challenges = []
         for idx in randomized_order:
@@ -8168,8 +8183,10 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
             'attempt_id': str(attempt['id']),
             'challenges': ordered_challenges,
             'time_remaining': calculate_time_remaining(lab_expires_at),
-            'lab_expires_at': lab_expires_at.isoformat()
+            'lab_expires_at': lab_expires_at.isoformat(),
+            'total_points': total_lab_points
         }
+
 
 
 @api_router.get("/student/certification-exams/{exam_config_id}/lab")
@@ -8557,9 +8574,13 @@ async def student_submit_certification_flag(
                 if all_tasks_done:
                     existing_entry['solved_at'] = now.isoformat()
 
-        # Calculate new totals
-        new_points_earned = attempt['labPointsEarned'] + points
-        new_score = (new_points_earned / attempt['labTotalPoints']) * 100
+        # Calculate new totals (guard against zero total points after reset)
+        new_points_earned = (attempt['labPointsEarned'] or 0) + points
+        total_pts = attempt['labTotalPoints'] or 0
+        if total_pts == 0:
+            # Recompute from current challenges list to avoid div-by-zero
+            total_pts = sum(ch.get('points', 0) for ch in solved_challenges) or 1
+        new_score = (new_points_earned / total_pts) * 100
         
         # Prepare update data
         update_data = {
