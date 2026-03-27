@@ -8552,7 +8552,8 @@ async def student_submit_certification_flag(
 
         if is_task_submission:
             qi = data.question_index
-            task_points = tasks_raw[qi].get('points', 0)
+            # Tasks don't award additional points - they're sub-steps of the challenge
+            # Only the base cert_points (from difficulty) are awarded when challenge is complete
             # Check not already solved
             if qi in existing_entry.get('tasks_solved', []):
                 return {
@@ -8564,7 +8565,7 @@ async def student_submit_certification_flag(
                     'report_unlocked': attempt['reportUnlockedAt'] is not None
                 }
             existing_entry.setdefault('tasks_solved', []).append(qi)
-            points = task_points
+            points = 0  # No points for individual tasks
 
             # Challenge is only complete when BOTH main flag AND all tasks are solved
             all_tasks_done = set(existing_entry["tasks_solved"]) == set(range(len(tasks_raw)))
