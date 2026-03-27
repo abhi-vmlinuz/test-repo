@@ -8490,7 +8490,7 @@ async def student_submit_certification_flag(
         if isinstance(solved_challenges, str):
             solved_challenges = json.loads(solved_challenges)
         
-        if any(c['challenge_id'] == data.challenge_id for c in solved_challenges):
+        if any(c['challenge_id'] == data.challenge_id and c.get('solved_at') for c in solved_challenges):
             return {
                 'correct': False,
                 'message': 'Challenge already solved',
