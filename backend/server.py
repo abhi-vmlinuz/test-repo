@@ -8441,12 +8441,13 @@ async def student_submit_certification_flag(
         if attempt['status'] not in ('LAB_IN_PROGRESS',):
             raise HTTPException(status_code=400, detail=f"Cannot submit flags in status: {attempt['status']}")
         
-        # Check if lab timer expired
-        now = datetime.utcnow()  # offset-naive to match TIMESTAMP columns
+        # Check if lab timer expired (all comparisons use naive UTC)
+        now = datetime.utcnow()
         lab_expires = attempt['labExpiresAt']
         if lab_expires:
-            if lab_expires.tzinfo is None:
-                lab_expires = lab_expires.replace(tzinfo=timezone.utc)
+            # Normalize to naive UTC
+            if lab_expires.tzinfo is not None:
+                lab_expires = lab_expires.replace(tzinfo=None)
             if now >= lab_expires:
                 await conn.execute(
                     'UPDATE certification_exam_attempts SET status = $1, "labCompletedAt" = $2, "updatedAt" = NOW() WHERE id::text = $3',
@@ -8599,8 +8600,8 @@ async def student_submit_certification_flag(
             # Unlock report upload
             report_hours = attempt['reportDurationHours'] or 3
             global_expires = attempt['globalExpiresAt']
-            if global_expires.tzinfo is None:
-                global_expires = global_expires.replace(tzinfo=timezone.utc)
+            if global_expires.tzinfo is not None:
+                global_expires = global_expires.replace(tzinfo=None)
             
             report_expiry = now + timedelta(hours=report_hours)
             report_expires_at = min(report_expiry, global_expires)
