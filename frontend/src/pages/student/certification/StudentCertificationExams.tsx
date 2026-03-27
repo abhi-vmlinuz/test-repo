@@ -185,6 +185,9 @@ const StudentCertificationExams = () => {
                         const globalTimer = getTimerStatus(exam.global_timer_end || null, exam.time_remaining?.global ?? null);
                         const labTimer = getTimerStatus(exam.lab_timer_end || null, exam.time_remaining?.lab ?? null);
                         const reportTimer = getTimerStatus(exam.report_timer_end || null, exam.time_remaining?.report ?? null);
+                        const gradedPassByScore = (exam.final_score ?? 0) >= 75;
+                        const isPassed = exam.status === 'PASSED' || (exam.status === 'GRADED' && gradedPassByScore);
+                        const isFailed = exam.status === 'FAILED' || (exam.status === 'GRADED' && !gradedPassByScore);
                         
                         return (
                             <div key={exam.exam_id} className="bg-white rounded-lg shadow-lg p-6">
@@ -207,14 +210,14 @@ const StudentCertificationExams = () => {
                                         )}
                                     </div>
                                     
-                                    {(exam.status === 'PASSED' || (exam.status === 'GRADED' && exam.passed === true)) && (
+                                    {isPassed && (
                                         <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-lg">
                                             <CheckCircle2 className="w-6 h-6 text-green-600" />
                                             <span className="text-green-800 font-semibold">PASSED</span>
                                         </div>
                                     )}
                                      
-                                    {(exam.status === 'FAILED' || (exam.status === 'GRADED' && exam.passed === false)) && (
+                                    {isFailed && (
                                         <div className="flex items-center gap-2 bg-red-50 px-4 py-2 rounded-lg">
                                             <XCircle className="w-6 h-6 text-red-600" />
                                             <span className="text-red-800 font-semibold">FAILED</span>

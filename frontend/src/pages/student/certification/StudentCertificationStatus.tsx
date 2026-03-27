@@ -110,8 +110,9 @@ const StudentCertificationStatus = () => {
     const labTimer = getTimerStatus(status.lab_timer_end);
     const reportTimer = getTimerStatus(status.report_timer_end);
 
-    const isPassed = status.status === 'PASSED';
-    const isFailed = status.status === 'FAILED';
+    const gradedPassByScore = (status.final_score ?? 0) >= 75;
+    const isPassed = status.status === 'PASSED' || (status.status === 'GRADED' && gradedPassByScore);
+    const isFailed = status.status === 'FAILED' || (status.status === 'GRADED' && !gradedPassByScore);
     const isGraded = isPassed || isFailed;
 
     return (
