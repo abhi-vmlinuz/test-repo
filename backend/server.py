@@ -7997,7 +7997,7 @@ async def student_get_certification_exams(current_user: dict = Depends(get_curre
             # Calculate time remaining for each timer
             global_remaining = calculate_time_remaining(a['globalExpiresAt'])
             lab_remaining = calculate_time_remaining(a['labExpiresAt']) if a['labExpiresAt'] else None
-            report_remaining = calculate_time_remaining(a['reportExpiresAt']) if a['reportExpiresAt'] else None
+            # Report timer removed - report available until global expiry
             
             # Determine component states
             mcq_completed = a['status'] not in ('MCQ_PENDING',)
@@ -8016,7 +8016,7 @@ async def student_get_certification_exams(current_user: dict = Depends(get_curre
                 'time_remaining': {
                     'global': global_remaining,
                     'lab': lab_remaining,
-                    'report': report_remaining
+                    'report': None  # No separate report timer
                 },
                 'components': {
                     'mcq': {
@@ -8407,7 +8407,7 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
         
         # Calculate time remaining
         lab_remaining = calculate_time_remaining(attempt['labExpiresAt'])
-        report_remaining = calculate_time_remaining(attempt['reportExpiresAt']) if attempt['reportExpiresAt'] else None
+        # Report timer removed - report available until global expiry
         
         # Report is unlocked only if score meets threshold (prevent stale unlocks)
         current_lab_score = float(attempt['labScore']) if attempt['labScore'] else 0
@@ -8424,7 +8424,7 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
             'report_unlocked': report_unlocked,
             'time_remaining': {
                 'lab': lab_remaining,
-                'report': report_remaining
+                'report': None  # No separate report timer
             }
         }
 
@@ -8454,8 +8454,8 @@ async def student_submit_certification_flag(
         if not attempt:
             raise HTTPException(status_code=404, detail="Certification exam attempt not found")
         
-        # Check status
-        if attempt['status'] not in ('LAB_IN_PROGRESS',):
+        # Check status - allow submissions during LAB_IN_PROGRESS and REPORT_PENDING
+        if attempt['status'] not in ('LAB_IN_PROGRESS', 'REPORT_PENDING'):
             raise HTTPException(status_code=400, detail=f"Cannot submit flags in status: {attempt['status']}")
         
         # Check if lab timer expired (all comparisons use naive UTC)
@@ -8609,10 +8609,11 @@ async def student_submit_certification_flag(
         # Calculate percentage score and clamp to max 100 to prevent database overflow
         new_score = min(100.0, (new_points_earned / total_pts) * 100)
         
-        # Prepare update data
+        # Prepare update data (include labTotalPoints to fix attempts where it was reset to 0)
         update_data = {
             'labPointsEarned': new_points_earned,
             'labScore': new_score,
+            'labTotalPoints': total_pts,
             'labCompletedChallenges': json.dumps(solved_challenges)
         }
         
@@ -8621,17 +8622,8 @@ async def student_submit_certification_flag(
         report_unlocked = attempt['reportUnlockedAt'] is not None
         
         if new_score >= unlock_threshold and not report_unlocked:
-            # Unlock report upload
-            report_hours = attempt['reportDurationHours'] or 3
-            global_expires = attempt['globalExpiresAt']
-            if global_expires.tzinfo is not None:
-                global_expires = global_expires.replace(tzinfo=None)
-            
-            report_expiry = now + timedelta(hours=report_hours)
-            report_expires_at = min(report_expiry, global_expires)
-            
+            # Unlock report upload (no timer - report available until global expiry)
             update_data['reportUnlockedAt'] = now
-            update_data['reportExpiresAt'] = report_expires_at
             update_data['status'] = 'REPORT_PENDING'
             report_unlocked = True
         
@@ -8777,7 +8769,7 @@ async def student_get_certification_exam_status(exam_config_id: str, current_use
             'certification_level': attempt['certificationLevel'],
             'global_timer_end': attempt['globalExpiresAt'].isoformat() if attempt['globalExpiresAt'] else None,
             'lab_timer_end': attempt['labExpiresAt'].isoformat() if attempt['labExpiresAt'] else None,
-            'report_timer_end': attempt['reportExpiresAt'].isoformat() if attempt['reportExpiresAt'] else None,
+            'report_timer_end': None,  # Report timer removed
             'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
             'graded_at': attempt['reportGradedAt'].isoformat() if attempt['reportGradedAt'] else None,
             'grader_comments': attempt['reportFeedback'] if attempt['reportFeedback'] else None,
@@ -8821,7 +8813,7 @@ async def student_get_report_status(exam_config_id: str, current_user: dict = De
             'can_upload_report': report_unlocked and attempt['reportUploadedAt'] is None,
             'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
             'report_filename': attempt['reportFileUrl'] if attempt['reportFileUrl'] else None,
-            'report_timer_end': attempt['reportExpiresAt'].isoformat() if attempt['reportExpiresAt'] else None,
+            'report_timer_end': None,  # Report timer removed
             'status': attempt['status']
         }
 
