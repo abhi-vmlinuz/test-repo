@@ -456,7 +456,7 @@ def time_ago(dt: datetime) -> str:
     if not dt:
         return "unknown"
     
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     
@@ -7965,7 +7965,7 @@ def calculate_time_remaining(expires_at: datetime) -> int:
     """Calculate seconds remaining until expiration"""
     if not expires_at:
         return 0
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     diff = (expires_at - now).total_seconds()
@@ -8707,7 +8707,7 @@ async def student_end_certification_lab(attempt_id: str, current_user: dict = De
         if attempt['status'] not in ('LAB_IN_PROGRESS',):
             raise HTTPException(status_code=400, detail=f"Lab cannot be ended in status: {attempt['status']}")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         lab_score = float(attempt['labScore']) if attempt['labScore'] else 0.0
         threshold = float(attempt['labUnlockReportThreshold'] or 80)
 
@@ -8938,11 +8938,11 @@ async def student_upload_certification_report(
             raise HTTPException(status_code=400, detail=f"Cannot upload report in status: {attempt['status']}")
         
         # Check if report deadline expired
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         report_expires = attempt['reportExpiresAt']
         if report_expires:
-            if report_expires.tzinfo is None:
-                report_expires = report_expires.replace(tzinfo=timezone.utc)
+            if report_expires.tzinfo is not None:
+                report_expires = report_expires.replace(tzinfo=None)
             if now >= report_expires:
                 await conn.execute(
                     'UPDATE certification_exam_attempts SET status = $1, "updatedAt" = NOW() WHERE id::text = $2',
@@ -9204,7 +9204,7 @@ async def admin_grade_certification_report(
             else:  # 70-79.99
                 certification_level = 'Associate'
         
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
         
         # Update attempt with grading results
         await conn.execute('''
@@ -10337,7 +10337,7 @@ async def admin_nexus_history(
                     
                     if row['status'] == 'running':
                         # Currently running - calculate from now
-                        now = datetime.now(timezone.utc)
+                        now = datetime.utcnow()
                         duration_mins = int((now - started).total_seconds() / 60)
                     else:
                         # Session ended - use ended_at if available, otherwise use NOW() as fallback
@@ -10348,7 +10348,7 @@ async def admin_nexus_history(
                             duration_mins = int((ended - started).total_seconds() / 60)
                         else:
                             # Fallback: ended_at was not set, calculate from now
-                            now = datetime.now(timezone.utc)
+                            now = datetime.utcnow()
                             duration_mins = int((now - started).total_seconds() / 60)
                 
                 sessions.append({
