@@ -7965,9 +7965,13 @@ def calculate_time_remaining(expires_at: datetime) -> int:
     """Calculate seconds remaining until expiration"""
     if not expires_at:
         return 0
+
     now = datetime.utcnow()
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    # certification_exam_attempts uses TIMESTAMP (naive). Normalize to naive UTC.
+    if expires_at.tzinfo is not None:
+        expires_at = expires_at.replace(tzinfo=None)
+
     diff = (expires_at - now).total_seconds()
     return max(0, int(diff))
 

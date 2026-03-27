@@ -15,6 +15,7 @@ interface CertificationExam {
     lab_score: number | null;
     report_score: number | null;
     final_score: number | null;
+    passed?: boolean | null;
     certification_level: string | null;
     global_timer_end?: string | null;
     lab_timer_end?: string | null;
@@ -37,6 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
     REPORT_UNLOCKED: 'bg-purple-500',
     REPORT_UPLOADED: 'bg-indigo-500',
     GRADING_PENDING: 'bg-orange-500',
+    GRADED: 'bg-teal-600',
     PASSED: 'bg-green-600',
     FAILED: 'bg-red-600'
 };
@@ -65,6 +67,7 @@ const StudentCertificationExams = () => {
                 lab_score: exam.lab_score ?? exam.components?.lab?.score ?? null,
                 report_score: exam.report_score ?? exam.components?.report?.score ?? null,
                 final_score: exam.final_score ?? null,
+                passed: exam.passed ?? null,
                 certification_level: exam.certification_level ?? exam.certificationLevel ?? null,
                 global_timer_end: exam.global_timer_end ?? null,
                 lab_timer_end: exam.lab_timer_end ?? null,
@@ -204,14 +207,14 @@ const StudentCertificationExams = () => {
                                         )}
                                     </div>
                                     
-                                    {exam.status === 'PASSED' && (
+                                    {(exam.status === 'PASSED' || (exam.status === 'GRADED' && exam.passed === true)) && (
                                         <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-lg">
                                             <CheckCircle2 className="w-6 h-6 text-green-600" />
                                             <span className="text-green-800 font-semibold">PASSED</span>
                                         </div>
                                     )}
-                                    
-                                    {exam.status === 'FAILED' && (
+                                     
+                                    {(exam.status === 'FAILED' || (exam.status === 'GRADED' && exam.passed === false)) && (
                                         <div className="flex items-center gap-2 bg-red-50 px-4 py-2 rounded-lg">
                                             <XCircle className="w-6 h-6 text-red-600" />
                                             <span className="text-red-800 font-semibold">FAILED</span>
