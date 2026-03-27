@@ -8173,6 +8173,7 @@ async def student_start_certification_lab(exam_config_id: str, current_user: dic
                     'description': c['description'],
                     'difficulty': difficulty,
                     'points': cert_points,
+                    'total_points': cert_points,
                     'category': c['category'] or 'Uncategorized',
                     'has_docker': c['has_docker'] or bool(c['dockerImage']),
                     'hints': [{'index': i, 'cost': h.get('cost', 10)} for i, h in enumerate(hints)],
@@ -8385,6 +8386,7 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
                     'description': c['description'],
                     'difficulty': difficulty,
                     'points': cert_points,
+                    'total_points': cert_points,
                     'category': c['category'] or 'Uncategorized',
                     'has_docker': c['has_docker'] or bool(c['dockerImage']),
                     'hints': [{'index': i, 'cost': h.get('cost', 10)} for i, h in enumerate(hints)],
@@ -8440,7 +8442,7 @@ async def student_submit_certification_flag(
             raise HTTPException(status_code=400, detail=f"Cannot submit flags in status: {attempt['status']}")
         
         # Check if lab timer expired
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()  # offset-naive to match TIMESTAMP columns
         lab_expires = attempt['labExpiresAt']
         if lab_expires:
             if lab_expires.tzinfo is None:
