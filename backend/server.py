@@ -8533,15 +8533,11 @@ async def student_submit_certification_flag(
             existing_entry.setdefault('tasks_solved', []).append(qi)
             points = task_points
 
-            # Check if ALL tasks AND main flag solved = challenge complete
-            all_tasks_done = set(existing_entry['tasks_solved']) == set(range(len(tasks_raw)))
-            has_main_flag = bool(challenge['flag'])
-            main_flag_solved = existing_entry.get('main_flag_solved', False)
-
-            if all_tasks_done and (not has_main_flag or main_flag_solved):
-                # Challenge fully solved
-                existing_entry['solved_at'] = now.isoformat()
-                points += cert_points  # Award base cert points too
+            # Auto-complete challenge when all tasks done (no separate flag submission needed)
+            all_tasks_done = set(existing_entry["tasks_solved"]) == set(range(len(tasks_raw)))
+            if all_tasks_done:
+                existing_entry["solved_at"] = now.isoformat()
+                points += cert_points  # Award base cert points on completion
         else:
             # Main flag submission
             if existing_entry.get('main_flag_solved'):

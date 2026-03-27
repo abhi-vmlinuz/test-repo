@@ -5,7 +5,7 @@ import { API, toast } from '../../../App';
 import {
     ArrowLeft, Clock, Flag, CheckCircle2, Loader2, AlertCircle,
     Send, Terminal, RefreshCw, Square, Download, FileText,
-    Paperclip, HelpCircle, ChevronRight, Trophy, Lock
+    Paperclip, HelpCircle, ChevronRight, Trophy
 } from 'lucide-react';
 
 const CONDUCTOR_URL = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
@@ -77,10 +77,8 @@ const StudentCertificationLab = () => {
     const [selectedIdx, setSelectedIdx] = useState(0);
     const [timeRemaining, setTimeRemaining] = useState('');
 
-    // Flag/task submission state
-    const [flagInput, setFlagInput] = useState('');
+    // Task submission state
     const [taskInputs, setTaskInputs] = useState<Record<number, string>>({});
-    const [submittingFlag, setSubmittingFlag] = useState(false);
     const [submittingTask, setSubmittingTask] = useState<number | null>(null);
     const [endingLab, setEndingLab] = useState(false);
 
@@ -120,8 +118,7 @@ const StudentCertificationLab = () => {
     useEffect(() => {
         if (!selectedChallenge) return;
         fetchArtifacts(selectedChallenge.challenge_id);
-        // Reset inputs on challenge switch
-        setFlagInput('');
+        // Reset task inputs on challenge switch
         setDockerInstance(null);
         // Check existing docker session
         if (selectedChallenge.has_docker) {
@@ -185,27 +182,6 @@ const StudentCertificationLab = () => {
         }
     };
 
-    const handleSubmitFlag = async () => {
-        if (!flagInput.trim() || !lab || !selectedChallenge) return;
-        setSubmittingFlag(true);
-        try {
-            const res = await axios.post(`${API}/student/certification-exams/attempts/${lab.attempt_id}/submit`, {
-                challenge_id: selectedChallenge.challenge_id,
-                flag: flagInput.trim(),
-            });
-            if (res.data.correct) {
-                toast.success(`Correct! +${res.data.points} pts`);
-                setFlagInput('');
-                await fetchLabDetails();
-            } else {
-                toast.error(res.data.message || 'Incorrect flag');
-            }
-        } catch (err: any) {
-            toast.error(err.response?.data?.detail || 'Failed to submit');
-        } finally {
-            setSubmittingFlag(false);
-        }
-    };
 
     const handleSubmitTask = async (taskIdx: number) => {
         const answer = taskInputs[taskIdx]?.trim();
@@ -635,56 +611,6 @@ const StudentCertificationLab = () => {
                                                 </div>
                                             );
                                         })}
-                                    </div>
-                                    {/* Multi-task integrity notice */}
-                                    {!challenge.is_solved && (
-                                        <div className="px-6 py-3 bg-blue-50 border-t border-blue-100">
-                                            <p className="text-xs text-blue-700">
-                                                <Lock className="w-3 h-3 inline mr-1" />
-                                                All tasks must be completed to mark this challenge as solved.
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Main Flag Submission */}
-                            {!challenge.is_solved && (
-                                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                                    <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-                                        <Flag className="w-4 h-4 text-blue-500" />
-                                        <h3 className="font-bold text-gray-900">Submit Flag</h3>
-                                    </div>
-                                    <div className="p-6">
-                                        {hasTasks && !challenge.tasks_solved.length && (
-                                            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-4">
-                                                <Lock className="w-3.5 h-3.5 inline mr-1.5" />
-                                                Complete the tasks above before submitting the final flag.
-                                            </p>
-                                        )}
-                                        <div className="flex gap-3">
-                                            <input
-                                                type="text"
-                                                value={flagInput}
-                                                onChange={e => !isExpired && setFlagInput(e.target.value)}
-                                                onKeyDown={e => !isExpired && e.key === 'Enter' && handleSubmitFlag()}
-                                                placeholder={isExpired ? 'Lab expired — flag submission closed' : 'CTF{...}'}
-                                                readOnly={isExpired}
-                                                className={`flex-1 px-4 py-3 border rounded-xl text-sm outline-none font-mono ${
-                                                    isExpired ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' :
-                                                    'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white'
-                                                }`}
-                                            />
-                                            {!isExpired && (
-                                                <button
-                                                    onClick={handleSubmitFlag}
-                                                    disabled={submittingFlag || !flagInput.trim()}
-                                                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:bg-gray-300 transition-colors">
-                                                    {submittingFlag ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                                    Submit
-                                                </button>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
                             )}
