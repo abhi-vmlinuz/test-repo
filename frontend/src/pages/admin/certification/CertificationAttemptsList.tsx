@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { API, toast } from '../../../App';
-import { ArrowLeft, Search, Filter, FileText, Loader2, AlertCircle, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Search, Filter, FileText, Loader2, AlertCircle, CheckCircle2, XCircle, Clock, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface Attempt {
@@ -51,6 +51,7 @@ const CertificationAttemptsList = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [resettingId, setResettingId] = useState<number | null>(null);
 
     useEffect(() => {
         fetchAttempts();
@@ -66,10 +67,24 @@ const CertificationAttemptsList = () => {
             setAttempts(attemptsRes.data.attempts);
             setExamTitle(examRes.data.lms_exam_title);
         } catch (error: any) {
-            toast('Failed to load attempts', 'error');
+            toast.error('Failed to load attempts');
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleReset = async (attemptId: number, studentName: string) => {
+        if (!confirm(`Reset lab progress for ${studentName}? They will be able to restart the lab from scratch. MCQ score is preserved.`)) return;
+        setResettingId(attemptId);
+        try {
+            await axios.post(`${API}/admin/certification-exams/attempts/${attemptId}/reset`);
+            toast.success(`Reset successful — ${studentName} can now restart the lab.`);
+            fetchAttempts();
+        } catch (error: any) {
+            toast.error(error.response?.data?.detail || 'Failed to reset attempt');
+        } finally {
+            setResettingId(null);
         }
     };
 
@@ -260,15 +275,30 @@ const CertificationAttemptsList = () => {
                                             <span>Graded: {new Date(attempt.graded_at).toLocaleString()}</span>
                                         )}
                                     </div>
-                                    {(attempt.status === 'REPORT_UPLOADED' || attempt.status === 'GRADING_PENDING') && (
-                                        <button
-                                            onClick={() => navigate(`/admin/certification-exams/grade-report/${attempt.attempt_id}`)}
-                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                        >
-                                            <FileText className="w-4 h-4" />
-                                            Grade Report
-                                        </button>
-                                    )}
+                                    <div className="flex items-center gap-2">
+                                        {!['PASSED', 'FAILED'].includes(attempt.status) && (
+                                            <button
+                                                onClick={() => handleReset(attempt.attempt_id, attempt.student_name)}
+                                                disabled={resettingId === attempt.attempt_id}
+                                                className="flex items-center gap-2 px-4 py-2 border border-amber-300 text-amber-600 rounded-lg hover:bg-amber-50 text-sm font-semibold disabled:opacity-50"
+                                                title="Reset lab progress — student can restart the lab"
+                                            >
+                                                {resettingId === attempt.attempt_id
+                                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                    : <RotateCcw className="w-4 h-4" />}
+                                                Reset Lab
+                                            </button>
+                                        )}
+                                        {(attempt.status === 'REPORT_UPLOADED' || attempt.status === 'GRADING_PENDING') && (
+                                            <button
+                                                onClick={() => navigate(`/admin/certification-exams/grade-report/${attempt.attempt_id}`)}
+                                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-semibold"
+                                            >
+                                                <FileText className="w-4 h-4" />
+                                                Grade Report
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         );

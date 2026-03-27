@@ -8637,6 +8637,115 @@ async def student_submit_certification_flag(
 
 
 # ===========================================
+# STUDENT: END LAB (FINALIZE EARLY)
+# ===========================================
+
+@api_router.post("/student/certification-exams/attempts/{attempt_id}/end-lab")
+async def student_end_certification_lab(attempt_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Finalise the lab component early (before timer expires).
+    Calculates final lab score, updates status to LAB_COMPLETED or
+    REPORT_UNLOCKED if score >= threshold.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec."labUnlockReportThreshold", cec."reportDurationHours"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea.id::text = $1 AND cea."userId"::text = $2
+        ''', attempt_id, str(current_user['id']))
+
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Attempt not found")
+
+        if attempt['status'] not in ('LAB_IN_PROGRESS',):
+            raise HTTPException(status_code=400, detail=f"Lab cannot be ended in status: {attempt['status']}")
+
+        now = datetime.now(timezone.utc)
+        lab_score = float(attempt['labScore']) if attempt['labScore'] else 0.0
+        threshold = float(attempt['labUnlockReportThreshold'] or 80)
+
+        new_status = 'LAB_COMPLETED'
+        update_extra = ''
+        params = [now, attempt_id]
+
+        if lab_score >= threshold and attempt['reportUnlockedAt'] is None:
+            report_hours = attempt['reportDurationHours'] or 3
+            global_expires = attempt['globalExpiresAt']
+            if global_expires.tzinfo is None:
+                global_expires = global_expires.replace(tzinfo=timezone.utc)
+            report_expiry = min(now + timedelta(hours=report_hours), global_expires)
+            new_status = 'REPORT_UNLOCKED'
+            update_extra = f', "reportUnlockedAt" = \'{now.isoformat()}\', "reportExpiresAt" = \'{report_expiry.isoformat()}\''
+
+        await conn.execute(f'''
+            UPDATE certification_exam_attempts
+            SET status = \'{new_status}\', "labCompletedAt" = $1, "updatedAt" = NOW(){update_extra}
+            WHERE id::text = $2
+        ''', *params)
+
+        return {
+            'success': True,
+            'lab_score': round(lab_score, 1),
+            'status': new_status,
+            'report_unlocked': new_status == 'REPORT_UNLOCKED'
+        }
+
+
+# ===========================================
+# ADMIN: RESET STUDENT LAB ATTEMPT
+# ===========================================
+
+@api_router.post("/admin/certification-exams/attempts/{attempt_id}/reset")
+async def admin_reset_certification_attempt(attempt_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Admin only: Reset a student's lab progress so they can restart the lab.
+    Clears all lab fields but keeps MCQ score and attempt record.
+    """
+    if current_user.get('role') not in ('admin', 'superadmin'):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempt = await conn.fetchrow(
+            'SELECT id, status FROM certification_exam_attempts WHERE id::text = $1',
+            attempt_id
+        )
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Attempt not found")
+
+        await conn.execute('''
+            UPDATE certification_exam_attempts SET
+                status = 'MCQ_COMPLETED',
+                "assignedPool" = NULL,
+                "labStartedAt" = NULL,
+                "labExpiresAt" = NULL,
+                "labCompletedAt" = NULL,
+                "labChallengeOrder" = NULL,
+                "labCompletedChallenges" = '[]',
+                "labPointsEarned" = 0,
+                "labTotalPoints" = 0,
+                "labScore" = 0,
+                "reportUnlockedAt" = NULL,
+                "reportExpiresAt" = NULL,
+                "reportUploadedAt" = NULL,
+                "reportFilename" = NULL,
+                "reportPath" = NULL,
+                "reportScore" = NULL,
+                "finalScore" = NULL,
+                "certificationLevel" = NULL,
+                "gradedAt" = NULL,
+                "graderComments" = NULL,
+                "gradedBy" = NULL,
+                "updatedAt" = NOW()
+            WHERE id::text = $1
+        ''', attempt_id)
+
+        return {'success': True, 'message': 'Attempt reset to post-MCQ state. Student can now restart the lab.'}
+
+
+# ===========================================
 # STUDENT: CERTIFICATION REPORT UPLOAD
 # ===========================================
 

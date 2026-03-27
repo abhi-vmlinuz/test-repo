@@ -210,12 +210,15 @@ const CertificationExamsList = () => {
                         <Eye className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
                       </button>
                       <button
-                        onClick={() => navigate(`/admin/certification-exams/${exam.id}/edit`)}
-                        className="p-2 rounded hover:bg-gray-700 transition-colors"
-                        title="Edit"
-                        disabled={exam.attempt_count > 0}
+                        onClick={() => exam.attempt_count === 0 && navigate(`/admin/certification-exams/${exam.id}/edit`)}
+                        className={`p-2 rounded transition-colors ${
+                          exam.attempt_count > 0
+                            ? 'opacity-40 cursor-not-allowed'
+                            : 'hover:bg-gray-700'
+                        }`}
+                        title={exam.attempt_count > 0 ? 'Cannot edit: exam has active attempts. Reset all attempts first.' : 'Edit exam'}
                       >
-                        <Edit2 className={`w-4 h-4 ${exam.attempt_count > 0 ? 'opacity-30' : ''}`} style={{ color: 'var(--text-primary)' }} />
+                        <Edit2 className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
                       </button>
                       <button
                         onClick={() => handleTogglePublish(exam.id, exam.is_published)}
@@ -229,10 +232,13 @@ const CertificationExamsList = () => {
                         )}
                       </button>
                       <button
-                        onClick={() => handleDelete(exam.id, exam.name)}
-                        className="p-2 rounded hover:bg-red-500/20 transition-colors"
-                        title="Delete"
-                        disabled={exam.attempt_count > 0}
+                        onClick={() => exam.attempt_count === 0 && handleDelete(exam.id, exam.name)}
+                        className={`p-2 rounded transition-colors ${
+                          exam.attempt_count > 0
+                            ? 'opacity-40 cursor-not-allowed'
+                            : 'hover:bg-red-500/20'
+                        }`}
+                        title={exam.attempt_count > 0 ? 'Cannot delete: exam has attempts' : 'Delete exam'}
                       >
                         <Trash2 className={`w-4 h-4 ${exam.attempt_count > 0 ? 'opacity-30' : 'text-red-400'}`} />
                       </button>

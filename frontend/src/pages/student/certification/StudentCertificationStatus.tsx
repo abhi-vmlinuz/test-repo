@@ -309,8 +309,8 @@ const StudentCertificationStatus = () => {
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
-                {status.status === 'LAB_IN_PROGRESS' && (
+            <div className="flex gap-3 flex-wrap">
+                {status.status === 'LAB_IN_PROGRESS' && !labTimer.label.includes('Expired') && (
                     <button
                         onClick={() => navigate(`/student/certification-exams/${examId}/lab`)}
                         className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
@@ -319,14 +319,25 @@ const StudentCertificationStatus = () => {
                         Continue Lab
                     </button>
                 )}
-                
-                {(status.status === 'REPORT_UNLOCKED' || status.status === 'REPORT_UPLOADED') && (
+
+                {status.status === 'LAB_IN_PROGRESS' && labTimer.label.includes('Expired') && (
+                    <button
+                        onClick={() => navigate(`/student/certification-exams/${examId}/lab`)}
+                        className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold"
+                    >
+                        <Flag className="w-5 h-5" />
+                        View Lab Results
+                    </button>
+                )}
+
+                {(status.status === 'REPORT_UNLOCKED' || status.status === 'REPORT_UPLOADED' ||
+                  (status.status === 'LAB_COMPLETED' && (status.lab_score ?? 0) >= 80)) && (
                     <button
                         onClick={() => navigate(`/student/certification-exams/${examId}/report`)}
                         className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
                     >
                         <FileText className="w-5 h-5" />
-                        View Report Status
+                        {status.status === 'REPORT_UPLOADED' ? 'View Report Status' : 'Upload Report'}
                     </button>
                 )}
             </div>

@@ -82,6 +82,7 @@ const StudentCertificationLab = () => {
     const [taskInputs, setTaskInputs] = useState<Record<number, string>>({});
     const [submittingFlag, setSubmittingFlag] = useState(false);
     const [submittingTask, setSubmittingTask] = useState<number | null>(null);
+    const [endingLab, setEndingLab] = useState(false);
 
     // Docker state
     const [dockerInstance, setDockerInstance] = useState<any>(null);
@@ -278,6 +279,21 @@ const StudentCertificationLab = () => {
         }
     };
 
+    const handleEndLab = async () => {
+        if (!lab || endingLab) return;
+        if (!confirm('End lab early? Your current score will be finalised.')) return;
+        setEndingLab(true);
+        try {
+            const res = await axios.post(`${API}/student/certification-exams/attempts/${lab.attempt_id}/end-lab`);
+            toast.success(`Lab ended. Final score: ${res.data.lab_score}%`);
+            navigate(`/student/certification-exams/${examId}/status`);
+        } catch (err: any) {
+            toast.error(err.response?.data?.detail || 'Failed to end lab');
+        } finally {
+            setEndingLab(false);
+        }
+    };
+
     // ─── Loading ────────────────────────────────────────────────────────────
     if (loading) {
         return (
@@ -351,6 +367,13 @@ const StudentCertificationLab = () => {
                     <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-1">
                         <span className="text-blue-700 font-bold text-xs">LAB SCORE: {lab.lab_score}%</span>
                     </div>
+                    {!isExpired && (
+                        <button onClick={handleEndLab} disabled={endingLab}
+                            className="flex items-center gap-2 px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50">
+                            {endingLab ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Square className="w-3.5 h-3.5" />}
+                            End Lab
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -577,23 +600,29 @@ const StudentCertificationLab = () => {
                                                             <p className="text-xs text-gray-400 mt-0.5 font-mono">{task.points} pts</p>
                                                         </div>
                                                     </div>
-                                                    {!solved && !isExpired && (
+                                                    {!solved && (
                                                         <div className="flex gap-2 pl-11">
                                                             <input
                                                                 type="text"
                                                                 value={taskInputs[ti] || ''}
-                                                                onChange={e => setTaskInputs(prev => ({ ...prev, [ti]: e.target.value }))}
-                                                                onKeyDown={e => e.key === 'Enter' && handleSubmitTask(ti)}
-                                                                placeholder="Enter answer..."
-                                                                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50 focus:bg-white"
+                                                                onChange={e => !isExpired && setTaskInputs(prev => ({ ...prev, [ti]: e.target.value }))}
+                                                                onKeyDown={e => !isExpired && e.key === 'Enter' && handleSubmitTask(ti)}
+                                                                placeholder={isExpired ? 'Lab expired' : 'Enter answer...'}
+                                                                readOnly={isExpired}
+                                                                className={`flex-1 px-4 py-2 border rounded-xl text-sm outline-none ${
+                                                                    isExpired ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' :
+                                                                    'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white'
+                                                                }`}
                                                             />
-                                                            <button
-                                                                onClick={() => handleSubmitTask(ti)}
-                                                                disabled={submittingTask === ti || !taskInputs[ti]?.trim()}
-                                                                className="flex items-center gap-2 px-5 py-2 bg-gray-900 hover:bg-black text-white rounded-xl text-sm font-semibold disabled:bg-gray-300 transition-colors">
-                                                                {submittingTask === ti ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                                                Submit
-                                                            </button>
+                                                            {!isExpired && (
+                                                                <button
+                                                                    onClick={() => handleSubmitTask(ti)}
+                                                                    disabled={submittingTask === ti || !taskInputs[ti]?.trim()}
+                                                                    className="flex items-center gap-2 px-5 py-2 bg-gray-900 hover:bg-black text-white rounded-xl text-sm font-semibold disabled:bg-gray-300 transition-colors">
+                                                                    {submittingTask === ti ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                                                    Submit
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     )}
                                                     {solved && (
@@ -620,7 +649,7 @@ const StudentCertificationLab = () => {
                             )}
 
                             {/* Main Flag Submission */}
-                            {!challenge.is_solved && !isExpired && (
+                            {!challenge.is_solved && (
                                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                                     <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
                                         <Flag className="w-4 h-4 text-blue-500" />
@@ -637,18 +666,24 @@ const StudentCertificationLab = () => {
                                             <input
                                                 type="text"
                                                 value={flagInput}
-                                                onChange={e => setFlagInput(e.target.value)}
-                                                onKeyDown={e => e.key === 'Enter' && handleSubmitFlag()}
-                                                placeholder="CTF{...}"
-                                                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50 focus:bg-white font-mono"
+                                                onChange={e => !isExpired && setFlagInput(e.target.value)}
+                                                onKeyDown={e => !isExpired && e.key === 'Enter' && handleSubmitFlag()}
+                                                placeholder={isExpired ? 'Lab expired — flag submission closed' : 'CTF{...}'}
+                                                readOnly={isExpired}
+                                                className={`flex-1 px-4 py-3 border rounded-xl text-sm outline-none font-mono ${
+                                                    isExpired ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' :
+                                                    'border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white'
+                                                }`}
                                             />
-                                            <button
-                                                onClick={handleSubmitFlag}
-                                                disabled={submittingFlag || !flagInput.trim()}
-                                                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:bg-gray-300 transition-colors">
-                                                {submittingFlag ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                                Submit
-                                            </button>
+                                            {!isExpired && (
+                                                <button
+                                                    onClick={handleSubmitFlag}
+                                                    disabled={submittingFlag || !flagInput.trim()}
+                                                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:bg-gray-300 transition-colors">
+                                                    {submittingFlag ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                                    Submit
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
