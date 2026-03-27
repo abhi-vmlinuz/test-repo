@@ -3485,7 +3485,7 @@ async def admin_list_certification_exams(admin: dict = Depends(require_admin)):
         configs = await conn.fetch('''
             SELECT cec.*, fe.title as lms_exam_title, u.name as created_by_name,
                    (SELECT COUNT(*) FROM certification_exam_attempts cea WHERE cea."examConfigId" = cec.id) as attempt_count,
-                   (SELECT COUNT(*) FROM certification_exam_attempts cea WHERE cea."examConfigId" = cec.id AND cea.status NOT IN ('MCQ_COMPLETED', 'PENDING', 'MCQ_PENDING')) as active_attempt_count
+                   (SELECT COUNT(*) FROM certification_exam_attempts cea WHERE cea."examConfigId" = cec.id AND cea.status NOT IN ('MCQ_COMPLETED')) as active_attempt_count
             FROM certification_exam_configs cec
             LEFT JOIN final_exams fe ON cec."lmsFinalExamId" = fe.id
             LEFT JOIN users u ON cec."createdById" = u.id
@@ -3504,6 +3504,7 @@ async def admin_list_certification_exams(admin: dict = Depends(require_admin)):
             'report_duration_hours': c['reportDurationHours'],
             'is_published': c['isPublished'],
             'attempt_count': c['attempt_count'],
+            'active_attempt_count': c['active_attempt_count'],
             'created_by': c['created_by_name'],
             'created_at': c['createdAt'].isoformat() if c['createdAt'] else None,
             'updated_at': c['updatedAt'].isoformat() if c['updatedAt'] else None
@@ -3633,7 +3634,7 @@ async def admin_update_certification_exam(config_id: str, data: CertificationExa
         active_count = await conn.fetchval(
             '''SELECT COUNT(*) FROM certification_exam_attempts
                WHERE "examConfigId"::text = $1
-               AND status NOT IN ('MCQ_COMPLETED', 'PENDING', 'MCQ_PENDING')''',
+               AND status NOT IN ('MCQ_COMPLETED')''',
             config_id
         )
         if active_count > 0:

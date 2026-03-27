@@ -18,6 +18,7 @@ interface CertificationExam {
   report_duration_hours: number;
   is_published: boolean;
   attempt_count: number;
+  active_attempt_count?: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -210,13 +211,13 @@ const CertificationExamsList = () => {
                         <Eye className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
                       </button>
                       <button
-                        onClick={() => exam.attempt_count === 0 && navigate(`/admin/certification-exams/${exam.id}/edit`)}
+                        onClick={() => (exam.active_attempt_count ?? exam.attempt_count) === 0 && navigate(`/admin/certification-exams/${exam.id}/edit`)}
                         className={`p-2 rounded transition-colors ${
-                          exam.attempt_count > 0
+                          (exam.active_attempt_count ?? exam.attempt_count) > 0
                             ? 'opacity-40 cursor-not-allowed'
                             : 'hover:bg-gray-700'
                         }`}
-                        title={exam.attempt_count > 0 ? 'Cannot edit: exam has active attempts. Reset all attempts first.' : 'Edit exam'}
+                        title={(exam.active_attempt_count ?? exam.attempt_count) > 0 ? 'Cannot edit: some attempts are in progress/finalised. Reset all lab progress first.' : 'Edit exam'}
                       >
                         <Edit2 className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
                       </button>
