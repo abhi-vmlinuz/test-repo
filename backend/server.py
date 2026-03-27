@@ -8338,7 +8338,8 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
     async with pool.acquire() as conn:
         # Get the attempt
         attempt = await conn.fetchrow('''
-            SELECT cea.*, cec."poolAChallengeIds", cec."poolBChallengeIds", cec."poolCChallengeIds"
+            SELECT cea.*, cec."poolAChallengeIds", cec."poolBChallengeIds", cec."poolCChallengeIds",
+                   cec."labUnlockReportThreshold"
             FROM certification_exam_attempts cea
             JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
             WHERE cea.id = $1 AND cea."userId" = $2
@@ -8359,11 +8360,11 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
         else:
             challenge_ids = attempt['poolCChallengeIds']
         
-        # Get solved challenge IDs
+        # Get solved challenge IDs (only those with solved_at timestamp)
         solved_challenges = attempt['labCompletedChallenges'] or []
         if isinstance(solved_challenges, str):
             solved_challenges = json.loads(solved_challenges)
-        solved_ids = {c['challenge_id'] for c in solved_challenges}
+        solved_ids = {c['challenge_id'] for c in solved_challenges if c.get('solved_at')}
         
         # Fetch challenge details
         challenges = await conn.fetch('''
@@ -8408,14 +8409,19 @@ async def student_get_certification_challenges(attempt_id: str, current_user: di
         lab_remaining = calculate_time_remaining(attempt['labExpiresAt'])
         report_remaining = calculate_time_remaining(attempt['reportExpiresAt']) if attempt['reportExpiresAt'] else None
         
+        # Report is unlocked only if score meets threshold (prevent stale unlocks)
+        current_lab_score = float(attempt['labScore']) if attempt['labScore'] else 0
+        unlock_threshold = float(attempt['labUnlockReportThreshold'] or 80)
+        report_unlocked = attempt['reportUnlockedAt'] is not None and current_lab_score >= unlock_threshold
+        
         return {
             'attempt_id': str(attempt['id']),
             'status': attempt['status'],
             'challenges': ordered_challenges,
             'lab_points_earned': attempt['labPointsEarned'],
             'lab_total_points': attempt['labTotalPoints'],
-            'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
-            'report_unlocked': attempt['reportUnlockedAt'] is not None,
+            'lab_score': current_lab_score,
+            'report_unlocked': report_unlocked,
             'time_remaining': {
                 'lab': lab_remaining,
                 'report': report_remaining
@@ -8560,11 +8566,12 @@ async def student_submit_certification_flag(
             existing_entry.setdefault('tasks_solved', []).append(qi)
             points = task_points
 
-            # Auto-complete challenge when all tasks done (no separate flag submission needed)
+            # Challenge is only complete when BOTH main flag AND all tasks are solved
             all_tasks_done = set(existing_entry["tasks_solved"]) == set(range(len(tasks_raw)))
-            if all_tasks_done:
+            main_flag_done = existing_entry.get('main_flag_solved', False)
+            if all_tasks_done and main_flag_done:
                 existing_entry["solved_at"] = now.isoformat()
-                points += cert_points  # Award base cert points on completion
+                # Don't award cert_points here - already awarded when main flag was submitted
         else:
             # Main flag submission
             if existing_entry.get('main_flag_solved'):
@@ -8579,11 +8586,12 @@ async def student_submit_certification_flag(
             existing_entry['main_flag_solved'] = True
             points = cert_points
 
-            # If no tasks, challenge is complete
+            # Challenge is complete only when main flag AND all tasks are solved
             if len(tasks_raw) == 0:
+                # No tasks required - challenge is complete
                 existing_entry['solved_at'] = now.isoformat()
             else:
-                # Still needs tasks
+                # Has tasks - check if all tasks are already solved
                 all_tasks_done = set(existing_entry.get('tasks_solved', [])) == set(range(len(tasks_raw)))
                 if all_tasks_done:
                     existing_entry['solved_at'] = now.isoformat()
@@ -8654,6 +8662,9 @@ async def student_submit_certification_flag(
         query = f'UPDATE certification_exam_attempts SET {", ".join(set_clauses)} WHERE id::text = ${param_idx}'
         await conn.execute(query, *params)
         
+        # Report is truly unlocked only if score meets threshold (prevent stale unlocks from previous bugs)
+        report_actually_unlocked = report_unlocked and new_score >= unlock_threshold
+        
         return {
             'correct': True,
             'message': 'Flag correct!',
@@ -8663,7 +8674,7 @@ async def student_submit_certification_flag(
             'lab_score': round(new_score, 2),
             'challenges_solved': len(solved_challenges),
             'challenges_total': 7,
-            'report_unlocked': report_unlocked,
+            'report_unlocked': report_actually_unlocked,
             'all_solved': all_solved
         }
 
@@ -8797,13 +8808,16 @@ async def student_get_report_status(exam_config_id: str, current_user: dict = De
         if not attempt:
             raise HTTPException(status_code=404, detail="Exam attempt not found")
 
-        report_unlocked = attempt['reportUnlockedAt'] is not None
+        # Report is unlocked only if score meets threshold (prevent stale unlocks)
+        current_lab_score = float(attempt['labScore']) if attempt['labScore'] else 0
+        unlock_threshold = float(attempt['labUnlockReportThreshold'] or 80)
+        report_unlocked = attempt['reportUnlockedAt'] is not None and current_lab_score >= unlock_threshold
 
         return {
             'exam_id': str(attempt['examConfigId']),
             'exam_title': attempt['exam_name'],
             'attempt_id': str(attempt['id']),
-            'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+            'lab_score': current_lab_score,
             'can_upload_report': report_unlocked and attempt['reportUploadedAt'] is None,
             'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
             'report_filename': attempt['reportFileUrl'] if attempt['reportFileUrl'] else None,
