@@ -8257,9 +8257,20 @@ async def student_get_lab_by_config(exam_config_id: str, current_user: dict = De
             cert_points = CERTIFICATION_DIFFICULTY_POINTS.get(difficulty, 20)
 
             # Parse tasks (questions) — strip flags from response
+            # Cert scoring: purely difficulty-based (EASY=10, MEDIUM=20, HARD=30)
+            # Tasks split the cert_points evenly; no raw CTF task points used
             tasks_raw = json.loads(c['questions']) if isinstance(c['questions'], str) else (c['questions'] or [])
-            tasks = [{'question': t.get('question', ''), 'points': t.get('points', 0)} for t in tasks_raw]
-            total_task_points = sum(t['points'] for t in tasks)
+            num_tasks = len(tasks_raw)
+            if num_tasks > 0:
+                # Distribute cert_points evenly across tasks (integer split)
+                pts_per_task = cert_points // num_tasks
+                remainder = cert_points % num_tasks
+                tasks = [
+                    {'question': t.get('question', ''), 'points': pts_per_task + (1 if i < remainder else 0)}
+                    for i, t in enumerate(tasks_raw)
+                ]
+            else:
+                tasks = []
 
             # Challenge progress from solved_map
             solved_entry = solved_map.get(cid)
@@ -8267,13 +8278,13 @@ async def student_get_lab_by_config(exam_config_id: str, current_user: dict = De
             solved_at = solved_entry.get('solved_at') if is_solved else None
             tasks_solved = solved_entry.get('tasks_solved', []) if solved_entry else []
 
-            # Points: cert_points for main flag, task points per task
-            challenge_total_pts = cert_points + total_task_points
+            # Total challenge points = cert_points (difficulty only)
+            challenge_total_pts = cert_points
             total_points += challenge_total_pts
             if is_solved:
                 earned_points += challenge_total_pts
             else:
-                # Partial credit for solved tasks
+                # Partial credit for solved tasks (using cert-based task points)
                 for ti in tasks_solved:
                     if ti < len(tasks):
                         earned_points += tasks[ti]['points']
@@ -8284,7 +8295,7 @@ async def student_get_lab_by_config(exam_config_id: str, current_user: dict = De
                 'description': c['description'],
                 'difficulty': difficulty,
                 'points': cert_points,
-                'task_points': total_task_points,
+                'task_points': cert_points if num_tasks > 0 else 0,
                 'total_points': challenge_total_pts,
                 'category': c['category'] or 'Uncategorized',
                 'has_docker': bool(c['hasDocker'] or c['dockerImage'] or c['isMultiContainer']),
