@@ -8702,7 +8702,7 @@ async def student_get_certification_exam_status(exam_config_id: str, current_use
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         attempt = await conn.fetchrow('''
-            SELECT cea.*, cec.name as exam_name, cec.description as exam_description,
+            SELECT cea.*, cec.name as exam_name,
                    cec."labUnlockReportThreshold", cec."reportDurationHours"
             FROM certification_exam_attempts cea
             JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
@@ -8717,7 +8717,7 @@ async def student_get_certification_exam_status(exam_config_id: str, current_use
         return {
             'exam_id': str(attempt['examConfigId']),
             'exam_title': attempt['exam_name'],
-            'exam_description': attempt['exam_description'] or '',
+            'exam_description': '',
             'status': attempt['status'],
             'mcq_score': float(attempt['mcqScore']) if attempt['mcqScore'] else None,
             'mcq_correct': attempt['mcqCorrect'],
@@ -8732,8 +8732,8 @@ async def student_get_certification_exam_status(exam_config_id: str, current_use
             'lab_timer_end': attempt['labExpiresAt'].isoformat() if attempt['labExpiresAt'] else None,
             'report_timer_end': attempt['reportExpiresAt'].isoformat() if attempt['reportExpiresAt'] else None,
             'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
-            'graded_at': attempt['gradedAt'].isoformat() if attempt['gradedAt'] else None,
-            'grader_comments': attempt['graderComments'] if attempt['graderComments'] else None,
+            'graded_at': attempt['reportGradedAt'].isoformat() if attempt['reportGradedAt'] else None,
+            'grader_comments': attempt['reportFeedback'] if attempt['reportFeedback'] else None,
             'created_at': attempt['redeemedAt'].isoformat() if attempt['redeemedAt'] else None
         }
 
@@ -8770,7 +8770,7 @@ async def student_get_report_status(exam_config_id: str, current_user: dict = De
             'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
             'can_upload_report': report_unlocked and attempt['reportUploadedAt'] is None,
             'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
-            'report_filename': attempt['reportFilename'] if attempt.get('reportFilename') else None,
+            'report_filename': attempt['reportFileUrl'] if attempt['reportFileUrl'] else None,
             'report_timer_end': attempt['reportExpiresAt'].isoformat() if attempt['reportExpiresAt'] else None,
             'status': attempt['status']
         }
