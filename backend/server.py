@@ -8690,6 +8690,93 @@ async def student_end_certification_lab(attempt_id: str, current_user: dict = De
 
 
 # ===========================================
+# STUDENT: EXAM STATUS DETAILS
+# ===========================================
+
+@api_router.get("/student/certification-exams/{exam_config_id}/status")
+async def student_get_certification_exam_status(exam_config_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get detailed status for a specific certification exam attempt.
+    Used by the StudentCertificationStatus page.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec.name as exam_name, cec.description as exam_description,
+                   cec."labUnlockReportThreshold", cec."reportDurationHours"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
+            ORDER BY cea."redeemedAt" DESC
+            LIMIT 1
+        ''', exam_config_id, str(current_user['id']))
+
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Exam attempt not found")
+
+        return {
+            'exam_id': str(attempt['examConfigId']),
+            'exam_title': attempt['exam_name'],
+            'exam_description': attempt['exam_description'] or '',
+            'status': attempt['status'],
+            'mcq_score': float(attempt['mcqScore']) if attempt['mcqScore'] else None,
+            'mcq_correct': attempt['mcqCorrect'],
+            'mcq_wrong': (attempt['mcqTotal'] or 0) - (attempt['mcqCorrect'] or 0) if attempt['mcqTotal'] else None,
+            'lab_score': float(attempt['labScore']) if attempt['labScore'] else None,
+            'earned_points': attempt['labPointsEarned'],
+            'total_points': attempt['labTotalPoints'],
+            'report_score': float(attempt['reportTotalScore']) if attempt['reportTotalScore'] else None,
+            'final_score': float(attempt['finalScore']) if attempt['finalScore'] else None,
+            'certification_level': attempt['certificationLevel'],
+            'global_timer_end': attempt['globalExpiresAt'].isoformat() if attempt['globalExpiresAt'] else None,
+            'lab_timer_end': attempt['labExpiresAt'].isoformat() if attempt['labExpiresAt'] else None,
+            'report_timer_end': attempt['reportExpiresAt'].isoformat() if attempt['reportExpiresAt'] else None,
+            'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
+            'graded_at': attempt['gradedAt'].isoformat() if attempt['gradedAt'] else None,
+            'grader_comments': attempt['graderComments'] if attempt['graderComments'] else None,
+            'created_at': attempt['redeemedAt'].isoformat() if attempt['redeemedAt'] else None
+        }
+
+
+# ===========================================
+# STUDENT: REPORT STATUS
+# ===========================================
+
+@api_router.get("/student/certification-exams/{exam_config_id}/report-status")
+async def student_get_report_status(exam_config_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Get report upload status for this exam.
+    """
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        attempt = await conn.fetchrow('''
+            SELECT cea.*, cec.name as exam_name, cec."labUnlockReportThreshold"
+            FROM certification_exam_attempts cea
+            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+            WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
+            ORDER BY cea."redeemedAt" DESC
+            LIMIT 1
+        ''', exam_config_id, str(current_user['id']))
+
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Exam attempt not found")
+
+        report_unlocked = attempt['reportUnlockedAt'] is not None
+
+        return {
+            'exam_id': str(attempt['examConfigId']),
+            'exam_title': attempt['exam_name'],
+            'attempt_id': str(attempt['id']),
+            'lab_score': float(attempt['labScore']) if attempt['labScore'] else 0,
+            'can_upload_report': report_unlocked and attempt['reportUploadedAt'] is None,
+            'report_uploaded_at': attempt['reportUploadedAt'].isoformat() if attempt['reportUploadedAt'] else None,
+            'report_filename': attempt['reportFilename'] if attempt.get('reportFilename') else None,
+            'report_timer_end': attempt['reportExpiresAt'].isoformat() if attempt['reportExpiresAt'] else None,
+            'status': attempt['status']
+        }
+
+
+# ===========================================
 # ADMIN: RESET STUDENT LAB ATTEMPT
 # ===========================================
 
