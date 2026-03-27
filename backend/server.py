@@ -3630,15 +3630,7 @@ async def admin_update_certification_exam(config_id: str, data: CertificationExa
         if not config:
             raise HTTPException(status_code=404, detail="Certification exam not found")
         
-        # Block edit only when there are active/finalised attempts (not just reset ones)
-        active_count = await conn.fetchval(
-            '''SELECT COUNT(*) FROM certification_exam_attempts
-               WHERE "examConfigId"::text = $1
-               AND status NOT IN ('MCQ_COMPLETED')''',
-            config_id
-        )
-        if active_count > 0:
-            raise HTTPException(status_code=400, detail=f"Cannot modify exam: {active_count} attempt(s) are in progress or finalised. Reset all lab progress first.")
+        # Admins can always edit exam configs
         
         # Build update query dynamically
         updates = []

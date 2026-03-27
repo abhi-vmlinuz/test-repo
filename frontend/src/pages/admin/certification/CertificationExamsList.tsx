@@ -211,13 +211,9 @@ const CertificationExamsList = () => {
                         <Eye className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
                       </button>
                       <button
-                        onClick={() => (exam.active_attempt_count ?? exam.attempt_count) === 0 && navigate(`/admin/certification-exams/${exam.id}/edit`)}
-                        className={`p-2 rounded transition-colors ${
-                          (exam.active_attempt_count ?? exam.attempt_count) > 0
-                            ? 'opacity-40 cursor-not-allowed'
-                            : 'hover:bg-gray-700'
-                        }`}
-                        title={(exam.active_attempt_count ?? exam.attempt_count) > 0 ? 'Cannot edit: some attempts are in progress/finalised. Reset all lab progress first.' : 'Edit exam'}
+                        onClick={() => navigate(`/admin/certification-exams/edit/${exam.id}`)}
+                        className="p-2 rounded hover:bg-gray-700 transition-colors"
+                        title="Edit exam"
                       >
                         <Edit2 className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
                       </button>
@@ -233,15 +229,11 @@ const CertificationExamsList = () => {
                         )}
                       </button>
                       <button
-                        onClick={() => exam.attempt_count === 0 && handleDelete(exam.id, exam.name)}
-                        className={`p-2 rounded transition-colors ${
-                          exam.attempt_count > 0
-                            ? 'opacity-40 cursor-not-allowed'
-                            : 'hover:bg-red-500/20'
-                        }`}
-                        title={exam.attempt_count > 0 ? 'Cannot delete: exam has attempts' : 'Delete exam'}
+                        onClick={() => handleDelete(exam.id, exam.name)}
+                        className="p-2 rounded hover:bg-red-500/20 transition-colors"
+                        title="Delete exam"
                       >
-                        <Trash2 className={`w-4 h-4 ${exam.attempt_count > 0 ? 'opacity-30' : 'text-red-400'}`} />
+                        <Trash2 className="w-4 h-4 text-red-400" />
                       </button>
                     </div>
                   </td>
