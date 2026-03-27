@@ -97,12 +97,12 @@ const ReportGradingPage = () => {
         const finalScore = calculateFinalScore();
         const reportScore = calculateReportScore();
         
-        const passed = finalScore >= 70 && attempt.lab_score >= 60 && reportScore >= 60;
+        const passed = finalScore >= 75;
         
         let certLevel = null;
         if (passed) {
-            if (finalScore >= 90) certLevel = 'ELITE';
-            else if (finalScore >= 80) certLevel = 'PROFESSIONAL';
+            if (finalScore >= 95) certLevel = 'ELITE';
+            else if (finalScore >= 85) certLevel = 'PROFESSIONAL';
             else certLevel = 'ASSOCIATE';
         }
         
@@ -452,9 +452,7 @@ const ReportGradingPage = () => {
                             <div className="bg-red-50 rounded p-4">
                                 <p className="text-sm text-red-600 mb-2">Failure Reasons:</p>
                                 <ul className="text-sm text-red-700 list-disc list-inside space-y-1">
-                                    {finalScore < 70 && <li>Final score below 70%</li>}
-                                    {attempt.lab_score < 60 && <li>Lab score below 60%</li>}
-                                    {reportScore < 60 && <li>Report score below 60%</li>}
+                                    {finalScore < 75 && <li>Final score below 75%</li>}
                                 </ul>
                             </div>
                         )}

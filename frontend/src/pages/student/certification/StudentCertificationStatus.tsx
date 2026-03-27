@@ -223,28 +223,20 @@ const StudentCertificationStatus = () => {
                         <h3 className="text-sm font-semibold text-gray-700 mb-3">Passing Criteria:</h3>
                         <div className="grid grid-cols-3 gap-4 text-sm">
                             <div className="flex items-center gap-2">
-                                {(status.final_score ?? 0) >= 70 ? (
+                                {(status.final_score ?? 0) >= 75 ? (
                                     <CheckCircle2 className="w-4 h-4 text-green-600" />
                                 ) : (
                                     <XCircle className="w-4 h-4 text-red-600" />
                                 )}
-                                <span>Final Score ≥ 70%</span>
+                                <span>Final Score ≥ 75%</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                {(status.lab_score ?? 0) >= 60 ? (
-                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                                ) : (
-                                    <XCircle className="w-4 h-4 text-red-600" />
-                                )}
-                                <span>Lab Score ≥ 60%</span>
+                                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                <span>Lab Score: Informational</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                {(status.report_score ?? 0) >= 60 ? (
-                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                                ) : (
-                                    <XCircle className="w-4 h-4 text-red-600" />
-                                )}
-                                <span>Report Score ≥ 60%</span>
+                                <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                <span>Report Score: Informational</span>
                             </div>
                         </div>
                     </div>

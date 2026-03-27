@@ -3457,8 +3457,8 @@ async def admin_create_certification_exam(data: CertificationExamConfigCreate, a
                 $4, $5, $6,
                 120, $7, $8, $9,
                 0.30, 0.50, 0.20,
-                70.00, 60.00, 60.00, 80.00,
-                70.00, 80.00, 90.00,
+                75.00, 0.00, 0.00, 80.00,
+                75.00, 85.00, 95.00,
                 false, $10, NOW(), NOW()
             )
         ''', config_id, data.name, data.lms_final_exam_id,
@@ -9210,11 +9210,10 @@ async def admin_grade_certification_report(
         elite_min = float(attempt['eliteMin'])
         
         # Determine pass/fail
-        passed = (
-            final_score >= pass_threshold and
-            lab_score >= lab_min and
-            report_total >= report_min
-        )
+        # Policy: certification pass depends on final weighted score only.
+        # Enforce a global minimum pass limit of 75.
+        effective_pass_threshold = max(pass_threshold, 75.0)
+        passed = final_score >= effective_pass_threshold
         
         # Determine certification level
         certification_level = None
@@ -9262,9 +9261,9 @@ async def admin_grade_certification_report(
                 'report': f"{report_total}% × {report_weight:.2f} = {report_contribution:.1f}%"
             },
             'thresholds': {
-                'overall': f"≥{pass_threshold}% (got {round(final_score, 2)}%)",
-                'lab': f"≥{lab_min}% (got {lab_score:.1f}%)",
-                'report': f"≥{report_min}% (got {report_total}%)"
+                'overall': f"≥{effective_pass_threshold}% (got {round(final_score, 2)}%)",
+                'lab': f"informational: {lab_score:.1f}%",
+                'report': f"informational: {report_total}%"
             }
         }
 

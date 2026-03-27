@@ -163,11 +163,11 @@ const StudentCertificationExams = () => {
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="font-bold">4.</span>
-                        <span>Passing: ≥70% total AND ≥60% lab AND ≥60% report</span>
+                        <span>Passing: ≥75% final weighted score</span>
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="font-bold">5.</span>
-                        <span>Certification levels: Associate (70-80%), Professional (80-90%), Elite (90%+)</span>
+                        <span>Certification levels: Associate (75-84.99%), Professional (85-94.99%), Elite (95%+)</span>
                     </li>
                 </ul>
             </div>
