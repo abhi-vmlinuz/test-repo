@@ -8508,7 +8508,7 @@ async def student_submit_certification_flag(
         if not challenge:
             raise HTTPException(status_code=404, detail="Challenge not found")
 
-# Parse questions array and main flag
+        # Parse questions array and main flag
         questions = json.loads(challenge['questions']) if isinstance(challenge['questions'], str) else (challenge['questions'] or [])
         main_flag = challenge['flag'] or ''
         
