@@ -8302,6 +8302,7 @@ async def student_get_lab_by_config(exam_config_id: str, current_user: dict = De
                 'is_multi_container': bool(c['isMultiContainer']),
                 'tasks': tasks,
                 'questions_solved': questions_solved,
+                'tasks_solved': questions_solved,  # Backwards compat for frontend
                 'is_solved': is_solved,
                 'solved_at': solved_at,
             })
