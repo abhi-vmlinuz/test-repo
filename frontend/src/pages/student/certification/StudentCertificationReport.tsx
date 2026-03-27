@@ -97,7 +97,7 @@ const StudentCertificationReport = () => {
         setUploading(true);
         try {
             const formData = new FormData();
-            formData.append('report', selectedFile);
+            formData.append('file', selectedFile);
 
             await axios.post(
                 `${API}/student/certification-exams/attempts/${reportStatus.attempt_id}/report`,

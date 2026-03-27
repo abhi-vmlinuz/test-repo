@@ -302,7 +302,7 @@ const StudentCertificationExams = () => {
                                     )}
                                     
                                     {/* Continue Lab — lab active and timer not expired */}
-                                    {exam.status === 'LAB_IN_PROGRESS' && !labTimer.expired && (
+                                    {(exam.status === 'LAB_IN_PROGRESS' || exam.status === 'REPORT_PENDING') && !labTimer.expired && (
                                         <button
                                             onClick={() => handleStartLab(exam.exam_id)}
                                             className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
