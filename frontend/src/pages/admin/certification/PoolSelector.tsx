@@ -40,7 +40,7 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
     const challengeCount = selectedChallenges.length;
 
     // Validation
-    const isValid = challengeCount === 7 && totalPoints === 120;
+    const isValid = challengeCount > 0 && totalPoints === 120;
     const pointsRemaining = 120 - totalPoints;
 
     // Filter available challenges
@@ -82,8 +82,8 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
                     )}
                 </div>
                 <div className="text-sm text-gray-600">
-                    <span className={challengeCount === 7 ? 'text-green-600 font-semibold' : 'text-red-600'}>
-                        {challengeCount}/7 challenges
+                    <span className={challengeCount > 0 ? 'text-green-600 font-semibold' : 'text-gray-500'}>
+                        {challengeCount} challenges
                     </span>
                     <span className="mx-2">•</span>
                     <span className={totalPoints === 120 ? 'text-green-600 font-semibold' : 'text-red-600'}>
@@ -210,15 +210,15 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
                         <div className="text-sm text-yellow-800">
                             <p className="font-semibold mb-1">Pool Requirements:</p>
                             <ul className="list-disc list-inside space-y-1">
-                                {challengeCount !== 7 && (
-                                    <li>Must have exactly 7 challenges (currently {challengeCount})</li>
+                                {challengeCount === 0 && (
+                                    <li>Must have at least one challenge</li>
                                 )}
                                 {totalPoints !== 120 && (
                                     <li>Total points must equal 120 (currently {totalPoints})</li>
                                 )}
                             </ul>
                             <p className="mt-2 text-xs text-gray-600">
-                                Valid combinations: 2 Easy + 5 Medium | 3 Easy + 3 Medium + 1 Hard | 4 Easy + 1 Medium + 2 Hard
+                                Examples: 12 Easy | 6 Medium | 4 Hard | 2 Easy + 5 Medium | 3 Easy + 3 Medium + 1 Hard | etc.
                             </p>
                         </div>
                     </div>

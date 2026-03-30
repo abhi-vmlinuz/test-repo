@@ -315,9 +315,9 @@ class CertificationExamConfigCreate(BaseModel):
     """Create a certification exam configuration with 3 pools"""
     name: str  # e.g., "ZXCPPT January 2026"
     lms_final_exam_id: str
-    pool_a_challenge_ids: List[str]  # Exactly 7 challenges, 120 points
-    pool_b_challenge_ids: List[str]  # Exactly 7 challenges, 120 points
-    pool_c_challenge_ids: List[str]  # Exactly 7 challenges, 120 points
+    pool_a_challenge_ids: List[str]  # Must total 120 points (any number of challenges)
+    pool_b_challenge_ids: List[str]  # Must total 120 points (any number of challenges)
+    pool_c_challenge_ids: List[str]  # Must total 120 points (any number of challenges)
     
     # Optional overrides (defaults in DB)
     global_duration_hours: int = 48
@@ -3259,11 +3259,11 @@ async def admin_link_lms_course(lms_course_id: str, color: str = "gray", admin: 
 
 async def validate_certification_pool(challenge_ids: List[str], conn) -> tuple:
     """
-    Validate that a pool has exactly 7 challenges totaling 120 points.
+    Validate that a pool totals 120 points.
     Returns (is_valid, error_message, total_points, challenges_details)
     """
-    if len(challenge_ids) != 7:
-        return False, f"Pool must have exactly 7 challenges (has {len(challenge_ids)})", 0, []
+    if len(challenge_ids) == 0:
+        return False, f"Pool must have at least one challenge", 0, []
 
     # Fetch challenges - use text[]::uuid[] cast chain so asyncpg can pass str list safely
     challenges = await conn.fetch('''
@@ -3273,7 +3273,7 @@ async def validate_certification_pool(challenge_ids: List[str], conn) -> tuple:
         WHERE c.id::text = ANY($1)
     ''', challenge_ids)
     
-    if len(challenges) != 7:
+    if len(challenges) != len(challenge_ids):
         found_ids = {str(c['id']) for c in challenges}
         missing = [cid for cid in challenge_ids if cid not in found_ids]
         return False, f"Some challenges not found: {missing}", 0, []
@@ -3406,7 +3406,7 @@ async def admin_get_lms_final_exams(admin: dict = Depends(require_admin)):
 async def admin_create_certification_exam(data: CertificationExamConfigCreate, admin: dict = Depends(require_admin)):
     """
     Create a new certification exam configuration with 3 pools.
-    Each pool must have exactly 7 challenges totaling 120 points.
+    Each pool must total 120 points (any number of challenges allowed).
     """
     pool = await Database.get_pool()
     async with pool.acquire() as conn:

@@ -99,7 +99,7 @@ const CertificationExamForm = () => {
 
     const validatePools = (): boolean => {
         const validatePool = (challengeIds: string[]): boolean => {
-            if (challengeIds.length !== 7) return false;
+            if (challengeIds.length === 0) return false;
             const challenges = availableChallenges.filter(c => challengeIds.includes(c.id));
             const totalPoints = challenges.reduce((sum, c) => {
                 const pointsMap: Record<string, number> = { EASY: 10, MEDIUM: 20, HARD: 30 };
@@ -122,7 +122,7 @@ const CertificationExamForm = () => {
         }
 
         if (!validatePools()) {
-            toast('All pools must have exactly 7 challenges totaling 120 points', 'error');
+            toast('All pools must have at least one challenge totaling 120 points', 'error');
             return;
         }
 
@@ -275,7 +275,7 @@ const CertificationExamForm = () => {
                                 <p className="font-semibold mb-1">Cannot save exam:</p>
                                 <ul className="list-disc list-inside space-y-1">
                                     {!formData.lmsFinalExamId && <li>LMS Final Exam is required</li>}
-                                    {!validatePools() && <li>All three pools must be valid (7 challenges, 120 points each)</li>}
+                                    {!validatePools() && <li>All three pools must total 120 points each</li>}
                                 </ul>
                             </div>
                         </div>

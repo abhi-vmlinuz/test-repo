@@ -152,7 +152,7 @@ const StudentCertificationExams = () => {
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="font-bold">2.</span>
-                        <span>Start the Lab when ready - you'll get 7 challenges to solve in 12 hours (50% weight)</span>
+                        <span>Start the Lab when ready - you'll get challenges to solve in 12 hours (50% weight)</span>
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="font-bold">3.</span>
