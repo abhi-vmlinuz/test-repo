@@ -445,6 +445,108 @@ def create_token(user_id: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+
+SENSITIVE_AUDIT_KEYS = {
+    "password", "token", "secret", "authorization", "cookie", "api_key", "key",
+    "access_token", "refresh_token", "otp", "code", "session_token",
+}
+
+
+def _sanitize_audit_value(value: Any, depth: int = 0) -> Any:
+    if depth > 3:
+        return "[truncated]"
+    if isinstance(value, dict):
+        sanitized: Dict[str, Any] = {}
+        for k, v in value.items():
+            key_lower = str(k).lower()
+            if key_lower in SENSITIVE_AUDIT_KEYS or any(s in key_lower for s in ["password", "token", "secret"]):
+                sanitized[str(k)] = "[redacted]"
+            else:
+                sanitized[str(k)] = _sanitize_audit_value(v, depth + 1)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_audit_value(v, depth + 1) for v in value[:50]]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        if isinstance(value, str) and len(value) > 500:
+            return value[:500] + "..."
+        return value
+    return str(value)
+
+
+def _extract_audit_entity_type(request: Request) -> str:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", request.url.path)
+    path = route_path.replace("/api/", "").lstrip("/")
+    parts = [p for p in path.split("/") if p and not p.startswith("{")]
+    if not parts:
+        return "system"
+    return "_".join(parts[:3])[:120]
+
+
+def _extract_audit_entity_id(request: Request) -> Optional[str]:
+    path_params = request.path_params or {}
+    for key, value in path_params.items():
+        if value is not None and key.lower().endswith("id"):
+            return str(value)
+    return None
+
+
+def _extract_user_id_from_auth_header(request: Request) -> Optional[str]:
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return None
+    token = auth.split(" ", 1)[1].strip()
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id") or payload.get("sub")
+        return str(user_id) if user_id else None
+    except Exception:
+        return None
+
+
+async def create_audit_log(
+    request: Request,
+    action: str,
+    status_code: int,
+    changes: Optional[Dict[str, Any]] = None,
+) -> None:
+    try:
+        pool = await Database.get_pool()
+        user_id = _extract_user_id_from_auth_header(request)
+        entity_type = _extract_audit_entity_type(request)
+        entity_id = _extract_audit_entity_id(request)
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+
+        payload: Dict[str, Any] = {
+            "method": request.method,
+            "path": request.url.path,
+            "query": dict(request.query_params),
+            "status_code": status_code,
+        }
+        if changes:
+            payload["changes"] = _sanitize_audit_value(changes)
+
+        async with pool.acquire() as conn:
+            await conn.execute(
+                '''
+                INSERT INTO audit_logs (id, "userId", action, "entityType", "entityId", changes, "ipAddress", "userAgent")
+                VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+                ''',
+                str(uuid.uuid4()),
+                user_id,
+                action,
+                entity_type,
+                entity_id,
+                json.dumps(payload),
+                ip_address,
+                user_agent,
+            )
+    except Exception as e:
+        logger.warning(f"Audit logging skipped: {e}")
+
 def generate_code(length: int = 8) -> str:
     """Generate a random code for enrollment"""
     import random
@@ -859,6 +961,37 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             
         self.rate_limit_records[key] = count + 1
         return await call_next(request)
+
+
+class AuditLogMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not request.url.path.startswith("/api"):
+            return await call_next(request)
+
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        if request.url.path in {"/api/health", "/api/"}:
+            return await call_next(request)
+
+        try:
+            content_length = int(request.headers.get("content-length", "0") or "0")
+        except ValueError:
+            content_length = 0
+
+        extra_changes = {
+            "content_type": request.headers.get("content-type"),
+            "content_length": content_length,
+        }
+
+        response = await call_next(request)
+        await create_audit_log(
+            request=request,
+            action=request.method,
+            status_code=response.status_code,
+            changes=extra_changes,
+        )
+        return response
 
 
 # ===========================================
@@ -11129,7 +11262,8 @@ async def shutdown():
 app.include_router(api_router)
 
 # Security Middlewares (Note: Fast/Starlette executes middleware in reverse order of addition)
-# Execution Order: CORS -> TrustedHost -> SecurityHeaders -> RateLimit -> Router
+# Execution Order: CORS -> TrustedHost -> SecurityHeaders -> RateLimit -> AuditLog -> Router
+app.add_middleware(AuditLogMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
