@@ -37,7 +37,8 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
     // Calculate current pool stats
     const selectedChallengeObjects = availableChallenges.filter(c => selectedChallenges.includes(c.id));
     const totalPoints = selectedChallengeObjects.reduce((sum, c) => sum + POINTS_MAP[c.difficulty], 0);
-    const challengeCount = selectedChallenges.length;
+    const challengeCount = selectedChallengeObjects.length;
+    const missingChallengeCount = Math.max(0, selectedChallenges.length - selectedChallengeObjects.length);
 
     // Validation
     const isValid = challengeCount > 0 && totalPoints === 120;
@@ -94,6 +95,14 @@ export const PoolSelector = ({ poolName, selectedChallenges, availableChallenges
                             <span className="mx-2">•</span>
                             <span className="text-gray-500">
                                 {pointsRemaining > 0 ? `Need ${pointsRemaining} more` : `${Math.abs(pointsRemaining)} over`}
+                            </span>
+                        </>
+                    )}
+                    {missingChallengeCount > 0 && (
+                        <>
+                            <span className="mx-2">•</span>
+                            <span className="text-amber-600 font-semibold">
+                                {missingChallengeCount} missing/deleted
                             </span>
                         </>
                     )}

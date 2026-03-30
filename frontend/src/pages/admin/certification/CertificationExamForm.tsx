@@ -50,6 +50,31 @@ const CertificationExamForm = () => {
         }
     }, [id]);
 
+    useEffect(() => {
+        if (!availableChallenges.length) return;
+
+        const availableIds = new Set(availableChallenges.map((c) => c.id));
+        const prune = (ids: string[]) => ids.filter((id) => availableIds.has(id));
+
+        const nextPoolA = prune(formData.poolA);
+        const nextPoolB = prune(formData.poolB);
+        const nextPoolC = prune(formData.poolC);
+
+        const changed =
+            nextPoolA.length !== formData.poolA.length ||
+            nextPoolB.length !== formData.poolB.length ||
+            nextPoolC.length !== formData.poolC.length;
+
+        if (!changed) return;
+
+        setFormData((prev) => ({
+            ...prev,
+            poolA: prune(prev.poolA),
+            poolB: prune(prev.poolB),
+            poolC: prune(prev.poolC),
+        }));
+    }, [availableChallenges, formData.poolA, formData.poolB, formData.poolC]);
+
     const fetchAvailableChallenges = async () => {
         try {
             const response = await axios.get(`${API}/admin/certification-exams/available-challenges`);
