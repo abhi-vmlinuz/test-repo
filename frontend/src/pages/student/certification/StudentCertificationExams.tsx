@@ -19,11 +19,9 @@ interface CertificationExam {
     certification_level: string | null;
     global_timer_end?: string | null;
     lab_timer_end?: string | null;
-    report_timer_end?: string | null;
     time_remaining?: {
         global?: number | null;
         lab?: number | null;
-        report?: number | null;
     };
     can_start_lab: boolean;
     can_upload_report: boolean;
@@ -71,7 +69,6 @@ const StudentCertificationExams = () => {
                 certification_level: exam.certification_level ?? exam.certificationLevel ?? null,
                 global_timer_end: exam.global_timer_end ?? null,
                 lab_timer_end: exam.lab_timer_end ?? null,
-                report_timer_end: exam.report_timer_end ?? null,
                 time_remaining: exam.time_remaining ?? null,
                 can_start_lab: exam.can_start_lab ?? exam.components?.lab?.started === false,
                 can_upload_report: exam.can_upload_report ?? exam.components?.report?.unlocked ?? false,
@@ -159,7 +156,7 @@ const StudentCertificationExams = () => {
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="font-bold">3.</span>
-                        <span>Report upload unlocks at 80% lab score - submit within 3 hours (20% weight)</span>
+                        <span>Report upload unlocks at 80% lab score - complete your report and submit (20% weight)</span>
                     </li>
                     <li className="flex items-start gap-2">
                         <span className="font-bold">4.</span>
@@ -184,7 +181,6 @@ const StudentCertificationExams = () => {
                     {exams.map(exam => {
                         const globalTimer = getTimerStatus(exam.global_timer_end || null, exam.time_remaining?.global ?? null);
                         const labTimer = getTimerStatus(exam.lab_timer_end || null, exam.time_remaining?.lab ?? null);
-                        const reportTimer = getTimerStatus(exam.report_timer_end || null, exam.time_remaining?.report ?? null);
                         const gradedPassByScore = (exam.final_score ?? 0) >= 75;
                         const isPassed = exam.status === 'PASSED' || (exam.status === 'GRADED' && gradedPassByScore);
                         const isFailed = exam.status === 'FAILED' || (exam.status === 'GRADED' && !gradedPassByScore);
@@ -255,10 +251,10 @@ const StudentCertificationExams = () => {
                                     </div>
                                 )}
 
-                                {/* Timers */}
+                                {/* Timers - Only Global and Lab */}
                                     {(exam.global_timer_end || exam.time_remaining?.global != null) && (
                                         <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                                        <div className="grid grid-cols-3 gap-4 text-sm">
+                                        <div className="grid grid-cols-2 gap-4 text-sm">
                                             <div>
                                                 <p className="text-gray-600 mb-1 flex items-center gap-2">
                                                     <Clock className="w-4 h-4" />
@@ -276,17 +272,6 @@ const StudentCertificationExams = () => {
                                                     </p>
                                                     <p className={`font-semibold ${labTimer.color}`}>
                                                         {labTimer.label}
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {exam.report_timer_end && (
-                                                <div>
-                                                    <p className="text-gray-600 mb-1 flex items-center gap-2">
-                                                        <Clock className="w-4 h-4" />
-                                                        Report Timer (3h)
-                                                    </p>
-                                                    <p className={`font-semibold ${reportTimer.color}`}>
-                                                        {reportTimer.label}
                                                     </p>
                                                 </div>
                                             )}

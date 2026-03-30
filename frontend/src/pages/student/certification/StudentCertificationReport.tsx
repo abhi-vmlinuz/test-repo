@@ -14,7 +14,6 @@ interface ReportStatus {
     report_uploaded_at: string | null;
     report_filename: string | null;
     report_file_url?: string | null;
-    report_timer_end: string | null;
     status: string;
 }
 
@@ -25,20 +24,10 @@ const StudentCertificationReport = () => {
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [timeRemaining, setTimeRemaining] = useState<string>('');
 
     useEffect(() => {
         fetchReportStatus();
     }, [examId]);
-
-    useEffect(() => {
-        if (reportStatus?.report_timer_end) {
-            const interval = setInterval(() => {
-                updateTimer();
-            }, 1000);
-            return () => clearInterval(interval);
-        }
-    }, [reportStatus]);
 
     const fetchReportStatus = async () => {
         setLoading(true);
@@ -51,25 +40,6 @@ const StudentCertificationReport = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    const updateTimer = () => {
-        if (!reportStatus?.report_timer_end) return;
-        
-        const now = new Date();
-        const end = new Date(reportStatus.report_timer_end);
-        const diff = end.getTime() - now.getTime();
-
-        if (diff <= 0) {
-            setTimeRemaining('Time Expired');
-            return;
-        }
-
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,10 +118,6 @@ const StudentCertificationReport = () => {
         );
     }
 
-    const isExpired = reportStatus.report_timer_end 
-        ? new Date(reportStatus.report_timer_end) <= new Date() 
-        : false;
-
     return (
         <div className="p-8 max-w-4xl mx-auto">
             {/* Header */}
@@ -167,24 +133,15 @@ const StudentCertificationReport = () => {
                 <p className="text-gray-600">Penetration Testing Report Submission</p>
             </div>
 
-            {/* Timer */}
-            {reportStatus.report_timer_end && (
-                <div className="bg-white rounded-lg shadow p-6 mb-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-600 mb-1">Report Upload Timer</p>
-                            <p className={`text-3xl font-bold ${isExpired ? 'text-red-600' : 'text-green-600'}`}>
-                                <Clock className="inline w-8 h-8 mr-2" />
-                                {timeRemaining}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600 mb-1">Lab Score</p>
-                            <p className="text-3xl font-bold text-blue-600">{reportStatus.lab_score}%</p>
-                        </div>
+            {/* Lab Score */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-sm text-gray-600 mb-1">Lab Score</p>
+                        <p className="text-3xl font-bold text-blue-600">{reportStatus.lab_score}%</p>
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Cannot Upload Warning */}
             {!reportStatus.can_upload_report && (
@@ -205,21 +162,6 @@ const StudentCertificationReport = () => {
                             >
                                 Continue Lab Challenges
                             </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Expired Warning */}
-            {isExpired && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
-                    <div className="flex items-start gap-3">
-                        <AlertCircle className="w-6 h-6 text-red-600 mt-0.5" />
-                        <div>
-                            <p className="font-semibold text-red-900 mb-1">Report Upload Timer Expired</p>
-                            <p className="text-sm text-red-800">
-                                The 3-hour report upload window has expired. You can no longer submit your report.
-                            </p>
                         </div>
                     </div>
                 </div>
@@ -250,7 +192,7 @@ const StudentCertificationReport = () => {
             )}
 
             {/* Upload Form */}
-            {reportStatus.can_upload_report && !reportStatus.report_uploaded_at && !isExpired && (
+            {reportStatus.can_upload_report && !reportStatus.report_uploaded_at && (
                 <div className="bg-white rounded-lg shadow-lg p-8">
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload Your Report</h2>
 
