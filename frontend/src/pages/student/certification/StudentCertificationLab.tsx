@@ -152,6 +152,41 @@ const StudentCertificationLab = () => {
         return () => { cancelled = true; clearInterval(iv); };
     }, [startingDocker, selectedChallenge?.challenge_id]);
 
+    // Keep UI in sync if instance was auto-terminated externally
+    useEffect(() => {
+        if (!dockerInstance?.session_id || !selectedChallenge?.challenge_id || startingDocker || stoppingDocker) return;
+        let cancelled = false;
+        const iv = setInterval(async () => {
+            try {
+                const r = await axios.get(`${API}/docker/challenge-session/${selectedChallenge.challenge_id}`);
+                if (cancelled) return;
+                if (r.data?.status === 'running' && r.data?.session_id) {
+                    setDockerInstance((prev: any) => {
+                        if (!prev) return r.data;
+                        if (
+                            prev.session_id !== r.data.session_id ||
+                            prev.target_ip !== r.data.target_ip ||
+                            prev.expires_at !== r.data.expires_at
+                        ) {
+                            return r.data;
+                        }
+                        return prev;
+                    });
+                } else {
+                    setDockerInstance(null);
+                }
+            } catch {
+                // Keep existing UI state on transient network errors
+            }
+        }, 10000);
+        return () => { cancelled = true; clearInterval(iv); };
+    }, [
+        dockerInstance?.session_id,
+        selectedChallenge?.challenge_id,
+        startingDocker,
+        stoppingDocker
+    ]);
+
     // Docker countdown timer
     useEffect(() => {
         if (!dockerInstance?.expires_at) return;
@@ -256,6 +291,11 @@ const StudentCertificationLab = () => {
         if (!dockerInstance?.session_id) return;
         setStoppingDocker(true);
         try {
+            const sessionCheck = await axios.get(`${API}/docker/challenge-session/${selectedChallenge?.challenge_id}`);
+            if (sessionCheck.data?.status !== 'running' || !sessionCheck.data?.session_id) {
+                setDockerInstance(null);
+                return;
+            }
             await axios.delete(`${API}/docker/stop/${dockerInstance.session_id}`);
             setDockerInstance(null);
             toast.success('Instance stopped');
