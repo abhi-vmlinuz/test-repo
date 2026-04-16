@@ -195,12 +195,52 @@ const ChallengeDetail = ({ user, logout }) => {
       const mins = Math.floor(totalSecs / 60);
       const secs = totalSecs % 60;
       setRemainingTime({ mins, secs });
+
+      if (diff <= 0) {
+        setDockerInstance(null);
+      }
     };
 
     const interval = setInterval(calculateTime, 1000);
     calculateTime();
     return () => clearInterval(interval);
   }, [dockerInstance?.expires_at]);
+
+  // Keep UI in sync if instance was auto-terminated externally
+  useEffect(() => {
+    if (!dockerInstance?.session_id || !id || startingDocker || stoppingDocker) return;
+
+    let cancelled = false;
+    const iv = setInterval(async () => {
+      try {
+        const response = await axios.get(`${API}/docker/challenge-session/${id}`);
+        if (cancelled) return;
+
+        if (response.data?.status === 'running' && response.data?.session_id) {
+          setDockerInstance((prev) => {
+            if (!prev) return response.data;
+            if (
+              prev.session_id !== response.data.session_id ||
+              prev.target_ip !== response.data.target_ip ||
+              prev.expires_at !== response.data.expires_at
+            ) {
+              return response.data;
+            }
+            return prev;
+          });
+        } else {
+          setDockerInstance(null);
+        }
+      } catch {
+        // Keep existing UI state on transient network errors
+      }
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [dockerInstance?.session_id, id, startingDocker, stoppingDocker]);
 
   const fetchChallenge = async () => {
     try {

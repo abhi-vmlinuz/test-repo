@@ -193,6 +193,9 @@ const StudentCertificationLab = () => {
         const iv = setInterval(() => {
             const diff = new Date(dockerInstance.expires_at).getTime() - Date.now();
             setDockerTimer({ mins: Math.floor(Math.max(0, diff) / 60000), secs: Math.floor((Math.max(0, diff) % 60000) / 1000) });
+            if (diff <= 0) {
+                setDockerInstance(null);
+            }
         }, 1000);
         return () => clearInterval(iv);
     }, [dockerInstance?.expires_at]);
