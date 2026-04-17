@@ -17,6 +17,8 @@ import BetaFeature from '@/components/BetaFeature';
 // Conductor URL: set via VITE_CONDUCTOR_URL for production (Cloudflare Tunnel)
 const CONDUCTOR_URL = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
 
+const TERMINAL_SESSION_STATUSES = new Set(['none', 'expired', 'stopped', 'terminated']);
+
 const ChallengeDetail = ({ user, logout }) => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -33,6 +35,7 @@ const ChallengeDetail = ({ user, logout }) => {
   const [stoppingDocker, setStoppingDocker] = useState(false);
   const [extendingDocker, setExtendingDocker] = useState(false);
   const [remainingTime, setRemainingTime] = useState({ mins: 60, secs: 0 });
+  const [dockerStatus, setDockerStatus] = useState('none');
   const [submitResult, setSubmitResult] = useState(null);
 
   // Question states
@@ -144,12 +147,19 @@ const ChallengeDetail = ({ user, logout }) => {
               toast.success('Instance is ready!');
             }
             setDockerInstance(response.data);
+            setDockerStatus('running');
             setStartingDocker(false);
           } else if (response.data.status === 'pending') {
+            setDockerStatus('pending');
             // Still starting - keep polling
+          } else if (response.data?.status && TERMINAL_SESSION_STATUSES.has(response.data.status)) {
+            setDockerInstance(null);
+            setDockerStatus(response.data.status);
+            setStartingDocker(false);
           } else if (pollCount >= maxPolls) {
             // Timeout after 3 minutes
             setStartingDocker(false);
+            setDockerStatus('none');
             toast.error('Instance startup timed out. Please try again.');
           }
         }
@@ -157,6 +167,7 @@ const ChallengeDetail = ({ user, logout }) => {
         // Keep polling unless we've exceeded max attempts
         if (pollCount >= maxPolls) {
           setStartingDocker(false);
+          setDockerStatus('none');
           toast.error('Failed to verify instance status');
         }
       }
@@ -198,6 +209,7 @@ const ChallengeDetail = ({ user, logout }) => {
 
       if (diff <= 0) {
         setDockerInstance(null);
+        setDockerStatus('expired');
       }
     };
 
@@ -217,6 +229,7 @@ const ChallengeDetail = ({ user, logout }) => {
         if (cancelled) return;
 
         if (response.data?.status === 'running' && response.data?.session_id) {
+          setDockerStatus('running');
           setDockerInstance((prev) => {
             if (!prev) return response.data;
             if (
@@ -228,8 +241,13 @@ const ChallengeDetail = ({ user, logout }) => {
             }
             return prev;
           });
+        } else if (response.data?.status === 'pending') {
+          setDockerStatus('pending');
+          setStartingDocker(true);
         } else {
           setDockerInstance(null);
+          setDockerStatus(response.data?.status || 'none');
+          setStartingDocker(false);
         }
       } catch {
         // Keep existing UI state on transient network errors
@@ -363,17 +381,25 @@ const ChallengeDetail = ({ user, logout }) => {
         // Instance is running with IP
         if (response.data.target_ip) {
           setDockerInstance(response.data);
+          setDockerStatus('running');
           setStartingDocker(false);
         } else {
           // Running but no IP yet - continue polling
           console.log('[Nexus] Session running but no IP yet - starting poll');
+          setDockerStatus('pending');
           setStartingDocker(true);
         }
       } else if (response.data && response.data.status === 'pending') {
         console.log('[Nexus] Session pending - starting poll');
+        setDockerStatus('pending');
         setStartingDocker(true);
+      } else if (response.data?.status && TERMINAL_SESSION_STATUSES.has(response.data.status)) {
+        setDockerInstance(null);
+        setDockerStatus(response.data.status);
+        setStartingDocker(false);
       } else {
         console.log('[Nexus] No active session found, status:', response.data?.status);
+        setDockerStatus(response.data?.status || 'none');
       }
     } catch (error: any) {
       console.log('[Nexus] Session check error:', error.response?.status, error.message);
@@ -392,6 +418,7 @@ const ChallengeDetail = ({ user, logout }) => {
       const existingCheck = await axios.get(`${API}/docker/challenge-session/${id}`);
       if (existingCheck.data && existingCheck.data.status === 'running' && existingCheck.data.target_ip) {
         setDockerInstance(existingCheck.data);
+        setDockerStatus('running');
         setStartingDocker(false);
         toast.info('Instance already running!');
         return;
@@ -409,6 +436,7 @@ const ChallengeDetail = ({ user, logout }) => {
       if (response.data && response.data.status === 'running' && response.data.target_ip) {
         // Immediate success - instance started quickly (cached or fast provision)
         setDockerInstance(response.data);
+        setDockerStatus('running');
         setStartingDocker(false);
         toast.success('Instance is ready!');
         return;
@@ -422,13 +450,16 @@ const ChallengeDetail = ({ user, logout }) => {
         console.log('[Nexus] Initial request timed out - polling will continue');
       } else if (error.response?.status === 429) {
         setStartingDocker(false);
+        setDockerStatus('none');
         toast.error(error.response?.data?.detail || 'Please wait before starting another instance');
       } else if (error.response?.status === 503) {
         setStartingDocker(false);
+        setDockerStatus('none');
         toast.error(error.response?.data?.detail || 'Container service unavailable. Please try again later.');
       } else if (error.response?.status >= 400 && error.response?.status < 500) {
         // Client errors should stop polling
         setStartingDocker(false);
+        setDockerStatus('none');
         toast.error(error.response?.data?.detail || 'Failed to start instance');
       } else {
         // Network/server errors - keep polling as backend might still be processing
@@ -444,11 +475,13 @@ const ChallengeDetail = ({ user, logout }) => {
     try {
       await axios.delete(`${API}/docker/stop/${dockerInstance.session_id}`);
       setDockerInstance(null);
+      setDockerStatus('stopped');
       toast.success('Instance stopped');
     } catch (error: any) {
       // If 404, the instance is already gone
       if (error.response?.status === 404) {
         setDockerInstance(null);
+        setDockerStatus('terminated');
         toast.info('Instance already terminated');
       } else {
         toast.error('Failed to stop instance');
@@ -478,6 +511,7 @@ const ChallengeDetail = ({ user, logout }) => {
       } else if (error.response?.status === 404) {
         toast.error('Session expired or not found. Please start a new instance.');
         setDockerInstance(null);
+        setDockerStatus('expired');
       } else {
         toast.error(error.response?.data?.detail || 'Extension failed - try again later');
       }
@@ -501,6 +535,23 @@ const ChallengeDetail = ({ user, logout }) => {
       total += challenge.questions.reduce((sum, q) => sum + (q.points || 0), 0);
     }
     return total;
+  };
+
+  const getDockerStatusLabel = () => {
+    switch (dockerStatus) {
+      case 'pending':
+        return 'Pending';
+      case 'expired':
+        return 'Expired';
+      case 'stopped':
+        return 'Stopped';
+      case 'terminated':
+        return 'Terminated';
+      case 'running':
+        return 'Running';
+      default:
+        return 'Stopped';
+    }
   };
 
   if (!challenge) {
@@ -611,13 +662,27 @@ const ChallengeDetail = ({ user, logout }) => {
                 </div>
                 {dockerInstance && (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Running</span>
+                    <span className="text-xs text-gray-500">{getDockerStatusLabel()}</span>
                     <div className="w-2 h-2 rounded-full bg-gray-600 animate-pulse"></div>
                   </div>
                 )}
               </div>
 
               <div className="p-6">
+                {!dockerInstance && dockerStatus !== 'none' && (
+                  <Alert className="mb-4 border-gray-200 bg-gray-50">
+                    <AlertDescription className="text-gray-700 text-sm">
+                      Lab status: <span className="font-semibold">{getDockerStatusLabel()}</span>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {startingDocker && (
+                  <Alert className="mb-4 border-gray-200 bg-gray-50">
+                    <AlertDescription className="text-gray-700 text-sm">
+                      Lab status: <span className="font-semibold">Pending</span>
+                    </AlertDescription>
+                  </Alert>
+                )}
                 {!dockerInstance ? (
                   <div className="space-y-4">
                     <p className="text-gray-600 text-sm">

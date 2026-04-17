@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { API, toast } from '../../../App';
 import {
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 const CONDUCTOR_URL = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
+const TERMINAL_SESSION_STATUSES = new Set(['none', 'expired', 'stopped', 'terminated']);
 
 interface Task {
     question: string;
@@ -70,6 +71,8 @@ function formatTime(diffMs: number): string {
 const StudentCertificationLab = () => {
     const navigate = useNavigate();
     const { examId } = useParams<{ examId: string }>();
+    const [searchParams] = useSearchParams();
+    const attemptId = searchParams.get('attempt_id');
 
     const [lab, setLab] = useState<LabDetails | null>(null);
     const [loading, setLoading] = useState(true);
@@ -89,13 +92,15 @@ const StudentCertificationLab = () => {
     const [startingDocker, setStartingDocker] = useState(false);
     const [stoppingDocker, setStoppingDocker] = useState(false);
     const [dockerTimer, setDockerTimer] = useState({ mins: 60, secs: 0 });
+    const [dockerStatus, setDockerStatus] = useState('none');
 
     // Artifacts
     const [artifacts, setArtifacts] = useState<Record<string, Artifact[]>>({});
 
     const fetchLabDetails = useCallback(async () => {
         try {
-            const res = await axios.get(`${API}/student/certification-exams/${examId}/lab`);
+            const query = attemptId ? `?attempt_id=${encodeURIComponent(attemptId)}` : '';
+            const res = await axios.get(`${API}/student/certification-exams/${examId}/lab${query}`);
             setLab(res.data);
         } catch (err: any) {
             if (err.response?.status === 404) setLab(null);
@@ -103,7 +108,7 @@ const StudentCertificationLab = () => {
         } finally {
             setLoading(false);
         }
-    }, [examId]);
+    }, [examId, attemptId]);
 
     const fetchArtifacts = useCallback(async (challengeId: string) => {
         if (artifacts[challengeId]) return;
@@ -127,8 +132,19 @@ const StudentCertificationLab = () => {
         if (selectedChallenge.has_docker) {
             axios.get(`${API}/docker/challenge-session/${selectedChallenge.challenge_id}`)
                 .then(r => {
-                    if (r.data?.status === 'running' && r.data?.target_ip) setDockerInstance(r.data);
-                    else if (r.data?.status === 'pending') setStartingDocker(true);
+                    if (r.data?.status === 'running' && r.data?.target_ip) {
+                        setDockerInstance(r.data);
+                        setDockerStatus('running');
+                    } else if (r.data?.status === 'pending') {
+                        setDockerStatus('pending');
+                        setStartingDocker(true);
+                    } else if (r.data?.status && TERMINAL_SESSION_STATUSES.has(r.data.status)) {
+                        setDockerInstance(null);
+                        setDockerStatus(r.data.status);
+                        setStartingDocker(false);
+                    } else {
+                        setDockerStatus(r.data?.status || 'none');
+                    }
                 }).catch(() => {});
         }
     }, [selectedChallenge?.challenge_id]);
@@ -144,8 +160,15 @@ const StudentCertificationLab = () => {
                 const r = await axios.get(`${API}/docker/challenge-session/${selectedChallenge.challenge_id}`);
                 if (!cancelled && r.data?.status === 'running' && r.data?.target_ip) {
                     setDockerInstance(r.data);
+                    setDockerStatus('running');
                     setStartingDocker(false);
                     toast.success('Instance ready!');
+                } else if (!cancelled && r.data?.status === 'pending') {
+                    setDockerStatus('pending');
+                } else if (!cancelled && r.data?.status && TERMINAL_SESSION_STATUSES.has(r.data.status)) {
+                    setDockerInstance(null);
+                    setDockerStatus(r.data.status);
+                    setStartingDocker(false);
                 }
             } catch {}
         }, 3000);
@@ -161,6 +184,7 @@ const StudentCertificationLab = () => {
                 const r = await axios.get(`${API}/docker/challenge-session/${selectedChallenge.challenge_id}`);
                 if (cancelled) return;
                 if (r.data?.status === 'running' && r.data?.session_id) {
+                    setDockerStatus('running');
                     setDockerInstance((prev: any) => {
                         if (!prev) return r.data;
                         if (
@@ -172,8 +196,13 @@ const StudentCertificationLab = () => {
                         }
                         return prev;
                     });
+                } else if (r.data?.status === 'pending') {
+                    setDockerStatus('pending');
+                    setStartingDocker(true);
                 } else {
                     setDockerInstance(null);
+                    setDockerStatus(r.data?.status || 'none');
+                    setStartingDocker(false);
                 }
             } catch {
                 // Keep existing UI state on transient network errors
@@ -195,6 +224,7 @@ const StudentCertificationLab = () => {
             setDockerTimer({ mins: Math.floor(Math.max(0, diff) / 60000), secs: Math.floor((Math.max(0, diff) % 60000) / 1000) });
             if (diff <= 0) {
                 setDockerInstance(null);
+                setDockerStatus('expired');
             }
         }, 1000);
         return () => clearInterval(iv);
@@ -277,14 +307,22 @@ const StudentCertificationLab = () => {
             const res = await axios.post(`${API}/docker/start/${selectedChallenge.challenge_id}`, {}, { timeout: 15000 });
             if (res.data?.status === 'running' && res.data?.target_ip) {
                 setDockerInstance(res.data);
+                setDockerStatus('running');
                 setStartingDocker(false);
                 toast.success('Instance ready!');
+            } else if (res.data?.status === 'pending') {
+                setDockerStatus('pending');
+            } else if (res.data?.status && TERMINAL_SESSION_STATUSES.has(res.data.status)) {
+                setDockerInstance(null);
+                setDockerStatus(res.data.status);
+                setStartingDocker(false);
             }
         } catch (err: any) {
             if (err.code === 'ECONNABORTED') {
                 // expected timeout — polling continues
             } else if (err.response?.status >= 400 && err.response?.status < 500) {
                 setStartingDocker(false);
+                setDockerStatus('none');
                 toast.error(err.response?.data?.detail || 'Failed to start instance');
             }
         }
@@ -297,13 +335,18 @@ const StudentCertificationLab = () => {
             const sessionCheck = await axios.get(`${API}/docker/challenge-session/${selectedChallenge?.challenge_id}`);
             if (sessionCheck.data?.status !== 'running' || !sessionCheck.data?.session_id) {
                 setDockerInstance(null);
+                setDockerStatus(sessionCheck.data?.status || 'none');
                 return;
             }
             await axios.delete(`${API}/docker/stop/${dockerInstance.session_id}`);
             setDockerInstance(null);
+            setDockerStatus('stopped');
             toast.success('Instance stopped');
         } catch (err: any) {
-            if (err.response?.status === 404) setDockerInstance(null);
+            if (err.response?.status === 404) {
+                setDockerInstance(null);
+                setDockerStatus('terminated');
+            }
             else toast.error('Failed to stop instance');
         } finally {
             setStoppingDocker(false);
@@ -319,7 +362,28 @@ const StudentCertificationLab = () => {
                 toast.success('Extended by 30 minutes');
             }
         } catch (err: any) {
+            if (err.response?.status === 404) {
+                setDockerInstance(null);
+                setDockerStatus('expired');
+            }
             toast.error(err.response?.data?.detail || 'Extension failed');
+        }
+    };
+
+    const getDockerStatusLabel = () => {
+        switch (dockerStatus) {
+            case 'pending':
+                return 'Pending';
+            case 'expired':
+                return 'Expired';
+            case 'stopped':
+                return 'Stopped';
+            case 'terminated':
+                return 'Terminated';
+            case 'running':
+                return 'Running';
+            default:
+                return 'Stopped';
         }
     };
 
@@ -330,7 +394,7 @@ const StudentCertificationLab = () => {
         try {
             const res = await axios.post(`${API}/student/certification-exams/attempts/${lab.attempt_id}/end-lab`);
             toast.success(`Lab ended. Final score: ${res.data.lab_score}%`);
-            navigate(`/student/certification-exams/${examId}/status`);
+            navigate(`/student/certification-exams/${examId}/status?attempt_id=${lab.attempt_id}`);
         } catch (err: any) {
             toast.error(err.response?.data?.detail || 'Failed to end lab');
         } finally {
@@ -428,7 +492,7 @@ const StudentCertificationLab = () => {
                         <>
                             <CheckCircle2 className="w-4 h-4 shrink-0" />
                             <span>🎉 Report upload unlocked — you've reached 80%+ lab score!</span>
-                            <button onClick={() => navigate(`/student/certification-exams/${examId}/report`)}
+                            <button onClick={() => navigate(`/student/certification-exams/${examId}/report?attempt_id=${lab.attempt_id}`)}
                                 className="ml-auto px-4 py-1 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700">
                                 Upload Report
                             </button>
@@ -528,11 +592,21 @@ const StudentCertificationLab = () => {
                                         {dockerInstance && (
                                             <div className="ml-auto flex items-center gap-2">
                                                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                                <span className="text-gray-300 text-xs">Running</span>
+                                                <span className="text-gray-300 text-xs">{getDockerStatusLabel()}</span>
                                             </div>
                                         )}
                                     </div>
                                     <div className="p-6">
+                                        {!dockerInstance && dockerStatus !== 'none' && (
+                                            <div className="mb-4 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700">
+                                                Lab status: <span className="font-semibold">{getDockerStatusLabel()}</span>
+                                            </div>
+                                        )}
+                                        {startingDocker && (
+                                            <div className="mb-4 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700">
+                                                Lab status: <span className="font-semibold">Pending</span>
+                                            </div>
+                                        )}
                                         {!dockerInstance ? (
                                             <div className="space-y-4">
                                                 <p className="text-gray-600 text-sm">

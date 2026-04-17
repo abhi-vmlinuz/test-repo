@@ -10,6 +10,7 @@ interface CertificationExam {
     exam_title: string;
     exam_description: string;
     attempt_id: string | null;
+    is_latest_for_exam?: boolean;
     status: string | null;
     mcq_score: number | null;
     lab_score: number | null;
@@ -27,6 +28,15 @@ interface CertificationExam {
     can_upload_report: boolean;
     created_at: string | null;
 }
+
+const PAST_EXAM_STATUSES = new Set([
+    'GRADED',
+    'PASSED',
+    'FAILED',
+    'EXPIRED',
+    'REPORT_UPLOADED',
+    'PENDING_REVIEW',
+]);
 
 const STATUS_COLORS: Record<string, string> = {
     PENDING: 'bg-gray-500',
@@ -60,6 +70,7 @@ const StudentCertificationExams = () => {
                 exam_title: exam.exam_title || exam.name || exam.exam_name || '',
                 exam_description: exam.exam_description || exam.description || '',
                 attempt_id: exam.attempt_id ? String(exam.attempt_id) : exam.attemptId ? String(exam.attemptId) : null,
+                is_latest_for_exam: exam.is_latest_for_exam ?? true,
                 status: exam.status || null,
                 mcq_score: exam.mcq_score ?? exam.components?.mcq?.score ?? null,
                 lab_score: exam.lab_score ?? exam.components?.lab?.score ?? null,
@@ -113,16 +124,18 @@ const StudentCertificationExams = () => {
         };
     };
 
-    const handleStartLab = (examId: number) => {
+    const handleStartLab = (examId: string) => {
         navigate(`/student/certification-exams/${examId}/lab`);
     };
 
-    const handleUploadReport = (examId: number) => {
-        navigate(`/student/certification-exams/${examId}/report`);
+    const handleUploadReport = (examId: string, attemptId?: string | null) => {
+        const base = `/student/certification-exams/${examId}/report`;
+        navigate(attemptId ? `${base}?attempt_id=${attemptId}` : base);
     };
 
-    const handleViewStatus = (examId: number) => {
-        navigate(`/student/certification-exams/${examId}/status`);
+    const handleViewStatus = (examId: string, attemptId?: string | null) => {
+        const base = `/student/certification-exams/${examId}/status`;
+        navigate(attemptId ? `${base}?attempt_id=${attemptId}` : base);
     };
 
     if (loading) {
@@ -177,8 +190,31 @@ const StudentCertificationExams = () => {
                     <p className="text-sm text-gray-500">Check with your instructor or redeem an exam code in the LMS</p>
                 </div>
             ) : (
-                <div className="space-y-6">
-                    {exams.map(exam => {
+                <div className="space-y-10">
+                    {(() => {
+                        const sortedExams = [...exams].sort((a, b) => {
+                            const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+                            const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+                            return bt - at;
+                        });
+
+                        const activeExams = sortedExams.filter(
+                            (exam) => (exam.is_latest_for_exam ?? true) && !PAST_EXAM_STATUSES.has(exam.status || '')
+                        );
+
+                        return (
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold text-gray-900">Active Exams</h2>
+                                    <span className="text-xs text-gray-500">{activeExams.length} active</span>
+                                </div>
+                                {activeExams.length === 0 ? (
+                                    <div className="bg-white rounded-lg border border-gray-200 p-6 text-sm text-gray-600">
+                                        No active certification exams right now.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        {activeExams.map(exam => {
                         const globalTimer = getTimerStatus(exam.global_timer_end || null, exam.time_remaining?.global ?? null);
                         const labTimer = getTimerStatus(exam.lab_timer_end || null, exam.time_remaining?.lab ?? null);
                         const gradedPassByScore = (exam.final_score ?? 0) >= 75;
@@ -186,11 +222,14 @@ const StudentCertificationExams = () => {
                         const isFailed = exam.status === 'FAILED' || (exam.status === 'GRADED' && !gradedPassByScore);
                         
                         return (
-                            <div key={exam.exam_id} className="bg-white rounded-lg shadow-lg p-6">
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="flex-1">
-                                        <h2 className="text-2xl font-bold text-gray-900 mb-2">{exam.exam_title}</h2>
-                                        <p className="text-gray-600 mb-3">{exam.exam_description}</p>
+                            <div key={`active-${exam.attempt_id || exam.exam_id}`} className="bg-white rounded-lg shadow-lg p-6">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="flex-1">
+                                            <h2 className="text-2xl font-bold text-gray-900 mb-2">{exam.exam_title}</h2>
+                                            <p className="text-gray-600 mb-3">{exam.exam_description}</p>
+                                            <p className="text-xs text-gray-400 mb-3">
+                                                Attempt started: {exam.created_at ? new Date(exam.created_at).toLocaleString() : 'N/A'}
+                                            </p>
                                         
                                         {exam.status && (
                                             <div className="flex items-center gap-3">
@@ -326,7 +365,7 @@ const StudentCertificationExams = () => {
                                     {/* Upload Report — always visible once lab started, locked until exam ends + score qualifies */}
                                     {exam.status && ['LAB_IN_PROGRESS', 'LAB_COMPLETED', 'REPORT_UNLOCKED', 'REPORT_UPLOADED', 'GRADING_PENDING'].includes(exam.status) && (
                                         <button
-                                            onClick={() => exam.can_upload_report ? handleUploadReport(exam.exam_id) : null}
+                                            onClick={() => exam.can_upload_report ? handleUploadReport(exam.exam_id, exam.attempt_id) : null}
                                             disabled={!exam.can_upload_report}
                                             className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold ${
                                                 exam.can_upload_report
@@ -343,7 +382,7 @@ const StudentCertificationExams = () => {
                                     {/* View Lab Results — expired or completed, report not unlocked */}
                                     {(exam.status === 'LAB_COMPLETED' || (exam.status === 'LAB_IN_PROGRESS' && labTimer.expired)) && !exam.can_upload_report && (
                                         <button
-                                            onClick={() => handleViewStatus(exam.exam_id)}
+                                            onClick={() => handleViewStatus(exam.exam_id, exam.attempt_id)}
                                             className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-semibold"
                                         >
                                             <Award className="w-5 h-5" />
@@ -354,7 +393,7 @@ const StudentCertificationExams = () => {
                                     {/* View Status — always available */}
                                     {exam.status && exam.status !== 'PENDING' && (
                                         <button
-                                            onClick={() => handleViewStatus(exam.exam_id)}
+                                            onClick={() => handleViewStatus(exam.exam_id, exam.attempt_id)}
                                             className="flex items-center gap-2 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold"
                                         >
                                             <Award className="w-5 h-5" />
@@ -364,16 +403,78 @@ const StudentCertificationExams = () => {
                                 </div>
 
                                 {/* Warnings */}
-                                {globalTimer.expired && exam.status !== 'PASSED' && exam.status !== 'FAILED' && (
-                                    <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
-                                        <p className="text-sm text-red-800 font-semibold">
-                                            Global timer expired. Your exam has been automatically submitted for grading.
-                                        </p>
+                                    {globalTimer.expired && exam.status !== 'PASSED' && exam.status !== 'FAILED' && (
+                                        <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+                                            <p className="text-sm text-red-800 font-semibold">
+                                                Global timer expired. Your exam has been automatically submitted for grading.
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                        );
+                                        })}
                                     </div>
                                 )}
                             </div>
                         );
-                    })}
+                    })()}
+
+                    {(() => {
+                        const sortedExams = [...exams].sort((a, b) => {
+                            const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+                            const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+                            return bt - at;
+                        });
+
+                        const pastExams = sortedExams.filter(
+                            (exam) => PAST_EXAM_STATUSES.has(exam.status || '') || !(exam.is_latest_for_exam ?? true)
+                        );
+
+                        return (
+                            <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-xl font-bold text-gray-900">Past Results</h2>
+                                    <span className="text-xs text-gray-500">{pastExams.length} completed</span>
+                                </div>
+                                {pastExams.length === 0 ? (
+                                    <div className="bg-white rounded-lg border border-gray-200 p-6 text-sm text-gray-600">
+                                        No past certification exam results yet.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {pastExams.map((exam) => {
+                                            const gradedPassByScore = (exam.final_score ?? 0) >= 75;
+                                            const isPassed = exam.status === 'PASSED' || (exam.status === 'GRADED' && gradedPassByScore);
+                                            return (
+                                                <div key={`past-${exam.attempt_id || exam.exam_id}`} className="bg-white rounded-lg border border-gray-200 p-5">
+                                                    <div className="flex items-center justify-between gap-4">
+                                                        <div>
+                                                            <p className="text-lg font-semibold text-gray-900">{exam.exam_title}</p>
+                                                            <p className="text-sm text-gray-500 mt-1">
+                                                                {exam.created_at ? new Date(exam.created_at).toLocaleString() : 'N/A'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <Badge className={isPassed ? 'bg-emerald-600' : 'bg-gray-600'}>
+                                                                {(exam.status || 'COMPLETED').replace(/_/g, ' ')}
+                                                            </Badge>
+                                                            <button
+                                                                onClick={() => handleViewStatus(exam.exam_id, exam.attempt_id)}
+                                                                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-semibold text-sm"
+                                                            >
+                                                                <Award className="w-4 h-4" />
+                                                                View Result
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
         </div>

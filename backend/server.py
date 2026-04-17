@@ -15,6 +15,7 @@ from fastapi import (
     APIRouter,
     HTTPException,
     Depends,
+    Query,
     status,
     File,
     UploadFile,
@@ -9741,8 +9742,7 @@ async def student_get_certification_exams(
         # Get all attempts for this user
         attempts = await conn.fetch(
             """
-            SELECT DISTINCT ON (cea."examConfigId")
-                   cea.*, cec.name as exam_name, cec."examType" as exam_type,
+            SELECT cea.*, cec.name as exam_name, cec."examType" as exam_type,
                    cec."isPublished" as is_published,
                    cec."globalDurationHours", cec."ctfDurationHours", cec."reportDurationHours",
                    cec."labUnlockReportThreshold"
@@ -9753,6 +9753,15 @@ async def student_get_certification_exams(
         """,
             current_user["id"],
         )
+
+        latest_attempt_ids = set()
+        seen_exam_config_ids = set()
+        for attempt in attempts:
+            exam_config_id = str(attempt["examConfigId"])
+            if exam_config_id in seen_exam_config_ids:
+                continue
+            seen_exam_config_ids.add(exam_config_id)
+            latest_attempt_ids.add(str(attempt["id"]))
 
         result = []
         for a in attempts:
@@ -9786,6 +9795,7 @@ async def student_get_certification_exams(
                     "exam_type": a["exam_type"],
                     "status": a["status"],
                     "is_published": a["is_published"],
+                    "is_latest_for_exam": str(a["id"]) in latest_attempt_ids,
                     "time_remaining": {
                         "global": global_remaining,
                         "lab": lab_remaining,
@@ -10006,7 +10016,9 @@ async def student_start_certification_lab(
 
 @api_router.get("/student/certification-exams/{exam_config_id}/lab")
 async def student_get_lab_by_config(
-    exam_config_id: str, current_user: dict = Depends(get_current_user)
+    exam_config_id: str,
+    attempt_id: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get lab details for a certification exam (by config ID).
@@ -10015,19 +10027,34 @@ async def student_get_lab_by_config(
     """
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        attempt = await conn.fetchrow(
-            """
-            SELECT cea.*, cec.name, cec."poolAChallengeIds", cec."poolBChallengeIds",
-                   cec."poolCChallengeIds", cec."labUnlockReportThreshold"
-            FROM certification_exam_attempts cea
-            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
-            WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
-            ORDER BY cea."redeemedAt" DESC
-            LIMIT 1
-        """,
-            exam_config_id,
-            str(current_user["id"]),
-        )
+        if attempt_id:
+            attempt = await conn.fetchrow(
+                """
+                SELECT cea.*, cec.name, cec."poolAChallengeIds", cec."poolBChallengeIds",
+                       cec."poolCChallengeIds", cec."labUnlockReportThreshold"
+                FROM certification_exam_attempts cea
+                JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+                WHERE cea.id::text = $1 AND cea."userId"::text = $2
+            """,
+                attempt_id,
+                str(current_user["id"]),
+            )
+            if attempt and str(attempt["examConfigId"]) != exam_config_id:
+                raise HTTPException(status_code=404, detail="Certification exam attempt not found")
+        else:
+            attempt = await conn.fetchrow(
+                """
+                SELECT cea.*, cec.name, cec."poolAChallengeIds", cec."poolBChallengeIds",
+                       cec."poolCChallengeIds", cec."labUnlockReportThreshold"
+                FROM certification_exam_attempts cea
+                JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+                WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
+                ORDER BY cea."redeemedAt" DESC
+                LIMIT 1
+            """,
+                exam_config_id,
+                str(current_user["id"]),
+            )
 
         if not attempt:
             raise HTTPException(
@@ -10690,7 +10717,9 @@ async def student_end_certification_lab(
 
 @api_router.get("/student/certification-exams/{exam_config_id}/status")
 async def student_get_certification_exam_status(
-    exam_config_id: str, current_user: dict = Depends(get_current_user)
+    exam_config_id: str,
+    attempt_id: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get detailed status for a specific certification exam attempt.
@@ -10698,25 +10727,41 @@ async def student_get_certification_exam_status(
     """
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        attempt = await conn.fetchrow(
-            """
-            SELECT cea.*, cec.name as exam_name,
-                   cec."labUnlockReportThreshold", cec."reportDurationHours"
-            FROM certification_exam_attempts cea
-            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
-            WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
-            ORDER BY cea."redeemedAt" DESC
-            LIMIT 1
-        """,
-            exam_config_id,
-            str(current_user["id"]),
-        )
+        if attempt_id:
+            attempt = await conn.fetchrow(
+                """
+                SELECT cea.*, cec.name as exam_name,
+                       cec."labUnlockReportThreshold", cec."reportDurationHours"
+                FROM certification_exam_attempts cea
+                JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+                WHERE cea.id::text = $1 AND cea."userId"::text = $2
+            """,
+                attempt_id,
+                str(current_user["id"]),
+            )
+            if attempt and str(attempt["examConfigId"]) != exam_config_id:
+                raise HTTPException(status_code=404, detail="Exam attempt not found")
+        else:
+            attempt = await conn.fetchrow(
+                """
+                SELECT cea.*, cec.name as exam_name,
+                       cec."labUnlockReportThreshold", cec."reportDurationHours"
+                FROM certification_exam_attempts cea
+                JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+                WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
+                ORDER BY cea."redeemedAt" DESC
+                LIMIT 1
+            """,
+                exam_config_id,
+                str(current_user["id"]),
+            )
 
         if not attempt:
             raise HTTPException(status_code=404, detail="Exam attempt not found")
 
         return {
             "exam_id": str(attempt["examConfigId"]),
+            "attempt_id": str(attempt["id"]),
             "exam_title": attempt["exam_name"],
             "exam_description": "",
             "status": attempt["status"],
@@ -10764,25 +10809,41 @@ async def student_get_certification_exam_status(
 
 @api_router.get("/student/certification-exams/{exam_config_id}/report-status")
 async def student_get_report_status(
-    exam_config_id: str, current_user: dict = Depends(get_current_user)
+    exam_config_id: str,
+    attempt_id: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Get report upload status for this exam.
     """
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
-        attempt = await conn.fetchrow(
-            """
-            SELECT cea.*, cec.name as exam_name, cec."labUnlockReportThreshold"
-            FROM certification_exam_attempts cea
-            JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
-            WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
-            ORDER BY cea."redeemedAt" DESC
-            LIMIT 1
-        """,
-            exam_config_id,
-            str(current_user["id"]),
-        )
+        if attempt_id:
+            attempt = await conn.fetchrow(
+                """
+                SELECT cea.*, cec.name as exam_name, cec."labUnlockReportThreshold"
+                FROM certification_exam_attempts cea
+                JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+                WHERE cea.id::text = $1 AND cea."userId"::text = $2
+            """,
+                attempt_id,
+                str(current_user["id"]),
+            )
+            if attempt and str(attempt["examConfigId"]) != exam_config_id:
+                raise HTTPException(status_code=404, detail="Exam attempt not found")
+        else:
+            attempt = await conn.fetchrow(
+                """
+                SELECT cea.*, cec.name as exam_name, cec."labUnlockReportThreshold"
+                FROM certification_exam_attempts cea
+                JOIN certification_exam_configs cec ON cea."examConfigId" = cec.id
+                WHERE cea."examConfigId"::text = $1 AND cea."userId"::text = $2
+                ORDER BY cea."redeemedAt" DESC
+                LIMIT 1
+            """,
+                exam_config_id,
+                str(current_user["id"]),
+            )
 
         if not attempt:
             raise HTTPException(status_code=404, detail="Exam attempt not found")
@@ -12147,6 +12208,29 @@ async def get_challenge_session(
 
     logger.info(f"Checking session for user {user_id}, challenge {challenge_id}")
 
+    async def _latest_non_running_status(conn, uid: str, cid: str) -> Optional[str]:
+        row = await conn.fetchrow(
+            """
+            SELECT status
+            FROM nexus_usage
+            WHERE user_id = $1 AND challenge_id = $2
+            ORDER BY started_at DESC
+            LIMIT 1
+        """,
+            uid,
+            cid,
+        )
+        if not row:
+            return None
+        db_status = (row["status"] or "").lower()
+        if db_status in ("stopped", "expired", "terminated"):
+            return db_status
+        if db_status in ("running", "active"):
+            return "running"
+        if db_status in ("starting", "provisioning", "pending"):
+            return "pending"
+        return None
+
     # Check in-memory cache first
     if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
         session_id = nexus_sessions[user_id][challenge_id]
@@ -12259,6 +12343,11 @@ async def get_challenge_session(
                 logger.info(
                     f"[NEXUS-SELECT] No running session found in DB for user {user_id}, challenge {challenge_id}"
                 )
+
+            # No active running session: return latest known terminal status for better UX
+            last_status = await _latest_non_running_status(conn, user_id, challenge_id)
+            if last_status and last_status != "running":
+                return {"status": last_status}
     except Exception as e:
         logger.error(f"[NEXUS-SELECT] Database error: {e}")
 

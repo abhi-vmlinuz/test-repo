@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { API, toast } from '../../../App';
 import { ArrowLeft, Upload, FileText, Clock, CheckCircle2, AlertCircle, Loader2, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface ReportStatus {
-    exam_id: number;
+    exam_id: string;
     exam_title: string;
-    attempt_id: number;
+    attempt_id: string;
     lab_score: number;
     can_upload_report: boolean;
     report_uploaded_at: string | null;
@@ -20,6 +20,8 @@ interface ReportStatus {
 const StudentCertificationReport = () => {
     const navigate = useNavigate();
     const { examId } = useParams();
+    const [searchParams] = useSearchParams();
+    const attemptId = searchParams.get('attempt_id');
     const [reportStatus, setReportStatus] = useState<ReportStatus | null>(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -27,12 +29,13 @@ const StudentCertificationReport = () => {
 
     useEffect(() => {
         fetchReportStatus();
-    }, [examId]);
+    }, [examId, attemptId]);
 
     const fetchReportStatus = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/student/certification-exams/${examId}/report-status`);
+            const query = attemptId ? `?attempt_id=${encodeURIComponent(attemptId)}` : '';
+            const response = await axios.get(`${API}/student/certification-exams/${examId}/report-status${query}`);
             setReportStatus(response.data);
         } catch (error: any) {
             toast.error('Failed to load report status');
