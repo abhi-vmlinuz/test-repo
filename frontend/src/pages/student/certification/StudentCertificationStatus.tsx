@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { API, toast } from '../../../App';
 import { ArrowLeft, Clock, CheckCircle2, XCircle, Award, Loader2, FileText, Flag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface AttemptStatus {
-    exam_id: number;
+    exam_id: string;
+    attempt_id?: string;
     exam_title: string;
     exam_description: string;
     status: string;
@@ -43,17 +44,20 @@ const STATUS_COLORS: Record<string, string> = {
 const StudentCertificationStatus = () => {
     const navigate = useNavigate();
     const { examId } = useParams();
+    const [searchParams] = useSearchParams();
+    const attemptId = searchParams.get('attempt_id');
     const [status, setStatus] = useState<AttemptStatus | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchStatus();
-    }, [examId]);
+    }, [examId, attemptId]);
 
     const fetchStatus = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API}/student/certification-exams/${examId}/status`);
+            const query = attemptId ? `?attempt_id=${encodeURIComponent(attemptId)}` : '';
+            const response = await axios.get(`${API}/student/certification-exams/${examId}/status${query}`);
             setStatus(response.data);
         } catch (error: any) {
             toast.error('Failed to load exam status');
@@ -305,7 +309,10 @@ const StudentCertificationStatus = () => {
             <div className="flex gap-3 flex-wrap">
                 {status.status === 'LAB_IN_PROGRESS' && !labTimer.label.includes('Expired') && (
                     <button
-                        onClick={() => navigate(`/student/certification-exams/${examId}/lab`)}
+                        onClick={() => {
+                            const base = `/student/certification-exams/${examId}/lab`;
+                            navigate(status.attempt_id ? `${base}?attempt_id=${status.attempt_id}` : base);
+                        }}
                         className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
                     >
                         <Flag className="w-5 h-5" />
@@ -315,7 +322,10 @@ const StudentCertificationStatus = () => {
 
                 {status.status === 'LAB_IN_PROGRESS' && labTimer.label.includes('Expired') && (
                     <button
-                        onClick={() => navigate(`/student/certification-exams/${examId}/lab`)}
+                        onClick={() => {
+                            const base = `/student/certification-exams/${examId}/lab`;
+                            navigate(status.attempt_id ? `${base}?attempt_id=${status.attempt_id}` : base);
+                        }}
                         className="flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-semibold"
                     >
                         <Flag className="w-5 h-5" />
@@ -326,7 +336,10 @@ const StudentCertificationStatus = () => {
                 {(status.status === 'REPORT_UNLOCKED' || status.status === 'REPORT_UPLOADED' ||
                   (status.status === 'LAB_COMPLETED' && (status.lab_score ?? 0) >= 80)) && (
                     <button
-                        onClick={() => navigate(`/student/certification-exams/${examId}/report`)}
+                        onClick={() => {
+                            const base = `/student/certification-exams/${examId}/report`;
+                            navigate(status.attempt_id ? `${base}?attempt_id=${status.attempt_id}` : base);
+                        }}
                         className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold"
                     >
                         <FileText className="w-5 h-5" />
