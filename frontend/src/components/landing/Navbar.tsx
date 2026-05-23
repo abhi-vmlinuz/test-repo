@@ -120,7 +120,7 @@ export const Navbar = () => {
                         >
                             Log in
                         </Link>
-                        <Link to="/register">
+                        <Link to="/login">
                             <button className={`px-5 py-2.5 rounded-full text-sm font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg ${isLandingPage ? 'bg-zinc-900 text-white hover:bg-gray-800 shadow-gray-200' : 'bg-white text-black hover:bg-zinc-200 shadow-zinc-900/20'}`}>
                                 Get Access
                             </button>
@@ -179,7 +179,7 @@ export const Navbar = () => {
                                     Log in
                                 </button>
                             </Link>
-                            <Link to="/register" onClick={() => setIsMobileOpen(false)}>
+                            <Link to="/login" onClick={() => setIsMobileOpen(false)}>
                                 <button className="w-full py-4 rounded-xl text-lg font-bold text-white bg-zinc-900 hover:bg-gray-800 shadow-lg">
                                     Get Access Now
                                 </button>
