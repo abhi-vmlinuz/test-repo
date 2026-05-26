@@ -3,7 +3,7 @@ import { useNavigate, Link, Outlet, useLocation } from 'react-router-dom';
 import { toast } from '../../App';
 import {
     LayoutDashboard, Flag, FolderOpen, Users, FileText,
-    LogOut, Shield, ChevronRight, GraduationCap, Bell, Menu, X, Zap, Cloud, Package, FlaskConical, Award
+    LogOut, Shield, ChevronRight, Menu, X, Zap, Cloud, Package
 } from 'lucide-react';
 import CreativeBackground from '../../components/CreativeBackground';
 
@@ -26,13 +26,9 @@ const AdminLayout = ({ user, logout }) => {
         { id: 'categories', icon: FolderOpen, label: 'Categories', path: '/admin/categories' },
         { id: 'users', icon: Users, label: 'Users', path: '/admin/users' },
         { id: 'submissions', icon: FileText, label: 'Submissions', path: '/admin/submissions' },
-        { id: 'notifications', icon: Bell, label: 'Notifications', path: '/admin/notifications' },
-        { id: 'student-portal', icon: GraduationCap, label: 'Student Portal', path: '/admin/student-portal' },
-        { id: 'certification-exams', icon: Award, label: 'Certification Exams', path: '/admin/certification-exams' },
         { id: 'registry', icon: Package, label: 'Image Registry', path: '/admin/registry' },
         { id: 'nexus', icon: Cloud, label: 'Nexus Engine', path: '/admin/nexus' },
         ...(user?.role === 'superadmin' ? [
-            { id: 'feature-flags', icon: FlaskConical, label: 'Feature Flags', path: '/admin/feature-flags' },
             { id: 'active-sessions', icon: Shield, label: 'Active Sessions', path: '/admin/sessions' },
         ] : []),
     ];

@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: zecurx-postgres
+    environment:
+      POSTGRES_USER: zecurx
+      POSTGRES_PASSWORD: zecurx_dev_password
+      POSTGRES_DB: ctf_platform
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zecurx -d ctf_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: zecurx-backend
+    network_mode: host
+    environment:
+      DATABASE_URL: "postgresql://zecurx:zecurx_dev_password@127.0.0.1:5432/ctf_platform"
+      JWT_SECRET: "nexus-test-jwt-secret-change-in-prod"
+      CORS_ORIGINS: "*"
+      NEXUS_ENGINE_URL: "http://127.0.0.1:8081"
+      GHCR_USERNAME: ""
+      GHCR_TOKEN: ""
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_BACKEND_URL: ""
+        VITE_NEXUS_URL: "http://localhost:8081"
+    container_name: zecurx-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

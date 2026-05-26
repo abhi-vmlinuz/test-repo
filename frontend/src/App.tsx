@@ -35,39 +35,10 @@ import AdminChallenges from '@/pages/admin/AdminChallenges';
 import AdminCategories from '@/pages/admin/AdminCategories';
 import AdminUsers from '@/pages/admin/AdminUsers';
 import AdminSubmissions from '@/pages/admin/AdminSubmissions';
-import AdminStudentPortal from '@/pages/admin/AdminStudentPortal';
-import AdminNotifications from '@/pages/admin/AdminNotifications';
 import AdminNexus from '@/pages/admin/AdminNexus';
 import AdminImageRegistry from '@/pages/admin/AdminImageRegistry';
-import AdminFeatureFlags from '@/pages/admin/AdminFeatureFlags';
 import AdminActiveSessions from '@/pages/admin/AdminActiveSessions';
 import TerminalPage from '@/pages/TerminalPage';
-
-// Certification Exam Pages
-import CertificationExamsList from '@/pages/admin/certification/CertificationExamsList';
-import CertificationExamForm from '@/pages/admin/certification/CertificationExamForm';
-import CertificationExamDetails from '@/pages/admin/certification/CertificationExamDetails';
-import CertificationAttemptsList from '@/pages/admin/certification/CertificationAttemptsList';
-import ReportGradingPage from '@/pages/admin/certification/ReportGradingPage';
-
-// Student Certification Pages
-import StudentCertificationExams from '@/pages/student/certification/StudentCertificationExams';
-import StudentCertificationLab from '@/pages/student/certification/StudentCertificationLab';
-import StudentCertificationReport from '@/pages/student/certification/StudentCertificationReport';
-import StudentCertificationStatus from '@/pages/student/certification/StudentCertificationStatus';
-
-import { FeatureProvider } from '@/contexts/FeatureContext';
-
-// Student Pages
-import StudentLayout from '@/pages/student/StudentLayout';
-import StudentDashboard from '@/pages/student/StudentDashboard';
-import StudentCourses from '@/pages/student/StudentCourses';
-import StudentCourse from '@/pages/student/StudentCourse';
-import StudentModule from '@/pages/student/StudentModule';
-import StudentChallenge from '@/pages/student/StudentChallenge';
-import StudentAchievements from '@/pages/student/StudentAchievements';
-import StudentQuiz from '@/pages/student/StudentQuiz';
-import StudentProgress from '@/pages/student/StudentProgress';
 import VPNAccess from '@/pages/VPNAccess';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -149,7 +120,6 @@ function App() {
   }
 
   return (
-    <FeatureProvider>
       <div className="App">
         <ThemeToggle isAuthenticated={!!user} />
         <BrowserRouter>
@@ -191,43 +161,13 @@ function App() {
               <Route path="categories" element={<AdminCategories />} />
               <Route path="users" element={<AdminUsers user={user} />} />
               <Route path="submissions" element={<AdminSubmissions />} />
-              <Route path="notifications" element={<AdminNotifications user={user} />} />
-              <Route path="student-portal" element={<AdminStudentPortal user={user} />} />
               <Route path="nexus" element={<AdminNexus user={user} logout={logout} />} />
               <Route path="registry" element={<AdminImageRegistry />} />
-              <Route path="certification-exams" element={<CertificationExamsList />} />
-              <Route path="certification-exams/new" element={<CertificationExamForm />} />
-              <Route path="certification-exams/create" element={<CertificationExamForm />} />
-              <Route path="certification-exams/edit/:id" element={<CertificationExamForm />} />
-              <Route path="certification-exams/:id" element={<CertificationExamDetails />} />
-              <Route path="certification-exams/:id/attempts" element={<CertificationAttemptsList />} />
-              <Route path="certification-exams/grade-report/:attemptId" element={<ReportGradingPage />} />
               {user?.role === 'superadmin' && (
                 <>
-                  <Route path="feature-flags" element={<AdminFeatureFlags user={user} />} />
                   <Route path="sessions" element={<AdminActiveSessions />} />
                 </>
               )}
-            </Route>
-
-            {/* Student Portal routes - accessible to all logged-in users */}
-            <Route
-              path="/student"
-              element={user ? <StudentLayout user={user} logout={logout} /> : <Navigate to="/login" />}
-            >
-              <Route index element={<StudentDashboard user={user} />} />
-              <Route path="courses" element={<StudentCourses user={user} />} />
-              <Route path="course/:courseId" element={<StudentCourse user={user} />} />
-              <Route path="module/:moduleId" element={<StudentModule user={user} />} />
-              <Route path="challenge/:challengeId" element={<StudentChallenge user={user} />} />
-              <Route path="module/:moduleId/quiz" element={<StudentQuiz user={user} />} />
-              <Route path="course/:courseId/final-quiz" element={<StudentQuiz user={user} />} />
-              <Route path="progress" element={<StudentProgress user={user} />} />
-              <Route path="achievements" element={<StudentAchievements user={user} />} />
-              <Route path="certification-exams" element={<StudentCertificationExams />} />
-              <Route path="certification-exams/:examId/lab" element={<StudentCertificationLab />} />
-              <Route path="certification-exams/:examId/report" element={<StudentCertificationReport />} />
-              <Route path="certification-exams/:examId/status" element={<StudentCertificationStatus />} />
             </Route>
           </Routes>
         </BrowserRouter>
@@ -244,7 +184,6 @@ function App() {
           }}
         />
       </div>
-    </FeatureProvider>
   );
 }
 
