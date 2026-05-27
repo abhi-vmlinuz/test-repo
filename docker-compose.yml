@@ -26,7 +26,7 @@ services:
       DATABASE_URL: "postgresql://zecurx:zecurx_dev_password@127.0.0.1:5432/ctf_platform"
       JWT_SECRET: "nexus-test-jwt-secret-change-in-prod"
       CORS_ORIGINS: "*"
-      NEXUS_ENGINE_URL: "http://127.0.0.1:8081"
+      NEXUS_ENGINE_URL: "http://13.233.126.78:8081"
       GHCR_USERNAME: ""
       GHCR_TOKEN: ""
     volumes:
@@ -41,7 +41,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_BACKEND_URL: ""
-        VITE_NEXUS_URL: "http://localhost:8081"
+        VITE_NEXUS_URL: "http://13.233.126.78:8081"
     container_name: zecurx-frontend
     ports:
       - "3000:80"
