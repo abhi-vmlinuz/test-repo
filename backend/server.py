@@ -5859,7 +5859,7 @@ async def admin_delete_challenge(
 # (Container orchestration for CTF challenges)
 # ===========================================
 
-NEXUS_ENGINE_URL = os.environ.get("NEXUS_ENGINE_URL", "http://65.21.191.184:8081")
+NEXUS_ENGINE_URL = os.environ.get("NEXUS_ENGINE_URL", "http://127.0.0.1:8081")
 
 # Nexus session storage (user_id -> session_id mapping)
 nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}

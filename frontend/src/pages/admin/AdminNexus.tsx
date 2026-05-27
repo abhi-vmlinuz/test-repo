@@ -599,7 +599,7 @@ const AdminNexus = () => {
                                     </div>
                                     <div>
                                         <p className="font-semibold text-zinc-900">Nexus Engine</p>
-                                        <p className="text-sm text-gray-500">65.21.191.184:8081</p>
+                                        <p className="text-sm text-gray-500">{window.location.hostname}:8081</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -1281,7 +1281,7 @@ const AdminNexus = () => {
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-gray-600">API Endpoint</span>
-                                    <span className="font-mono text-xs">65.21.191.184:8081</span>
+                                    <span className="font-mono text-xs">{window.location.hostname}:8081</span>
                                 </div>
                             </div>
 

@@ -242,7 +242,7 @@ const BillingTab = ({ API }: BillingTabProps) => {
                             <p className="text-sm text-gray-600">
                                 • Hetzner VPS (Germany)<br/>
                                 • Hosts Nexus Engine API<br/>
-                                • IP: 65.21.191.184:8081<br/>
+                                • IP: {window.location.hostname}:8081<br/>
                                 • Manages pod lifecycle and VPN configs
                             </p>
                         </div>
