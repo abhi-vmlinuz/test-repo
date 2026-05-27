@@ -269,17 +269,6 @@ class StudentChallengeCreate(BaseModel):
     order: int = 0
 
 
-class EnrollUserRequest(BaseModel):
-    user_id: str
-    course_id: str
-    expires_days: int = 7
-
-
-class UnenrollUserRequest(BaseModel):
-    user_id: str
-    course_id: str
-
-
 
 # ===========================================
 # HELPER FUNCTIONS
@@ -5645,17 +5634,16 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
 
         # Basic counts
         stats["total_users"] = await conn.fetchval("SELECT COUNT(*) FROM users")
-        stats["total_courses"] = await conn.fetchval("SELECT COUNT(*) FROM ctf_courses")
-        stats["total_modules"] = await conn.fetchval("SELECT COUNT(*) FROM ctf_modules")
         stats["total_challenges"] = await conn.fetchval(
             'SELECT COUNT(*) FROM ctf_public_challenges WHERE "isPublished" = true'
         )
-        stats["total_enrollments"] = await conn.fetchval(
-            "SELECT COUNT(*) FROM ctf_enrollments"
-        )
-        stats["completed_challenges"] = await conn.fetchval(
-            'SELECT COUNT(*) FROM ctf_progress WHERE "isCompleted" = true'
-        )
+
+        # Optional tables (may not exist in stripped test environment)
+        for tbl, key in [("ctf_courses", "total_courses"), ("ctf_modules", "total_modules"), ("ctf_enrollments", "total_enrollments"), ("ctf_progress", "completed_challenges")]:
+            try:
+                stats[key] = await conn.fetchval(f"SELECT COUNT(*) FROM {tbl}")
+            except Exception:
+                stats[key] = 0
 
         # Categories count (from public challenges)
         stats["total_categories"] = (
@@ -5700,16 +5688,19 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
         stats["recent_solves"] = [dict(r) for r in recent_solves]
 
         # Recent enrollments
-        recent_enrollments = await conn.fetch("""
-            SELECT e."enrolledAt", u.name, u.email, c.title as course
-            FROM ctf_enrollments e
-            JOIN users u ON e."userId" = u.id
-            JOIN ctf_courses cc ON e."ctfCourseId" = cc.id
-            JOIN courses c ON cc."lmsCourseId" = c.id
-            ORDER BY e."enrolledAt" DESC
-            LIMIT 5
-        """)
-        stats["recent_enrollments"] = [dict(r) for r in recent_enrollments]
+        try:
+            recent_enrollments = await conn.fetch("""
+                SELECT e."enrolledAt", u.name, u.email, c.title as course
+                FROM ctf_enrollments e
+                JOIN users u ON e."userId" = u.id
+                JOIN ctf_courses cc ON e."ctfCourseId" = cc.id
+                JOIN courses c ON cc."lmsCourseId" = c.id
+                ORDER BY e."enrolledAt" DESC
+                LIMIT 5
+            """)
+            stats["recent_enrollments"] = [dict(r) for r in recent_enrollments]
+        except Exception:
+            stats["recent_enrollments"] = []
 
         # Active containers from Nexus Engine
         try:
@@ -5861,157 +5852,6 @@ async def admin_delete_challenge(
             "DELETE FROM ctf_challenges WHERE id::text = $1", challenge_id
         )
         return {"success": True}
-
-
-# ===========================================
-# ADMIN: ENROLLMENT MANAGEMENT
-# ===========================================
-
-
-@api_router.get("/admin/enrollments")
-async def admin_get_enrollments(
-    course_id: Optional[str] = None, admin: dict = Depends(require_admin)
-):
-    """Get all enrollments"""
-    pool = await Database.get_pool()
-    async with pool.acquire() as conn:
-        if course_id:
-            enrollments = await conn.fetch(
-                """
-                SELECT e.id, e."enrolledAt", e.progress, e."totalPoints",
-                       u.id as user_id, u.name, u.email,
-                       c.title as course_name, c."courseCode" as course_code
-                FROM ctf_enrollments e
-                JOIN users u ON e."userId" = u.id
-                JOIN ctf_courses cc ON e."ctfCourseId" = cc.id
-                JOIN courses c ON cc."lmsCourseId" = c.id
-                WHERE e."ctfCourseId" = $1
-                ORDER BY e."enrolledAt" DESC
-            """,
-                course_id,
-            )
-        else:
-            enrollments = await conn.fetch("""
-                SELECT e.id, e."enrolledAt", e.progress, e."totalPoints",
-                       u.id as user_id, u.name, u.email,
-                       c.title as course_name, c."courseCode" as course_code
-                FROM ctf_enrollments e
-                JOIN users u ON e."userId" = u.id
-                JOIN ctf_courses cc ON e."ctfCourseId" = cc.id
-                JOIN courses c ON cc."lmsCourseId" = c.id
-                ORDER BY e."enrolledAt" DESC
-            """)
-        return [dict(e) for e in enrollments]
-
-
-@api_router.post("/admin/enrollment-codes")
-async def admin_create_enrollment_code(
-    data: EnrollmentCodeCreate, admin: dict = Depends(require_admin)
-):
-    """Create an enrollment code"""
-    pool = await Database.get_pool()
-    async with pool.acquire() as conn:
-        code_id = generate_uuid()
-        code = generate_code(8)
-        expires_at = datetime.now(timezone.utc) + timedelta(days=data.expires_days)
-
-        await conn.execute(
-            """
-            INSERT INTO ctf_enrollment_codes (
-                id, "ctfCourseId", code, "expiresAt", "createdBy", 
-                "isUsed", "createdAt"
-            ) VALUES ($1, $2, $3, $4, $5, false, NOW())
-        """,
-            code_id,
-            data.course_id,
-            code,
-            expires_at,
-            admin["id"],
-        )
-
-        return {"id": code_id, "code": code, "expires_at": expires_at.isoformat()}
-
-
-@api_router.get("/admin/enrollment-codes")
-async def admin_get_enrollment_codes(admin: dict = Depends(require_admin)):
-    """Get all enrollment codes"""
-    pool = await Database.get_pool()
-    async with pool.acquire() as conn:
-        codes = await conn.fetch("""
-            SELECT ec.id, ec.code, ec."isUsed", ec."expiresAt", ec."createdAt",
-                   c.title as course_name, c."courseCode" as course_code
-            FROM ctf_enrollment_codes ec
-            JOIN ctf_courses cc ON ec."ctfCourseId" = cc.id
-            JOIN courses c ON cc."lmsCourseId" = c.id
-            ORDER BY ec."createdAt" DESC
-        """)
-        return [dict(c) for c in codes]
-
-
-@api_router.delete("/admin/enrollment-codes/{code_id}")
-async def admin_delete_enrollment_code(
-    code_id: str, admin: dict = Depends(require_admin)
-):
-    """Delete an enrollment code"""
-    pool = await Database.get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            "DELETE FROM ctf_enrollment_codes WHERE id::text = $1", code_id
-        )
-        return {"success": True}
-
-
-@api_router.post("/admin/enroll-user")
-async def admin_enroll_user(
-    data: EnrollUserRequest, admin: dict = Depends(require_admin)
-):
-    """Directly enroll a user in a course"""
-    pool = await Database.get_pool()
-    async with pool.acquire() as conn:
-        # Check if already enrolled
-        existing = await conn.fetchrow(
-            """
-            SELECT id FROM ctf_enrollments 
-            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
-        """,
-            data.user_id,
-            data.course_id,
-        )
-
-        if existing:
-            raise HTTPException(status_code=400, detail="User already enrolled")
-
-        enrollment_id = generate_uuid()
-        await conn.execute(
-            """
-            INSERT INTO ctf_enrollments (id, "userId", "ctfCourseId", "enrolledAt")
-            VALUES ($1, $2, $3, NOW())
-        """,
-            enrollment_id,
-            data.user_id,
-            data.course_id,
-        )
-
-        return {"success": True, "enrollment_id": enrollment_id}
-
-
-@api_router.post("/admin/unenroll-user")
-async def admin_unenroll_user(
-    data: UnenrollUserRequest, admin: dict = Depends(require_admin)
-):
-    """Unenroll a user from a course"""
-    pool = await Database.get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            DELETE FROM ctf_enrollments 
-            WHERE "userId"::text = $1 AND "ctfCourseId" = $2
-        """,
-            data.user_id,
-            data.course_id,
-        )
-        return {"success": True}
-
 
 
 # ===========================================
