@@ -6007,8 +6007,13 @@ async def start_docker_instance(
                             pack_ports = json.loads(pack_ports)
                         nexus_challenge["ports"] = pack_ports
                 else:
-                    nexus_challenge["image_url"] = challenge["docker_image"]
-                    nexus_challenge["is_multi_container"] = False
+                    nexus_challenge["containers"] = [
+                        {
+                            "name": "main",
+                            "image": challenge["docker_image"],
+                            "ports": challenge_ports,
+                        }
+                    ]
 
                 # Try to delete existing challenge to force fresh config
                 try:
@@ -6038,10 +6043,16 @@ async def start_docker_instance(
                         f"Could not create Nexus challenge: {create_resp.status_code}"
                     )
 
+                # Generate a VPN IP for the user (WireGuard assigns based on user ID)
+                vpn_ip = f"10.8.0.{hash(user_id) % 254 + 1}"
+
                 spawn_resp = await client.post(
                     f"{NEXUS_ENGINE_URL}/api/v1/sessions",
-                    json={"challenge_id": nexus_chal_id},
-                    headers={"X-User-ID": user_id},
+                    json={
+                        "challenge_id": nexus_chal_id,
+                        "user_id": user_id,
+                        "vpn_ip": vpn_ip,
+                    },
                     timeout=180.0,
                 )
 
