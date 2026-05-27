@@ -65,6 +65,15 @@ server {
         proxy_send_timeout 86400s;
     }
 
+    # Proxy API requests to backend
+    location /api/ {
+        proxy_pass http://172.17.0.1:4000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # SPA routing - try files, fallback to index.html
     location / {
         try_files $uri $uri/ /index.html;
