@@ -6043,8 +6043,22 @@ async def start_docker_instance(
                         f"Could not create Nexus challenge: {create_resp.status_code}"
                     )
 
-                # Generate a VPN IP for the user (WireGuard assigns based on user ID)
-                vpn_ip = f"10.8.0.{hash(user_id) % 254 + 1}"
+                # Fetch the real VPN IP from Nexus Engine.
+                # This calls /api/v1/vpn/config which idempotently provisions
+                # or retrieves the user's WireGuard peer.
+                vpn_ip = ""
+                try:
+                    vpn_status_resp = await client.get(
+                        f"{NEXUS_ENGINE_URL}/api/v1/vpn/status",
+                        headers={"X-User-ID": user_id},
+                        timeout=10.0,
+                    )
+                    if vpn_status_resp.status_code == 200:
+                        vpn_data = vpn_status_resp.json()
+                        if vpn_data.get("has_vpn"):
+                            vpn_ip = vpn_data.get("vpn_ip", "")
+                except Exception as e:
+                    logger.warning(f"[VPN] Could not fetch VPN status for user {user_id}: {e}")
 
                 spawn_resp = await client.post(
                     f"{NEXUS_ENGINE_URL}/api/v1/sessions",
@@ -7446,6 +7460,79 @@ async def force_logout_session(
 async def shutdown():
     logger.info("Shutting down...")
     await Database.close()
+
+
+# ─── VPN PROXY ENDPOINTS ──────────────────────────────────────────────────────
+# These endpoints proxy WireGuard config requests to the Nexus Engine so the
+# frontend never needs to talk to port 8081 directly.
+
+
+@api_router.get("/vpn/config")
+async def vpn_config_proxy(current_user: dict = Depends(get_current_user)):
+    """Proxy: GET /api/v1/vpn/config from Nexus Engine → return as .conf download."""
+    user_id = str(current_user["id"])
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(
+                f"{NEXUS_ENGINE_URL}/api/v1/vpn/config",
+                headers={"X-User-ID": user_id},
+                timeout=15.0,
+            )
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=resp.status_code,
+                    detail=resp.json().get("error", "Nexus VPN config failed"),
+                )
+            from fastapi.responses import Response
+            return Response(
+                content=resp.content,
+                media_type="text/plain",
+                headers={"Content-Disposition": "attachment; filename=nexus-vpn.conf"},
+            )
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"Nexus Engine unreachable: {e}")
+
+
+@api_router.get("/vpn/status")
+async def vpn_status_proxy(current_user: dict = Depends(get_current_user)):
+    """Proxy: GET /api/v1/vpn/status from Nexus Engine."""
+    user_id = str(current_user["id"])
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(
+                f"{NEXUS_ENGINE_URL}/api/v1/vpn/status",
+                headers={"X-User-ID": user_id},
+                timeout=10.0,
+            )
+            return resp.json()
+        except httpx.RequestError:
+            return {"has_vpn": False, "error": "Nexus Engine unreachable"}
+
+
+@api_router.post("/vpn/regenerate")
+async def vpn_regenerate_proxy(current_user: dict = Depends(get_current_user)):
+    """Proxy: POST /api/v1/vpn/regenerate to Nexus Engine → return new .conf download."""
+    user_id = str(current_user["id"])
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{NEXUS_ENGINE_URL}/api/v1/vpn/regenerate",
+                headers={"X-User-ID": user_id},
+                timeout=15.0,
+            )
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=resp.status_code,
+                    detail=resp.json().get("error", "Nexus VPN regenerate failed"),
+                )
+            from fastapi.responses import Response
+            return Response(
+                content=resp.content,
+                media_type="text/plain",
+                headers={"Content-Disposition": "attachment; filename=nexus-vpn.conf"},
+            )
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"Nexus Engine unreachable: {e}")
 
 
 # Include router and middleware
