@@ -40,7 +40,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_BACKEND_URL: "http://48.193.47.72:8000"
+        VITE_BACKEND_URL: ""
         VITE_NEXUS_URL: "http://48.193.47.72:8081"
     container_name: rlabz-frontend
     ports:
