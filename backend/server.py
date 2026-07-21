@@ -2256,7 +2256,9 @@ async def _auto_destroy_nexus_session(user_id: str, challenge_id: str) -> None:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.delete(
-                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=30.0
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                headers=_get_nexus_headers(),
+                timeout=30.0,
             )
             if resp.status_code in [200, 404]:
                 logger.info(
@@ -5392,7 +5394,12 @@ async def admin_create_challenge_with_docker(
                 )  # GitHub PAT with packages:write
 
                 short_id = challenge_id[:8].lower()
-                image_name = f"ghcr.io/{ghcr_username}/ctf-challenges/{short_id}:latest"
+                
+                # Use local registry if no GHCR token is set
+                if not ghcr_token or ghcr_username == "":
+                    image_name = f"localhost:5000/ctf-challenges/{short_id}:latest"
+                else:
+                    image_name = f"ghcr.io/{ghcr_username}/ctf-challenges/{short_id}:latest"
 
                 logger.info(f"Building Docker image: {image_name}")
 
@@ -5403,8 +5410,8 @@ async def admin_create_challenge_with_docker(
                 )
                 logger.info(f"Docker image built successfully: {image_name}")
 
-                # Push to GHCR if token is available
-                if ghcr_token:
+                # Push to GHCR or local registry
+                if ghcr_token and ghcr_username:
                     try:
                         # Login to GHCR
                         docker_client.login(
@@ -5419,12 +5426,17 @@ async def admin_create_challenge_with_docker(
                         docker_image = image_name
                     except Exception as push_error:
                         logger.error(f"Failed to push to GHCR: {push_error}")
-                        docker_image = (
-                            f"local-only:{image_name}"  # Built but not pushed
-                        )
+                        docker_image = f"local-only:{image_name}"
                 else:
-                    logger.warning("GHCR_TOKEN not set - image built but not pushed")
-                    docker_image = f"local-only:{image_name}"
+                    try:
+                        # Push to local registry
+                        logger.info(f"Pushing image to local registry: {image_name}")
+                        push_logs = docker_client.images.push(image_name)
+                        logger.info(f"Image pushed successfully to local registry")
+                        docker_image = image_name
+                    except Exception as push_error:
+                        logger.error(f"Failed to push to local registry: {push_error}")
+                        docker_image = f"local-only:{image_name}"
 
             except Exception as e:
                 logger.error(f"Docker build failed: {e}")
@@ -5706,7 +5718,10 @@ async def admin_dashboard(admin: dict = Depends(require_admin)):
         try:
             nexus_url = os.getenv("NEXUS_ENGINE_URL", "http://localhost:8081")
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(f"{nexus_url}/api/v1/admin/stats")
+                resp = await client.get(
+                    f"{nexus_url}/api/v1/admin/stats",
+                    headers=_get_nexus_headers(),
+                )
                 if resp.status_code == 200:
                     nexus_stats = resp.json()
                     stats["active_containers"] = nexus_stats.get("active_sessions", 0)
@@ -5860,6 +5875,16 @@ async def admin_delete_challenge(
 # ===========================================
 
 NEXUS_ENGINE_URL = os.environ.get("NEXUS_ENGINE_URL", "http://13.233.126.78:8081")
+NEXUS_API_KEY = os.environ.get("NEXUS_API_KEY", "")
+
+
+def _get_nexus_headers(user_id: str = None) -> dict:
+    headers = {}
+    if NEXUS_API_KEY:
+        headers["Authorization"] = f"Bearer {NEXUS_API_KEY}"
+    if user_id:
+        headers["X-User-ID"] = user_id
+    return headers
 
 # Nexus session storage (user_id -> session_id mapping)
 nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}
@@ -5938,6 +5963,7 @@ async def start_docker_instance(
                 async with httpx.AsyncClient() as client:
                     resp = await client.get(
                         f"{NEXUS_ENGINE_URL}/api/v1/sessions/{existing_session_id}",
+                        headers=_get_nexus_headers(),
                         timeout=10.0,
                     )
                     if resp.status_code == 200:
@@ -6019,6 +6045,7 @@ async def start_docker_instance(
                 try:
                     await client.delete(
                         f"{NEXUS_ENGINE_URL}/api/v1/challenges/{challenge_id}",
+                        headers=_get_nexus_headers(),
                         timeout=5.0,
                     )
                 except:
@@ -6028,6 +6055,7 @@ async def start_docker_instance(
                 create_resp = await client.post(
                     f"{NEXUS_ENGINE_URL}/api/v1/challenges",
                     json=nexus_challenge,
+                    headers=_get_nexus_headers(),
                     timeout=10.0,
                 )
 
@@ -6050,7 +6078,7 @@ async def start_docker_instance(
                 try:
                     vpn_status_resp = await client.get(
                         f"{NEXUS_ENGINE_URL}/api/v1/vpn/status",
-                        headers={"X-User-ID": user_id},
+                        headers=_get_nexus_headers(user_id),
                         timeout=10.0,
                     )
                     if vpn_status_resp.status_code == 200:
@@ -6067,6 +6095,7 @@ async def start_docker_instance(
                         "user_id": user_id,
                         "vpn_ip": vpn_ip,
                     },
+                    headers=_get_nexus_headers(),
                     timeout=180.0,
                 )
 
@@ -6155,7 +6184,9 @@ async def stop_docker_instance(
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.delete(
-                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=30.0
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                headers=_get_nexus_headers(),
+                timeout=30.0,
             )
             if resp.status_code in [200, 404]:  # Treat 404 as already stopped
                 uid = str(current_user["id"])
@@ -6206,7 +6237,9 @@ async def extend_docker_instance(
         async with httpx.AsyncClient() as client:
             # Get current session status first
             status_resp = await client.get(
-                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=10.0
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
+                headers=_get_nexus_headers(),
+                timeout=10.0,
             )
 
             if status_resp.status_code == 404:
@@ -6258,6 +6291,7 @@ async def extend_docker_instance(
             resp = await client.post(
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/extend",
                 json={"extra_minutes": 30},
+                headers=_get_nexus_headers(),
                 timeout=10.0,
             )
             logger.info(f"Extend response for {session_id}: status={resp.status_code}")
