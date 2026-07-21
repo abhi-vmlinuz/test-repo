@@ -61,7 +61,7 @@ async def seed_database():
             print(f"✅ Created CTF_USER role (ID: {ctf_role_id})")
 
         # 2. Ensure mockup admin account exists
-        email = 'admin@rajagiri'
+        email = 'admin@rajagiri.edu'
         username = 'admin'
         password = 'admin123'
         hashed = hash_password(password)

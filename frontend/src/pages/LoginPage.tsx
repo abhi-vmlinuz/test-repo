@@ -12,6 +12,23 @@ import {
 } from 'lucide-react';
 import { FloatingElement } from '@/components/landing/FloatingElement';
 
+const getErrorMessage = (error: any, defaultMsg: string): string => {
+    if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (Array.isArray(detail)) {
+            return detail.map((err: any) => {
+                const field = err.loc ? err.loc.join('.') : '';
+                return `${field ? field + ': ' : ''}${err.msg}`;
+            }).join(', ');
+        } else if (typeof detail === 'string') {
+            return detail;
+        } else if (detail.message) {
+            return detail.message;
+        }
+    }
+    return defaultMsg;
+};
+
 const LoginPage = ({ setUser }) => {
     const navigate = useNavigate();
     const [isLogin, setIsLogin] = useState(true);
@@ -97,7 +114,7 @@ const LoginPage = ({ setUser }) => {
                     return;
                 }
             }
-            toast.error(error.response?.data?.detail || 'Authentication failed');
+            toast.error(getErrorMessage(error, 'Authentication failed'));
         } finally {
             setLoading(false);
         }
@@ -117,7 +134,7 @@ const LoginPage = ({ setUser }) => {
             // Focus first OTP input
             setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Failed to send verification code');
+            toast.error(getErrorMessage(error, 'Failed to send verification code'));
         } finally {
             setLoading(false);
         }
@@ -180,7 +197,7 @@ const LoginPage = ({ setUser }) => {
             setSessionConflict({ show: false, step: 'confirm' });
             navigate('/dashboard');
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Invalid verification code');
+            toast.error(getErrorMessage(error, 'Invalid verification code'));
         } finally {
             setLoading(false);
         }
@@ -196,7 +213,7 @@ const LoginPage = ({ setUser }) => {
             toast.success('Reset instructions sent to your email!');
             setShowForgotPassword(false);
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Failed to send reset email');
+            toast.error(getErrorMessage(error, 'Failed to send reset email'));
         } finally {
             setLoading(false);
         }
