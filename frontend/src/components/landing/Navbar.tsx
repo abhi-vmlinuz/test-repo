@@ -85,7 +85,7 @@ export const Navbar = () => {
                             <img src="/logo.png" alt="RLabZ Logo" className="w-full h-full object-cover" />
                         </div>
                         <span className={`text-xl font-bold tracking-tighter ${logoColor}`}>
-                            RLabZ<span className="text-gray-400">.Labs</span>
+                            RLabZ
                         </span>
                     </Link>
 
