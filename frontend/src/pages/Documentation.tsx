@@ -4,7 +4,7 @@ const Documentation = () => {
     return (
         <GenericPage
             title="Platform Documentation"
-            subtitle="Guides, references, and API docs to help you get the most out of ZecurX."
+            subtitle="Guides, references, and API docs to help you get the most out of RLabZ."
         >
             <h3>Getting Started</h3>
             <p>
@@ -33,7 +33,7 @@ const Documentation = () => {
 
             <h3>API Reference</h3>
             <p>
-                Automate your workflow with our public API. Full Swagger documentation is available at <code className="text-green-400">api.zecurx.io/docs</code>.
+                Automate your workflow with our public API. Full Swagger documentation is available at <code className="text-green-400">api.rlabz.edu/docs</code>.
             </p>
         </GenericPage>
     );

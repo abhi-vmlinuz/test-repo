@@ -47,7 +47,7 @@ export const Features = () => {
             <div className="max-w-[80rem] mx-auto px-6 relative z-10">
                 <div className="mb-20 md:text-center max-w-3xl mx-auto">
                     <SectionHeader
-                        subtitle="Why Choose ZecurX"
+                        subtitle="Why Choose RLabZ"
                         title="Everything You Need to Win"
                         className="mb-0"
                     />

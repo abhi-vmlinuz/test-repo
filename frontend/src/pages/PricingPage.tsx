@@ -95,7 +95,7 @@ const PricingPage = ({ user }) => {
     const testimonials = [
         {
             title: 'Enterprise Grade',
-            quote: 'We use ZecurX to benchmark our security team. The realistic scenarios are unmatched in the industry.',
+            quote: 'We use RLabZ to benchmark our security team. The realistic scenarios are unmatched in the industry.',
             company: 'Global Defense Corp',
             role: 'CISO'
         },
@@ -192,7 +192,7 @@ const PricingPage = ({ user }) => {
                         <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
                             <Shield className="w-4 h-4 text-white" fill="white" />
                         </div>
-                        <span className="text-lg font-bold tracking-tight text-zinc-800">ZecurX</span>
+                        <span className="text-lg font-bold tracking-tight text-zinc-800">RLabZ</span>
                     </Link>
 
                     <nav className="hidden md:flex items-center gap-8">
@@ -398,7 +398,7 @@ const PricingPage = ({ user }) => {
 
                     <div className="relative z-10">
                         <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">Start your training today.</h2>
-                        <p className="text-lg text-gray-400 max-w-xl mx-auto mb-10">Join the elite community of security professionals using ZecurX to sharpen their skills.</p>
+                        <p className="text-lg text-gray-400 max-w-xl mx-auto mb-10">Join the elite community of security professionals using RLabZ to sharpen their skills.</p>
                         <RainbowButton onClick={() => navigate(user ? '/dashboard' : '/login')} className="px-10 py-4 h-auto text-base">
                             {user ? 'Go to Dashboard' : 'Get Started for Free'}
                         </RainbowButton>

@@ -86,7 +86,7 @@ const VPNAccess = ({ user, logout }) => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${user?.username || 'zecurx'}.conf`);
+      link.setAttribute('download', `${user?.username || 'rlabz'}.conf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -473,7 +473,7 @@ Move-Item -Path "$env:USERPROFILE\\Downloads\\<username>.conf" \\
                   <p className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-2">DISCONNECT</p>
                   <div className="bg-red-50 dark:bg-red-950/20 rounded-xl p-4 border border-red-200 dark:border-red-900">
                     <code className="block text-[10px] font-mono text-red-900 dark:text-red-200">
-                      sudo wg-quick down {user?.username || 'zecurx'}
+                      sudo wg-quick down {user?.username || 'rlabz'}
                     </code>
                   </div>
                 </div>

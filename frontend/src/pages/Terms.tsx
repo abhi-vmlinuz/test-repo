@@ -8,12 +8,12 @@ const Terms = () => {
         >
             <h3>1. Acceptance of Terms</h3>
             <p>
-                By accessing and using the ZecurX platform, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.
+                By accessing and using the RLabZ platform, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.
             </p>
 
             <h3>2. Code of Conduct</h3>
             <p>
-                ZecurX is an educational platform. You agree to use the skills learned here solely for ethical and legal purposes. Any malicious use of our training materials against real-world targets without authorization involves zero tolerance and immediate account termination.
+                RLabZ is an educational platform. You agree to use the skills learned here solely for ethical and legal purposes. Any malicious use of our training materials against real-world targets without authorization involves zero tolerance and immediate account termination.
             </p>
 
             <h3>3. Account Security</h3>
@@ -23,12 +23,12 @@ const Terms = () => {
 
             <h3>4. Intellectual Property</h3>
             <p>
-                All challenges, documentation, and platform content are the exclusive property of ZecurX Labs. You may not reproduce, distribute, or reverse engineer any part of the service.
+                All challenges, documentation, and platform content are the exclusive property of RLabZ. You may not reproduce, distribute, or reverse engineer any part of the service.
             </p>
 
             <h3>5. Limitation of Liability</h3>
             <p>
-                ZecurX provides training environments "as is". We are not liable for any damages arising from your use of the service or the inability to use the service.
+                RLabZ provides training environments "as is". We are not liable for any damages arising from your use of the service or the inability to use the service.
             </p>
         </GenericPage>
     );

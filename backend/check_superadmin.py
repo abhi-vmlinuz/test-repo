@@ -14,7 +14,7 @@ async def check_superadmin():
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         # Fetch superadmin by email seen in screenshot
-        email = 'superadmin@zecurx.com'
+        email = 'superadmin@rlabz.edu'
         user = await conn.fetchrow('''
             SELECT u.id, u.name, u.email, u."isLocked", u."isActive", r.type as role_type, r.name as role_name
             FROM users u

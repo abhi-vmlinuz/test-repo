@@ -1,5 +1,5 @@
 #!/bin/bash
-# ZecurX CTF Smart Update Script
+# RLabZ CTF Smart Update Script
 # Usage: ./update.sh [mode]
 # Modes: cached (default), fresh, quick
 
@@ -29,7 +29,7 @@ sleep 5
 # Reload nginx to re-resolve container DNS names
 # This prevents 502 errors after container IP changes
 echo "[$(date)] Reloading nginx..."
-cd /opt/zecurx-infra && docker compose exec -T nginx nginx -s reload 2>/dev/null || echo "Warning: Could not reload nginx"
+cd /opt/rlabz-infra && docker compose exec -T nginx nginx -s reload 2>/dev/null || echo "Warning: Could not reload nginx"
 
 # Cleanup unused images
 if [ "$MODE" == "fresh" ]; then

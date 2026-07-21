@@ -9,7 +9,7 @@ const Careers = () => {
             size="xl"
         >
             <p>
-                At ZecurX, we operate with the speed and agility of a startup but the discipline of a special operations unit. We value curiosity, technical excellence, and the hacker mindset.
+                At RLabZ, we operate with the speed and agility of a startup but the discipline of a special operations unit. We value curiosity, technical excellence, and the hacker mindset.
             </p>
 
             <h3>Open Positions</h3>
@@ -34,7 +34,7 @@ const Careers = () => {
 
             <div className="mt-12 p-6 bg-zinc-900/50 border border-zinc-800 rounded-xl">
                 <p className="mb-0 text-zinc-400 text-sm">
-                    Don't see a role that fits? We are always looking for exceptional talent. Send your resume and GitHub profile to <span className="text-white font-mono">careers@zecurx.io</span>.
+                    Don't see a role that fits? We are always looking for exceptional talent. Send your resume and GitHub profile to <span className="text-white font-mono">careers@rlabz.edu</span>.
                 </p>
             </div>
         </GenericPage>

@@ -435,7 +435,7 @@ const AdminImageRegistry = () => {
             <div className="mb-8 flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                        <img src="/logo.png" alt="ZecurX" className="w-8 h-8" />
+                        <img src="/logo.png" alt="RLabZ" className="w-8 h-8" />
                         Image Registry
                     </h1>
                     <p className="text-gray-500 mt-1">Manage Docker images for CTF challenges</p>
@@ -509,7 +509,7 @@ const AdminImageRegistry = () => {
                                 <Input
                                     value={ghcrConfig.username}
                                     onChange={(e) => setGhcrConfig(prev => ({ ...prev, username: e.target.value }))}
-                                    placeholder="e.g., ZecurX"
+                                    placeholder="e.g., RLabZ"
                                 />
                             </div>
                             <div>

@@ -25,7 +25,7 @@ def hash_password(password: str) -> str:
 
 async def seed_database():
     print("=" * 60)
-    print("ZECURX CTF DATABASE SEEDER")
+    print("RLabZ CTF DATABASE SEEDER")
     print("=" * 60)
     
     if not DATABASE_URL:

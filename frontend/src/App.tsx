@@ -62,7 +62,7 @@ function App() {
   useEffect(() => {
     checkAuth();
     // Initialize theme on app load
-    const savedTheme = localStorage.getItem('zecurx-theme');
+    const savedTheme = localStorage.getItem('rlabz-theme');
     if (savedTheme) {
       document.documentElement.setAttribute('data-theme', savedTheme);
       if (savedTheme === 'dark') document.documentElement.classList.add('dark');

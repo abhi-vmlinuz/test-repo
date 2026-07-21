@@ -82,7 +82,7 @@ const Leaderboard = ({ user, logout }) => {
         <div className="flex flex-col md:flex-row justify-between items-end gap-6">
           <div>
             <h1 className="text-4xl font-extrabold text-zinc-900 mb-2 tracking-tight">Global Rankings</h1>
-            <p className="text-lg text-gray-500">Top hackers competing for dominance on ZecurX LABS.</p>
+            <p className="text-lg text-gray-500">Top hackers competing for dominance on RLabZ.</p>
           </div>
 
           {/* Time Filter Toggle */}

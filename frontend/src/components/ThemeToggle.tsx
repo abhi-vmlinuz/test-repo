@@ -21,7 +21,7 @@ const ThemeToggle = ({ isAuthenticated = false }: ThemeToggleProps) => {
         }
 
         // Only apply saved theme for authenticated users
-        const savedTheme = localStorage.getItem('zecurx-theme') as Theme | null;
+        const savedTheme = localStorage.getItem('rlabz-theme') as Theme | null;
 
         if (savedTheme) {
             setTheme(savedTheme);
@@ -45,7 +45,7 @@ const ThemeToggle = ({ isAuthenticated = false }: ThemeToggleProps) => {
         document.documentElement.setAttribute('data-theme', newTheme);
         if (newTheme === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
-        localStorage.setItem('zecurx-theme', newTheme);
+        localStorage.setItem('rlabz-theme', newTheme);
     };
 
     // Don't render the toggle button for non-authenticated users

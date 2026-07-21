@@ -139,8 +139,8 @@ const Challenges = ({ user, logout }) => {
     const url = `${window.location.origin}/challenges/${challengeId}`;
     if (navigator.share) {
       navigator.share({
-        title: `${title} - ZecurX CTF`,
-        text: `Think you can solve this? Check out ${title} on ZecurX CTF!`,
+        title: `${title} - RLabZ CTF`,
+        text: `Think you can solve this? Check out ${title} on RLabZ CTF!`,
         url: url
       }).catch(err => {
         // Fallback to copy if user cancels or error

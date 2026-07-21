@@ -183,8 +183,8 @@ const ChallengeDetail = ({ user, logout }) => {
     const url = window.location.href;
     if (navigator.share) {
       navigator.share({
-        title: `${challenge?.title || 'Challenge'} - ZecurX CTF`,
-        text: `Think you can solve this? Check out ${challenge?.title} on ZecurX CTF!`,
+        title: `${challenge?.title || 'Challenge'} - RLabZ CTF`,
+        text: `Think you can solve this? Check out ${challenge?.title} on RLabZ CTF!`,
         url: url
       }).catch(err => {
         navigator.clipboard.writeText(url);

@@ -1,7 +1,7 @@
 import { http, HttpResponse, delay } from 'msw';
 
 /**
- * Standardized mock handlers for ZecurX CTF Platform.
+ * Standardized mock handlers for RLabZ CTF Platform.
  * These simulate the NestJS backend API.
  */
 export const handlers = [
@@ -11,7 +11,7 @@ export const handlers = [
         return HttpResponse.json({
             id: 'usr_mock_8821',
             username: 'AlphaTester',
-            email: 'tester@zecurx-mock.io',
+            email: 'tester@rlabz-mock.edu',
             role: 'ADMIN',
             preferences: { theme: 'dark', language: 'en' }
         });

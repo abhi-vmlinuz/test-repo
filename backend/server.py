@@ -1,6 +1,6 @@
 """
 CTF Platform API - PostgreSQL Version
-Integrated with ZecurX LMS (shared PostgreSQL database)
+Integrated with RLabZ LMS (shared PostgreSQL database)
 
 Features:
 - PUBLIC CTF Platform (anyone can register, categories, challenges, leaderboard)
@@ -79,8 +79,8 @@ SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", 587))
 SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
-SMTP_FROM = os.environ.get("SMTP_FROM", "noreply@zecurx.com")
-SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "ZecurX CTF")
+SMTP_FROM = os.environ.get("SMTP_FROM", "noreply@rajagiri.edu")
+SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "RLabZ CTF")
 
 # Session Configuration
 SESSION_EXPIRY_HOURS = 24  # Sessions expire after 24 hours
@@ -482,7 +482,7 @@ async def send_otp_email(email: str, otp_code: str, username: str = "User") -> b
 
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"🔐 ZecurX CTF - Verification Code: {otp_code}"
+        msg["Subject"] = f"🔐 RLabZ CTF - Verification Code: {otp_code}"
         msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM}>"
         msg["To"] = email
 
@@ -517,7 +517,7 @@ async def send_otp_email(email: str, otp_code: str, username: str = "User") -> b
                 </div>
                 <div style="background: #fafafa; padding: 16px 32px; text-align: center; border-top: 1px solid #e4e4e7;">
                     <p style="color: #a1a1aa; font-size: 12px; margin: 0;">
-                        ZecurX CTF Platform • ctf.zecurx.com
+                        RLabZ CTF Platform • ctf.rlabz.edu
                     </p>
                 </div>
             </div>
@@ -526,7 +526,7 @@ async def send_otp_email(email: str, otp_code: str, username: str = "User") -> b
         """
 
         text_content = f"""
-        ZecurX CTF - Verification Code
+        RLabZ CTF - Verification Code
         
         Hi {username},
         
@@ -774,17 +774,17 @@ def send_password_reset_email(to_email: str, user_name: str, reset_token: str) -
         return False
 
     try:
-        reset_url = f"https://ctf.zecurx.com/reset-password?token={reset_token}"
+        reset_url = f"https://ctf.rlabz.edu/reset-password?token={reset_token}"
 
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = "Reset Your ZecurX Password"
+        msg["Subject"] = "Reset Your RLabZ Password"
         msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM}>"
         msg["To"] = to_email
 
         text_content = f"""
 Hi {user_name},
 
-You requested to reset your password for your ZecurX CTF account.
+You requested to reset your password for your RLabZ CTF account.
 
 Click the link below to reset your password:
 {reset_url}
@@ -793,7 +793,7 @@ This link will expire in 60 minutes.
 
 If you didn't request this, you can safely ignore this email.
 
-- The ZecurX Team
+- The RLabZ Team
         """.strip()
 
         html_content = f"""
@@ -807,7 +807,7 @@ If you didn't request this, you can safely ignore this email.
     <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
         <tr>
             <td style="padding: 40px 30px; text-align: center; background-color: #09090b;">
-                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;">ZecurX CTF</h1>
+                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700;">RLabZ CTF</h1>
             </td>
         </tr>
         <tr>
@@ -817,7 +817,7 @@ If you didn't request this, you can safely ignore this email.
                     Hi {user_name},
                 </p>
                 <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
-                    You requested to reset your password for your ZecurX CTF account. Click the button below to set a new password:
+                    You requested to reset your password for your RLabZ CTF account. Click the button below to set a new password:
                 </p>
                 <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
@@ -839,7 +839,7 @@ If you didn't request this, you can safely ignore this email.
         <tr>
             <td style="padding: 20px 30px; text-align: center; background-color: #fafafa; border-top: 1px solid #eaeaea;">
                 <p style="color: #888888; font-size: 12px; margin: 0;">
-                    © 2026 ZecurX. All rights reserved.
+                    © 2026 RLabZ. All rights reserved.
                 </p>
             </td>
         </tr>
@@ -956,8 +956,8 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
 # ===========================================
 
 app = FastAPI(
-    title="ZecurX CTF Platform API",
-    description="CTF Platform integrated with ZecurX LMS",
+    title="RLabZ CTF Platform API",
+    description="CTF Platform integrated with RLabZ LMS",
     version="2.0.0",
 )
 
@@ -1128,7 +1128,7 @@ async def require_superadmin(current_user: dict = Depends(get_current_user)) -> 
 
 @api_router.get("/")
 async def root():
-    return {"message": "ZecurX CTF Platform API v2.0 (PostgreSQL)"}
+    return {"message": "RLabZ CTF Platform API v2.0 (PostgreSQL)"}
 
 
 @api_router.get("/health")
@@ -5388,7 +5388,7 @@ async def admin_create_challenge_with_docker(
             try:
                 # Use GitHub Container Registry (GHCR) for image storage
                 # Images are stored at: ghcr.io/<owner>/ctf-challenges/{short-id}
-                ghcr_username = os.environ.get("GHCR_USERNAME", "zecurx")
+                ghcr_username = os.environ.get("GHCR_USERNAME", "rlabz")
                 ghcr_token = os.environ.get(
                     "GHCR_TOKEN"
                 )  # GitHub PAT with packages:write
@@ -5551,7 +5551,7 @@ async def admin_update_challenge_with_docker(
         if docker_client:
             try:
                 # Use GitHub Container Registry (GHCR)
-                ghcr_username = os.environ.get("GHCR_USERNAME", "zecurx")
+                ghcr_username = os.environ.get("GHCR_USERNAME", "rlabz")
                 ghcr_token = os.environ.get("GHCR_TOKEN")
 
                 short_id = challenge_id[:8].lower()

@@ -18,7 +18,7 @@ const Contact = () => {
                             <Mail className="w-5 h-5 text-green-500" /> General Inquiries
                         </h3>
                         <p className="text-zinc-400 mb-4">For account support, partnerships, and general questions.</p>
-                        <a href="mailto:contact@zecurx.io" className="text-white hover:text-green-400 font-mono transition-colors">contact@zecurx.io</a>
+                        <a href="mailto:contact@rajagiri.edu" className="text-white hover:text-green-400 font-mono transition-colors">contact@rajagiri.edu</a>
                     </div>
 
                     <div className="bg-zinc-900/50 p-6 rounded-xl border border-zinc-800">
@@ -26,7 +26,7 @@ const Contact = () => {
                             <MessageSquare className="w-5 h-5 text-blue-500" /> Enterprise Sales
                         </h3>
                         <p className="text-zinc-400 mb-4">For large teams and custom training deployments.</p>
-                        <a href="mailto:sales@zecurx.io" className="text-white hover:text-blue-400 font-mono transition-colors">sales@zecurx.io</a>
+                        <a href="mailto:sales@rajagiri.edu" className="text-white hover:text-blue-400 font-mono transition-colors">sales@rajagiri.edu</a>
                     </div>
                 </div>
 

@@ -50,7 +50,7 @@ const Footer = () => {
             { label: 'Documentation', href: '/documentation' },
             { label: 'Blog', href: '/blog' },
             { label: 'Community', href: '/community' },
-            { label: 'Discord', href: 'https://discord.gg/zecurx' }, // Example Discord link
+            { label: 'Discord', href: 'https://discord.gg/rlabz' }, // Example Discord link
         ],
         Company: [
             { label: 'About Us', href: '/about' },
@@ -86,10 +86,10 @@ const Footer = () => {
                         <div className="w-3 h-3 rounded-full bg-red-500"></div>
                         <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <div className="ml-4 text-xs text-zinc-500 font-mono">root@zecurx:~</div>
+                        <div className="ml-4 text-xs text-zinc-500 font-mono">root@rlabz:~</div>
                     </div>
                     <div className="p-6 font-mono text-sm text-green-500/80 space-y-2">
-                        <p>$ nmap -sV -p- zecurx.com</p>
+                        <p>$ nmap -sV -p- rlabz.edu</p>
                         <p className="text-zinc-500">Starting Nmap 7.92...</p>
                         <p className="text-zinc-500">Scanning targets...</p>
                         <p>Discovered open port 443/tcp on 192.168.1.1</p>
@@ -122,7 +122,7 @@ const Footer = () => {
                                         Start Hacking
                                     </button>
                                 </Link>
-                                <a href="mailto:contact@zecurx.com">
+                                <a href="mailto:contact@rajagiri.edu">
                                     <button className="px-8 py-4 border border-zinc-800 rounded-full font-bold text-lg hover:bg-zinc-900 transition-colors">
                                         Contact Sales
                                     </button>
@@ -156,11 +156,11 @@ const Footer = () => {
                     <div className="flex flex-col md:flex-row items-end justify-between border-t border-zinc-800 pt-8 mt-12 bg-zinc-950/80 backdrop-blur-sm">
                         <div className="flex flex-col gap-4">
                             <div className="flex items-center gap-2">
-                                <img src="/logo.png" alt="ZecurX" className="w-8 h-8 opacity-80" />
-                                <span className="text-xl font-bold tracking-tight">ZecurX LABS</span>
+                                <img src="/logo.png" alt="RLabZ" className="w-8 h-8 opacity-80" />
+                                <span className="text-xl font-bold tracking-tight">RLabZ</span>
                             </div>
                             <p className="text-zinc-500 text-sm">
-                                © 2025 ZecurX Pvt.Ltd. All rights reserved.
+                                © 2025 RLabZ Pvt.Ltd. All rights reserved.
                             </p>
                         </div>
 

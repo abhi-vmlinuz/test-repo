@@ -1,5 +1,5 @@
 /* ============================================
-   ZecurX LABS - Minimal White Theme
+   RLabZ - Minimal White Theme
    Inspired by Anthropic's clean aesthetic
    ============================================ */
 
@@ -746,7 +746,7 @@ pre code {
   transform: translateY(-4px);
 }
 
-/* Mobile Responsive Fixes for ZecurX Platform */
+/* Mobile Responsive Fixes for RLabZ Platform */
 
 /* Fix crown overlap on mobile */
 @media (max-width: 640px) {

@@ -6,7 +6,7 @@ const Blog = () => {
     return (
         <GenericPage
             title="Security Research"
-            subtitle="Insights, analysis, and write-ups from the ZecurX team and community."
+            subtitle="Insights, analysis, and write-ups from the RLabZ team and community."
             size="lg"
         >
             <div className="grid gap-8 not-prose">

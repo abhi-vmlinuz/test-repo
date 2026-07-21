@@ -16,8 +16,8 @@ Layout (1200×630, matching rich social card style):
   │ │ Illustration│  [Description]                     │
   │ │ (AI/fallback│                                    │
   │ │  ~400×400) │  [Category] • [Year]               │
-  │ └────────────┘                       🔒 ZecurX     │
-  │  ctf.zecurx.com          Let's solve this CTF!     │
+  │ └────────────┘                       🔒 RLabZ     │
+  │  ctf.rlabz.edu          Let's solve this CTF!     │
   └────────────────────────────────────────────────────┘
 """
 
@@ -43,7 +43,7 @@ seo_router = APIRouter(prefix="/seo", tags=["SEO"])
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-BASE_URL = "https://ctf.zecurx.com"
+BASE_URL = "https://ctf.rlabz.edu"
 OG_CACHE_DIR = Path("/app/og-cache")
 CATEGORY_CACHE_DIR = OG_CACHE_DIR / "categories"
 LOGO_PATH = Path("/app/logo.png")  # Copied in Dockerfile or mounted
@@ -223,7 +223,7 @@ def _build_composite(
 
     title_font, body_font, tag_font, brand_font, small_font = _load_fonts()
 
-    # Create base canvas with dark green gradient background (matching ZecurX brand)
+    # Create base canvas with dark green gradient background (matching RLabZ brand)
     img = Image.new("RGB", (OG_WIDTH, OG_HEIGHT), color="#0d1b17")
     d = ImageDraw.Draw(img)
 
@@ -251,7 +251,7 @@ def _build_composite(
         title_y += 48
 
     # --- Author line ---
-    author_text = author or "ZecurX CTF"
+    author_text = author or "RLabZ CTF"
     d.text((40, title_y + 4), f"👤  {author_text}", fill="#8b9da5", font=small_font)
 
     # --- Illustration (left side, below title) ---
@@ -354,7 +354,7 @@ def _build_composite(
     bottom_y = OG_HEIGHT - 60
 
     # Domain
-    d.text((40, bottom_y), "ctf.zecurx.com", fill="#4a7a68", font=small_font)
+    d.text((40, bottom_y), "ctf.rlabz.edu", fill="#4a7a68", font=small_font)
 
     # --- Brand logo + text (bottom right) ---
     # Try loading logo
@@ -380,9 +380,9 @@ def _build_composite(
             img.paste(logo_resized.convert("RGB"), (brand_x, bottom_y - 4), logo_resized.split()[3])
         else:
             img.paste(logo_resized.convert("RGB"), (brand_x, bottom_y - 4))
-        d.text((brand_x + 42, bottom_y + 2), "ZecurX", fill="#0ea5e9", font=brand_font)
+        d.text((brand_x + 42, bottom_y + 2), "RLabZ", fill="#0ea5e9", font=brand_font)
     else:
-        d.text((brand_x, bottom_y + 2), "🔒 ZecurX", fill="#0ea5e9", font=brand_font)
+        d.text((brand_x, bottom_y + 2), "🔒 RLabZ", fill="#0ea5e9", font=brand_font)
 
     # CTA text
     d.text((OG_WIDTH // 2 - 100, bottom_y), "Let's solve this exciting CTF!", fill="#3a6b56", font=small_font)
@@ -462,13 +462,13 @@ async def seo_challenge(challenge_id: str):
         <html>
         <head>
             <meta charset="utf-8">
-            <title>{title} | ZecurX CTF</title>
+            <title>{title} | RLabZ CTF</title>
             <meta name="description" content="{description}">
 
             <!-- Open Graph / Facebook -->
             <meta property="og:type" content="website">
             <meta property="og:url" content="{challenge_url}">
-            <meta property="og:title" content="{title} - ZecurX CTF">
+            <meta property="og:title" content="{title} - RLabZ CTF">
             <meta property="og:description" content="{description}">
             <meta property="og:image" content="{og_image_url}">
             <meta property="og:image:width" content="1200">
@@ -477,7 +477,7 @@ async def seo_challenge(challenge_id: str):
             <!-- Twitter -->
             <meta property="twitter:card" content="summary_large_image">
             <meta property="twitter:url" content="{challenge_url}">
-            <meta property="twitter:title" content="{title} - ZecurX CTF">
+            <meta property="twitter:title" content="{title} - RLabZ CTF">
             <meta property="twitter:description" content="{description}">
             <meta property="twitter:image" content="{og_image_url}">
 

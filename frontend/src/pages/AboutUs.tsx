@@ -4,10 +4,10 @@ const AboutUs = () => {
     return (
         <GenericPage
             title="Our Mission"
-            subtitle="ZecurX Labs is pioneering the future of cybersecurity education through immersive, gamified learning experiences."
+            subtitle="RLabZ is pioneering the future of cybersecurity education through immersive, gamified learning experiences."
         >
             <p>
-                Founded in 2024, ZecurX Labs emerged from a simple observation: traditional cybersecurity training is often dry, theoretical, and disconnected from real-world scenarios. We set out to change that by building a platform that treats security like the high-stakes puzzle it really is.
+                Founded in 2024, RLabZ emerged from a simple observation: traditional cybersecurity training is often dry, theoretical, and disconnected from real-world scenarios. We set out to change that by building a platform that treats security like the high-stakes puzzle it really is.
             </p>
 
             <h3>Hyper-Realistic Training</h3>

@@ -1,17 +1,17 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: zecurx-postgres
+    container_name: rlabz-postgres
     environment:
-      POSTGRES_USER: zecurx
-      POSTGRES_PASSWORD: zecurx_dev_password
+      POSTGRES_USER: rlabz
+      POSTGRES_PASSWORD: rlabz_dev_password
       POSTGRES_DB: ctf_platform
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zecurx -d ctf_platform"]
+      test: ["CMD-SHELL", "pg_isready -U rlabz -d ctf_platform"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -20,10 +20,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: zecurx-backend
+    container_name: rlabz-backend
     network_mode: host
     environment:
-      DATABASE_URL: "postgresql://zecurx:zecurx_dev_password@127.0.0.1:5432/ctf_platform"
+      DATABASE_URL: "postgresql://rlabz:rlabz_dev_password@127.0.0.1:5432/ctf_platform"
       JWT_SECRET: "nexus-test-jwt-secret-change-in-prod"
       CORS_ORIGINS: "*"
       NEXUS_ENGINE_URL: "http://127.0.0.1:8081"
@@ -42,7 +42,7 @@ services:
       args:
         VITE_BACKEND_URL: "http://48.193.47.72:8000"
         VITE_NEXUS_URL: "http://48.193.47.72:8081"
-    container_name: zecurx-frontend
+    container_name: rlabz-frontend
     ports:
       - "3000:80"
     depends_on:

@@ -415,7 +415,7 @@ const LoginPage = ({ setUser }) => {
                             </span>
                         </h1>
                         <p className="text-lg text-gray-500 leading-relaxed max-w-md font-medium">
-                            Enter the ZecurX ecosystem. Advanced CTF simulations await.
+                            Enter the RLabZ ecosystem. Advanced CTF simulations await.
                         </p>
                     </motion.div>
 
@@ -484,8 +484,8 @@ const LoginPage = ({ setUser }) => {
                             <ArrowLeft className="w-4 h-4" /> Back
                         </Link>
                         <div className="flex items-center gap-3">
-                            <img src="/logo.png" alt="ZecurX" className="w-8 h-8" />
-                            <span className="text-xl font-bold tracking-tight text-gray-900">ZecurX</span>
+                            <img src="/logo.png" alt="RLabZ" className="w-8 h-8" />
+                            <span className="text-xl font-bold tracking-tight text-gray-900">RLabZ</span>
                         </div>
                     </div>
 

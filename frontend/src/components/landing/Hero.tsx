@@ -85,7 +85,7 @@ export const Hero = () => {
                     </div>
                 </FloatingElement>
 
-                {/* Right Middle: ZecurX Elite Black Card (Premium Auth Sticker) */}
+                {/* Right Middle: RLabZ Elite Black Card (Premium Auth Sticker) */}
                 <FloatingElement depth={2} className="absolute right-[2%] top-[28%] hidden lg:block" floatY={25} floatDuration={7} initialX={100} initialY={0}>
                     <div className="relative group transform rotate-12 hover:rotate-6 transition-transform duration-500 hover:scale-105">
                         {/* Sticker Backing */}
@@ -235,7 +235,7 @@ export const Hero = () => {
                             <div className="flex-1 bg-black rounded-sm relative overflow-hidden flex flex-col items-center justify-center border-t-2 border-red-500">
                                 <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_40%,rgba(255,0,0,0.2)_50%,transparent_60%)] bg-[length:100%_4px]"></div>
                                 <Gamepad2 className="w-8 h-8 text-neutral-200" />
-                                <div className="text-white font-black text-sm italic tracking-tighter mt-1">ZECURX</div>
+                                <div className="text-white font-black text-sm italic tracking-tighter mt-1">RLabZ</div>
                                 <div className="text-[6px] text-gray-400 tracking-widest uppercase">PwnOS v1.0</div>
                             </div>
                         </div>
