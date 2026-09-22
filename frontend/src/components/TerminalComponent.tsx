@@ -72,7 +72,7 @@ const TerminalComponent = ({ vmId, sessionId, customWsUrl, onClose, isFullscreen
         if (customWsUrl) {
             wsUrl = customWsUrl;
         } else if (sessionId) {
-            const engineUrl = import.meta.env.VITE_NEXUS_ENGINE_URL || import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
+            const engineUrl = import.meta.env.VITE_NEXUS_ENGINE_URL || import.meta.env.VITE_NEXUS_URL || import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
             const wsBase = engineUrl.replace(/^http/, 'ws');
             wsUrl = `${wsBase}/api/v1/sessions/${sessionId}/terminal`;
         } else {
