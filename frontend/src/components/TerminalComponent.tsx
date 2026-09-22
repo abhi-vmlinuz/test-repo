@@ -6,13 +6,15 @@ import '@xterm/xterm/css/xterm.css';
 import { Maximize2, Minimize2, X, RefreshCw, ExternalLink } from 'lucide-react';
 
 interface TerminalComponentProps {
-    vmId: string;
+    vmId?: string;
+    sessionId?: string;
+    customWsUrl?: string;
     onClose?: () => void;
     isFullscreen?: boolean;
     onToggleFullscreen?: () => void;
 }
 
-const TerminalComponent = ({ vmId, onClose, isFullscreen, onToggleFullscreen }: TerminalComponentProps) => {
+const TerminalComponent = ({ vmId, sessionId, customWsUrl, onClose, isFullscreen, onToggleFullscreen }: TerminalComponentProps) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | null>(null);
     const wsRef = useRef<WebSocket | null>(null);
@@ -20,7 +22,7 @@ const TerminalComponent = ({ vmId, onClose, isFullscreen, onToggleFullscreen }: 
     const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
 
     useEffect(() => {
-        if (!vmId || !terminalRef.current) return;
+        if ((!vmId && !sessionId && !customWsUrl) || !terminalRef.current) return;
 
         // Initialize xterm.js
         const term = new Terminal({
@@ -66,18 +68,27 @@ const TerminalComponent = ({ vmId, onClose, isFullscreen, onToggleFullscreen }: 
         term.writeln('\x1b[33m⚡ Connecting to secure environment...\x1b[0m');
 
         // Connect WebSocket
-        // Derive WebSocket URL from conductor URL
-        // http://x → ws://x, https://x → wss://x
-        const conductorUrl = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
-        const wsBase = conductorUrl.replace(/^http/, 'ws');
-        const wsUrl = `${wsBase}/api/v1/vms/${vmId}/terminal`;
+        let wsUrl = '';
+        if (customWsUrl) {
+            wsUrl = customWsUrl;
+        } else if (sessionId) {
+            const engineUrl = import.meta.env.VITE_NEXUS_ENGINE_URL || import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
+            const wsBase = engineUrl.replace(/^http/, 'ws');
+            wsUrl = `${wsBase}/api/v1/sessions/${sessionId}/terminal`;
+        } else {
+            const conductorUrl = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
+            const wsBase = conductorUrl.replace(/^http/, 'ws');
+            wsUrl = `${wsBase}/api/v1/vms/${vmId}/terminal`;
+        }
+
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
             setStatus('connected');
             term.writeln('\r\n\x1b[32m✔ Connected to terminal session.\x1b[0m\r\n');
             term.focus();
-            // Send a resize event to server if needed (not implemented in conductor yet)
+            // Send initial resize event
+            ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
         };
 
         ws.onmessage = (event) => {
@@ -116,6 +127,9 @@ const TerminalComponent = ({ vmId, onClose, isFullscreen, onToggleFullscreen }: 
         // Resize observer
         const resizeObserver = new ResizeObserver(() => {
             fitAddon.fit();
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+            }
         });
         resizeObserver.observe(terminalRef.current);
 
@@ -127,7 +141,7 @@ const TerminalComponent = ({ vmId, onClose, isFullscreen, onToggleFullscreen }: 
             wsRef.current = null;
             fitAddonRef.current = null;
         };
-    }, [vmId]);
+    }, [vmId, sessionId, customWsUrl]);
 
     // Refit on fullscreen toggle (allow transition to finish)
     useEffect(() => {

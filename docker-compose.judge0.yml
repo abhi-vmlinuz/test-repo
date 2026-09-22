@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  judge0-server:
+    image: judge0/judge0:1.13.1
+    container_name: rlabz-judge0-server
+    restart: always
+    privileged: true
+    ports:
+      - "127.0.0.1:2358:2358"
+    environment:
+      - REDIS_HOST=judge0-redis
+      - REDIS_PORT=6379
+      - POSTGRES_HOST=judge0-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0_password
+      - POSTGRES_DB=judge0
+    depends_on:
+      - judge0-db
+      - judge0-redis
+
+  judge0-workers:
+    image: judge0/judge0:1.13.1
+    container_name: rlabz-judge0-workers
+    restart: always
+    privileged: true
+    command: ["./scripts/workers"]
+    environment:
+      - REDIS_HOST=judge0-redis
+      - REDIS_PORT=6379
+      - POSTGRES_HOST=judge0-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0_password
+      - POSTGRES_DB=judge0
+    depends_on:
+      - judge0-db
+      - judge0-redis
+
+  judge0-db:
+    image: postgres:13-alpine
+    container_name: rlabz-judge0-db
+    restart: always
+    environment:
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0_password
+      - POSTGRES_DB=judge0
+    volumes:
+      - judge0-db-data:/var/lib/postgresql/data
+
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: rlabz-judge0-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - judge0-redis-data:/data
+
+volumes:
+  judge0-db-data:
+  judge0-redis-data:

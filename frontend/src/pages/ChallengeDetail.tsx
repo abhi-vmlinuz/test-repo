@@ -13,6 +13,7 @@ import { ArrowLeft, Flag, Lightbulb, Play, CheckCircle2, Container, Sparkles, He
 import { motion } from 'framer-motion';
 import TerminalComponent from '@/components/TerminalComponent';
 import BetaFeature from '@/components/BetaFeature';
+import CodingArenaView from '@/components/CodingArenaView';
 
 // Conductor URL: set via VITE_CONDUCTOR_URL for production (Cloudflare Tunnel)
 const CONDUCTOR_URL = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
@@ -567,6 +568,24 @@ const ChallengeDetail = ({ user, logout }) => {
 
   const isSolved = challenge.user_progress?.solved;
   const pointsEarned = challenge.user_progress?.score_earned || 0;
+
+  // Render dedicated 3-pane Coding Arena for coding challenges
+  if (challenge.is_coding_challenge || challenge.isCodingChallenge) {
+    return (
+      <Layout user={user} logout={logout}>
+        <div className="mb-4">
+          <button
+            onClick={() => navigate('/challenges')}
+            className="text-gray-500 hover:text-zinc-900 flex items-center gap-2 text-sm font-medium transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            Back to Challenges
+          </button>
+        </div>
+        <CodingArenaView challenge={challenge} user={user} onRefreshChallenge={fetchChallenge} />
+      </Layout>
+    );
+  }
 
   return (
     <Layout user={user} logout={logout}>

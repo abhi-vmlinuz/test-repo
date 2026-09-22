@@ -1286,6 +1286,12 @@ model CtfPublicChallenge {
   isMultiContainer Boolean?            @default(false)
   slug             String?
   author           String?
+  isCodingChallenge Boolean?            @default(false)
+  language          String?             @default("c")
+  starterCode       String?             @default("")
+  testCases         Json?               @default("[]")
+  timeLimitMs       Int?                @default(2000)
+  memoryLimitMb     Int?                @default(128)
   category         CtfCategory         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   progress         CtfPublicProgress[]
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag, Paperclip, Download, FileText, Upload, FolderOpen, GitBranch } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag, Paperclip, Download, FileText, Upload, FolderOpen, GitBranch, Code2, Play, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
@@ -56,7 +56,14 @@ const AdminChallenges = () => {
         is_published: true,
         // Multi-container pack support
         challenge_pack_id: '' as string,
-        is_multi_container: false
+        is_multi_container: false,
+        // Coding Arena support
+        is_coding_challenge: false,
+        language: 'c',
+        starter_code: '#include <stdio.h>\n\nint main() {\n    // Write your solution here\n    return 0;\n}',
+        test_cases: [] as { id: number; input: string; expected: string; is_hidden: boolean; points: number }[],
+        time_limit_ms: 2000,
+        memory_limit_mb: 128,
     });
 
     const [artifacts, setArtifacts] = useState<any[]>([]);
@@ -264,7 +271,13 @@ const AdminChallenges = () => {
             tags: [],
             is_published: true,
             challenge_pack_id: '',
-            is_multi_container: false
+            is_multi_container: false,
+            is_coding_challenge: false,
+            language: 'c',
+            starter_code: '#include <stdio.h>\n\nint main() {\n    // Write your solution here\n    return 0;\n}',
+            test_cases: [],
+            time_limit_ms: 2000,
+            memory_limit_mb: 128
         });
         setArtifacts([]);
         setImageNotFoundWarning(false);
@@ -305,7 +318,14 @@ const AdminChallenges = () => {
             is_published: challenge.is_published !== false,
             // Pack support
             challenge_pack_id: challenge.challenge_pack_id || '',
-            is_multi_container: challenge.is_multi_container || false
+            is_multi_container: challenge.is_multi_container || false,
+            // Coding Arena support
+            is_coding_challenge: challenge.is_coding_challenge || false,
+            language: challenge.language || 'c',
+            starter_code: challenge.starter_code || '#include <stdio.h>\n\nint main() {\n    // Write your solution here\n    return 0;\n}',
+            test_cases: challenge.test_cases || [],
+            time_limit_ms: challenge.time_limit_ms || 2000,
+            memory_limit_mb: challenge.memory_limit_mb || 128
         });
 
         // Image check is now done in useEffect after dockerImages are loaded
@@ -552,6 +572,38 @@ const AdminChallenges = () => {
         setFormData(prev => ({
             ...prev,
             questions: prev.questions.filter((_, i) => i !== index)
+        }));
+    };
+
+    // Coding Arena test cases management
+    const addTestCase = () => {
+        setFormData(prev => ({
+            ...prev,
+            test_cases: [
+                ...prev.test_cases,
+                {
+                    id: prev.test_cases.length + 1,
+                    input: '',
+                    expected: '',
+                    is_hidden: prev.test_cases.length > 0,
+                    points: 10
+                }
+            ]
+        }));
+    };
+
+    const updateTestCase = (index: number, field: string, value: any) => {
+        setFormData(prev => {
+            const updated = [...prev.test_cases];
+            updated[index] = { ...updated[index], [field]: value };
+            return { ...prev, test_cases: updated };
+        });
+    };
+
+    const removeTestCase = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            test_cases: prev.test_cases.filter((_, i) => i !== index)
         }));
     };
 
@@ -1306,6 +1358,175 @@ const AdminChallenges = () => {
                                             <p className="text-xs text-gray-400 mt-2">
                                                 Select which ports to expose when spawning this challenge
                                             </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Coding Arena Toggle & Test Cases */}
+                            <div className="bg-gray-50 rounded-xl p-4 space-y-4 border border-emerald-100">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Code2 className="w-5 h-5 text-emerald-600" />
+                                        <div>
+                                            <h3 className="font-medium text-gray-700">Coding Arena Challenge</h3>
+                                            <p className="text-xs text-gray-400">Enable Monaco browser IDE, interactive pod terminal, and automated test grading</p>
+                                        </div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.is_coding_challenge}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, is_coding_challenge: e.target.checked }))}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                    </label>
+                                </div>
+
+                                {formData.is_coding_challenge && (
+                                    <div className="pt-4 border-t border-gray-200 space-y-5">
+                                        {/* Language and Execution Limits */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">Target Language</label>
+                                                <select
+                                                    value={formData.language}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, language: e.target.value }))}
+                                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                                                >
+                                                    <option value="c">C (GCC 9.2.0)</option>
+                                                    <option value="cpp">C++ (GCC 9.2.0)</option>
+                                                    <option value="python">Python (3.8+)</option>
+                                                    <option value="java">Java (OpenJDK 13)</option>
+                                                    <option value="javascript">JavaScript (Node.js 18)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">Time Limit (ms)</label>
+                                                <input
+                                                    type="number"
+                                                    value={formData.time_limit_ms}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, time_limit_ms: parseInt(e.target.value) || 2000 }))}
+                                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                    placeholder="2000"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">Memory Limit (MB)</label>
+                                                <input
+                                                    type="number"
+                                                    value={formData.memory_limit_mb}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, memory_limit_mb: parseInt(e.target.value) || 128 }))}
+                                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                                    placeholder="128"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Starter Code */}
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">Starter Code Template</label>
+                                            <textarea
+                                                rows={5}
+                                                value={formData.starter_code}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, starter_code: e.target.value }))}
+                                                className="w-full px-3 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-gray-900 text-gray-100 focus:ring-2 focus:ring-emerald-500"
+                                                placeholder="// Enter default starter template for the student..."
+                                            />
+                                            <p className="text-[11px] text-gray-400 mt-1">
+                                                This file will automatically populate the student's Monaco editor and be written to <code className="bg-gray-200 text-gray-800 px-1 rounded">$HOME/main.c</code> upon session spawn.
+                                            </p>
+                                        </div>
+
+                                        {/* Dynamic Test Cases */}
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h4 className="text-sm font-semibold text-gray-800">Test Cases ({formData.test_cases.length})</h4>
+                                                    <p className="text-xs text-gray-400">Total Test Points: {formData.test_cases.reduce((sum, t) => sum + (t.points || 0), 0)} pts</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={addTestCase}
+                                                    className="px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center gap-1.5"
+                                                >
+                                                    <Plus className="w-3.5 h-3.5" />
+                                                    Add Test Case
+                                                </button>
+                                            </div>
+
+                                            {formData.test_cases.length === 0 ? (
+                                                <div className="p-4 text-center border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-xs">
+                                                    No test cases added yet. Click "+ Add Test Case" to create visible and hidden evaluation tests.
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    {formData.test_cases.map((tc, idx) => (
+                                                        <div key={idx} className="p-3 bg-white border border-gray-200 rounded-xl space-y-3 shadow-sm">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-xs font-bold text-gray-700 px-2 py-0.5 bg-gray-100 rounded">
+                                                                        Test #{idx + 1}
+                                                                    </span>
+                                                                    <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={tc.is_hidden}
+                                                                            onChange={(e) => updateTestCase(idx, 'is_hidden', e.target.checked)}
+                                                                            className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                                                        />
+                                                                        <span className={tc.is_hidden ? "font-semibold text-amber-600" : "text-gray-500"}>
+                                                                            {tc.is_hidden ? "🔒 Hidden from Student" : "👁 Visible Sample"}
+                                                                        </span>
+                                                                    </label>
+                                                                </div>
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-xs text-gray-500">Points:</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={tc.points}
+                                                                            onChange={(e) => updateTestCase(idx, 'points', parseInt(e.target.value) || 0)}
+                                                                            className="w-16 px-2 py-1 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-emerald-500"
+                                                                        />
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeTestCase(idx)}
+                                                                        className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                <div>
+                                                                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Standard Input (stdin)</label>
+                                                                    <textarea
+                                                                        rows={3}
+                                                                        value={tc.input}
+                                                                        onChange={(e) => updateTestCase(idx, 'input', e.target.value)}
+                                                                        className="w-full px-2.5 py-1.5 text-xs font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-gray-50"
+                                                                        placeholder="Input data passed to program..."
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Expected Output (stdout)</label>
+                                                                    <textarea
+                                                                        rows={3}
+                                                                        value={tc.expected}
+                                                                        onChange={(e) => updateTestCase(idx, 'expected', e.target.value)}
+                                                                        className="w-full px-2.5 py-1.5 text-xs font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-gray-50"
+                                                                        placeholder="Exact expected standard output..."
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}

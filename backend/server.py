@@ -51,6 +51,7 @@ import smtplib
 import secrets
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from judge_service import JudgeService
 
 # Optional Docker support
 try:
@@ -227,6 +228,24 @@ class PublicChallengeCreate(BaseModel):
     )
     is_multi_container: bool = False  # True if using a multi-container pack
     has_docker: bool = False  # True if this challenge has a lab environment
+    # Coding Arena support
+    is_coding_challenge: bool = False
+    language: str = "c"
+    starter_code: str = ""
+    test_cases: List[Dict[str, Any]] = []
+    time_limit_ms: int = 2000
+    memory_limit_mb: int = 128
+
+
+class CodingRunRequest(BaseModel):
+    source_code: str
+    language: str = "c"
+    stdin: Optional[str] = ""
+
+
+class CodingSubmitRequest(BaseModel):
+    source_code: str
+    language: str = "c"
 
 
 class FlagSubmit(BaseModel):
@@ -1876,7 +1895,8 @@ async def get_challenge(
             """
             SELECT id, "categoryId", title, description, difficulty,
                    points, "dockerImage", hints, questions, solves, flag, tags,
-                   "hasDocker", "challengePackId", "isMultiContainer", author
+                   "hasDocker", "challengePackId", "isMultiContainer", author,
+                   "isCodingChallenge", language, "starterCode", "testCases", "timeLimitMs", "memoryLimitMb"
             FROM ctf_public_challenges
             WHERE (id::text = $1 OR slug = $1) AND "isPublished" = true
         """,
@@ -1929,6 +1949,21 @@ async def get_challenge(
             for i, q in enumerate(questions_data)
         ]
 
+        # Parse test cases for student view (mask hidden tests)
+        raw_tests = challenge.get("testCases") or []
+        if isinstance(raw_tests, str):
+            raw_tests = json.loads(raw_tests)
+        student_tests = []
+        for i, tc in enumerate(raw_tests or []):
+            is_hidden = bool(tc.get("is_hidden", False))
+            student_tests.append({
+                "id": tc.get("id", i + 1),
+                "is_hidden": is_hidden,
+                "points": tc.get("points", 10),
+                "input": "[Hidden Test Case]" if is_hidden else tc.get("input", ""),
+                "expected": "[Hidden]" if is_hidden else tc.get("expected", ""),
+            })
+
         # Check if challenge has a main flag (not empty/null)
         has_main_flag = bool(challenge["flag"] and challenge["flag"].strip())
 
@@ -1960,6 +1995,12 @@ async def get_challenge(
             "tags": tags,
             "solves": challenge["solves"],
             "has_main_flag": has_main_flag,
+            "is_coding_challenge": bool(challenge.get("isCodingChallenge", False)),
+            "language": challenge.get("language") or "c",
+            "starter_code": challenge.get("starterCode") or "",
+            "test_cases": student_tests,
+            "time_limit_ms": challenge.get("timeLimitMs") or 2000,
+            "memory_limit_mb": challenge.get("memoryLimitMb") or 128,
             "user_progress": {
                 "solved": progress["solved"] if progress else False,
                 "hints_used": hints_used,
@@ -2208,6 +2249,258 @@ async def submit_question(
             "points": points_earned,
             "challenge_complete": all_questions_solved,
         }
+
+
+# ===========================================
+# CODING ARENA: RUN & SUBMIT
+# ===========================================
+
+
+@api_router.post("/challenges/{challenge_id}/coding-run")
+async def coding_run(
+    challenge_id: str,
+    req: CodingRunRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Run code locally inside the student's ephemeral pod or dry run against sample inputs"""
+    user_id = str(current_user["id"])
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        challenge = await conn.fetchrow(
+            """
+            SELECT id, title, "dockerImage" as docker_image, language, "testCases" as test_cases
+            FROM ctf_public_challenges 
+            WHERE id::text = $1 OR slug = $1
+        """,
+            challenge_id,
+        )
+        if not challenge:
+            raise HTTPException(status_code=404, detail="Challenge not found")
+
+        real_challenge_id = str(challenge["id"])
+        session_id = nexus_sessions.get(user_id, {}).get(real_challenge_id)
+
+        # If pod session exists, execute locally in the pod
+        if session_id:
+            filename = "main.c"
+            lang = req.language.lower()
+            if "py" in lang:
+                filename = "solution.py"
+            elif "cpp" in lang or "c++" in lang:
+                filename = "main.cpp"
+
+            try:
+                async with _nexus_client() as client:
+                    # Write file into $HOME
+                    await client.put(
+                        f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/files",
+                        json={"filename": filename, "content": req.source_code},
+                        headers=_get_nexus_headers(),
+                        timeout=5.0,
+                    )
+
+                    # Prepare run command
+                    if "py" in lang:
+                        run_cmd = f"python3 {filename}"
+                    elif "cpp" in lang or "c++" in lang:
+                        run_cmd = f"g++ -O2 {filename} -o main && ./main"
+                    else:
+                        run_cmd = f"gcc -O2 {filename} -o main && ./main"
+
+                    exec_res = await client.post(
+                        f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/exec",
+                        json={"command": run_cmd, "timeout_seconds": 10},
+                        headers=_get_nexus_headers(),
+                        timeout=12.0,
+                    )
+                    if exec_res.status_code == 200:
+                        data = exec_res.json()
+                        return {
+                            "stdout": data.get("stdout", ""),
+                            "stderr": data.get("stderr", ""),
+                            "success": data.get("success", True),
+                            "mode": "pod_exec",
+                        }
+            except Exception as e:
+                logger.warning(f"Pod exec failed, falling back to judge: {e}")
+
+        # Fallback to JudgeService evaluation on sample visible test case
+        test_cases_data = challenge.get("test_cases") or []
+        if isinstance(test_cases_data, str):
+            test_cases_data = json.loads(test_cases_data)
+
+        visible_tests = [t for t in test_cases_data if not t.get("is_hidden", False)]
+        if not visible_tests and req.stdin is not None:
+            visible_tests = [{"id": 1, "input": req.stdin, "expected": "", "points": 10, "is_hidden": False}]
+
+        res = await JudgeService.evaluate_submission(
+            source_code=req.source_code,
+            language=req.language or challenge.get("language") or "c",
+            test_cases=visible_tests,
+        )
+        return {
+            "stdout": res["test_cases"][0]["stdout"] if res.get("test_cases") else "",
+            "stderr": res.get("compile_error") or "",
+            "success": res.get("all_passed", False),
+            "mode": "judge_run",
+            "results": res,
+        }
+
+
+@api_router.post("/challenges/{challenge_id}/coding-submit")
+async def coding_submit(
+    challenge_id: str,
+    req: CodingSubmitRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Authoritatively evaluate submission via Judge0, score, and release flag upon 100% pass"""
+    user_id = str(current_user["id"])
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        challenge = await conn.fetchrow(
+            """
+            SELECT id, title, points, flag, language, "testCases" as test_cases,
+                   "timeLimitMs" as time_limit_ms, "memoryLimitMb" as memory_limit_mb
+            FROM ctf_public_challenges 
+            WHERE id::text = $1 OR slug = $1
+        """,
+            challenge_id,
+        )
+        if not challenge:
+            raise HTTPException(status_code=404, detail="Challenge not found")
+
+        real_challenge_id = str(challenge["id"])
+        test_cases_data = challenge.get("test_cases") or []
+        if isinstance(test_cases_data, str):
+            test_cases_data = json.loads(test_cases_data)
+
+        time_limit = challenge.get("time_limit_ms") or 2000
+        mem_limit = challenge.get("memory_limit_mb") or 128
+
+        # 1. Authoritative evaluation via Judge0
+        eval_result = await JudgeService.evaluate_submission(
+            source_code=req.source_code,
+            language=req.language or challenge.get("language") or "c",
+            test_cases=test_cases_data,
+            time_limit_ms=time_limit,
+            memory_limit_mb=mem_limit,
+        )
+
+        sub_id = generate_uuid()
+        total_score = eval_result["score"]
+        max_score = eval_result["max_score"]
+        all_passed = eval_result["all_passed"]
+        sub_status = eval_result["status"]
+
+        # 2. Record submission in coding_submissions
+        await conn.execute(
+            """
+            INSERT INTO coding_submissions (
+                id, user_id, challenge_id, source_code, language,
+                status, score, max_score, test_results, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        """,
+            sub_id,
+            user_id,
+            real_challenge_id,
+            req.source_code,
+            req.language,
+            sub_status,
+            total_score,
+            max_score,
+            json.dumps(eval_result["test_cases"]),
+        )
+
+        # 3. If all tests pass, mark challenge solved in ctf_public_progress
+        flag_revealed = None
+        if all_passed and max_score > 0:
+            flag_revealed = challenge.get("flag")
+            await conn.execute(
+                """
+                INSERT INTO ctf_public_progress (
+                    id, "userId", "challengeId", solved, "scoreEarned", "solvedAt", "createdAt", "updatedAt"
+                ) VALUES ($1, $2, $3, true, $4, NOW(), NOW(), NOW())
+                ON CONFLICT ("userId", "challengeId") DO UPDATE SET
+                    solved = true,
+                    "scoreEarned" = GREATEST(ctf_public_progress."scoreEarned", $4),
+                    "solvedAt" = COALESCE(ctf_public_progress."solvedAt", NOW()),
+                    "updatedAt" = NOW()
+            """,
+                generate_uuid(),
+                user_id,
+                real_challenge_id,
+                challenge["points"],
+            )
+
+            # Update solves count
+            await conn.execute(
+                """
+                UPDATE ctf_public_challenges
+                SET solves = solves + 1
+                WHERE id = $1
+            """,
+                real_challenge_id,
+            )
+
+            # Auto-destroy active Nexus session
+            asyncio.create_task(_auto_destroy_nexus_session(user_id, real_challenge_id))
+
+        return {
+            "submission_id": sub_id,
+            "status": sub_status,
+            "score": total_score,
+            "max_score": max_score,
+            "all_passed": all_passed,
+            "flag": flag_revealed,
+            "compile_error": eval_result.get("compile_error"),
+            "total_runtime_ms": eval_result.get("total_runtime_ms", 0),
+            "max_memory_kb": eval_result.get("max_memory_kb", 0),
+            "test_cases": eval_result.get("test_cases", []),
+        }
+
+
+@api_router.get("/challenges/{challenge_id}/coding-submissions")
+async def get_coding_submissions(
+    challenge_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Retrieve user's past coding submissions for this challenge"""
+    user_id = str(current_user["id"])
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        challenge = await conn.fetchrow(
+            """
+            SELECT id FROM ctf_public_challenges 
+            WHERE id::text = $1 OR slug = $1
+        """,
+            challenge_id,
+        )
+        if not challenge:
+            raise HTTPException(status_code=404, detail="Challenge not found")
+
+        subs = await conn.fetch(
+            """
+            SELECT id, status, score, max_score, test_results, language, created_at
+            FROM coding_submissions
+            WHERE user_id::text = $1 AND challenge_id::text = $2
+            ORDER BY created_at DESC
+            LIMIT 20
+        """,
+            user_id,
+            str(challenge["id"]),
+        )
+        return [
+            {
+                "id": str(s["id"]),
+                "status": s["status"],
+                "score": s["score"],
+                "max_score": s["max_score"],
+                "language": s["language"],
+                "test_results": json.loads(s["test_results"]) if isinstance(s["test_results"], str) else s["test_results"],
+                "created_at": s["created_at"].isoformat() if s["created_at"] else None,
+            }
+            for s in subs
+        ]
 
 
 async def _auto_destroy_nexus_session(user_id: str, challenge_id: str) -> None:
@@ -2937,6 +3230,10 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
             question_points = sum(q.get("points", 25) for q in (questions or []))
             total_points = c["points"] + question_points
 
+            test_cases = c.get("testCases") or []
+            if isinstance(test_cases, str):
+                test_cases = json.loads(test_cases)
+
             result.append(
                 {
                     "id": c["id"],
@@ -2961,6 +3258,13 @@ async def admin_get_all_challenges(admin: dict = Depends(require_admin)):
                     "has_docker": c.get("hasDocker", bool(c["dockerImage"])),
                     "challenge_pack_id": c.get("challengePackId"),
                     "is_multi_container": c.get("isMultiContainer", False),
+                    # Coding Arena support
+                    "is_coding_challenge": bool(c.get("isCodingChallenge", False)),
+                    "language": c.get("language") or "c",
+                    "starter_code": c.get("starterCode") or "",
+                    "test_cases": test_cases or [],
+                    "time_limit_ms": c.get("timeLimitMs") or 2000,
+                    "memory_limit_mb": c.get("memoryLimitMb") or 128,
                 }
             )
 
@@ -2983,6 +3287,12 @@ async def admin_create_challenge(
         ]
         tags = data.tags if data.tags else []
         ports = data.ports if data.ports else []
+        test_cases = data.test_cases if data.test_cases else []
+        starter_code = data.starter_code if data.starter_code else ""
+        language = data.language if data.language else "c"
+        is_coding_challenge = bool(data.is_coding_challenge)
+        time_limit_ms = data.time_limit_ms or 2000
+        memory_limit_mb = data.memory_limit_mb or 128
 
         # Determine if this has a docker/lab environment
         has_docker = bool(
@@ -2995,8 +3305,9 @@ async def admin_create_challenge(
                 id, "categoryId", title, description, difficulty, points,
                 flag, author, "dockerImage", "dockerCommand", hints, questions,
                 tags, ports, "isPublished", solves, "createdAt", "updatedAt",
-                "hasDocker", "challengePackId", "isMultiContainer"
-            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, NOW(), NOW(), $16, $17, $18)
+                "hasDocker", "challengePackId", "isMultiContainer",
+                "isCodingChallenge", language, "starterCode", "testCases", "timeLimitMs", "memoryLimitMb"
+            ) VALUES ($1, $2, $3, $4, $5::"CtfDifficulty", $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0, NOW(), NOW(), $16, $17, $18, $19, $20, $21, $22, $23, $24)
         """,
             challenge_id,
             data.category_id,
@@ -3016,6 +3327,12 @@ async def admin_create_challenge(
             has_docker,
             data.challenge_pack_id,
             data.is_multi_container,
+            is_coding_challenge,
+            language,
+            starter_code,
+            json.dumps(test_cases),
+            time_limit_ms,
+            memory_limit_mb,
         )
 
         return {"id": challenge_id}
@@ -3035,6 +3352,13 @@ async def admin_update_challenge(
         ]
         tags = data.tags if data.tags else []
         ports = data.ports if data.ports else []
+        test_cases = data.test_cases if data.test_cases else []
+        starter_code = data.starter_code if data.starter_code else ""
+        language = data.language if data.language else "c"
+        is_coding_challenge = bool(data.is_coding_challenge)
+        time_limit_ms = data.time_limit_ms or 2000
+        memory_limit_mb = data.memory_limit_mb or 128
+
         # Determine if this has a docker/lab environment
         has_docker = bool(
             data.docker_image or data.challenge_pack_id or data.has_docker
@@ -3047,8 +3371,10 @@ async def admin_update_challenge(
                 points = $5, flag = $6, author = $7, "dockerImage" = $8, "dockerCommand" = $9,
                 hints = $10, questions = $11, tags = $12, ports = $13, "isPublished" = $14,
                 "hasDocker" = $15, "challengePackId" = $16, "isMultiContainer" = $17,
+                "isCodingChallenge" = $18, language = $19, "starterCode" = $20, "testCases" = $21,
+                "timeLimitMs" = $22, "memoryLimitMb" = $23,
                 "updatedAt" = NOW()
-            WHERE id::text = $18
+            WHERE id::text = $24
         """,
             data.category_id,
             data.title,
@@ -3067,6 +3393,12 @@ async def admin_update_challenge(
             has_docker,
             data.challenge_pack_id,
             data.is_multi_container,
+            is_coding_challenge,
+            language,
+            starter_code,
+            json.dumps(test_cases),
+            time_limit_ms,
+            memory_limit_mb,
             challenge_id,
         )
 
@@ -7532,6 +7864,41 @@ async def startup():
                 logger.info("Author column migration complete")
             except Exception as e:
                 logger.debug(f"Author column already exists or migration skipped: {e}")
+
+            # Migration: Add coding arena columns to challenges table
+            try:
+                await conn.execute("""
+                    ALTER TABLE ctf_public_challenges 
+                    ADD COLUMN IF NOT EXISTS "isCodingChallenge" BOOLEAN DEFAULT FALSE,
+                    ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'c',
+                    ADD COLUMN IF NOT EXISTS "starterCode" TEXT DEFAULT '',
+                    ADD COLUMN IF NOT EXISTS "testCases" JSONB DEFAULT '[]'::jsonb,
+                    ADD COLUMN IF NOT EXISTS "timeLimitMs" INTEGER DEFAULT 2000,
+                    ADD COLUMN IF NOT EXISTS "memoryLimitMb" INTEGER DEFAULT 128
+                """)
+                logger.info("Coding arena challenge columns migration complete")
+            except Exception as e:
+                logger.debug(f"Coding arena columns migration skipped: {e}")
+
+            # Migration: Create coding_submissions table
+            try:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS coding_submissions (
+                        id UUID PRIMARY KEY,
+                        user_id UUID NOT NULL,
+                        challenge_id UUID NOT NULL,
+                        source_code TEXT NOT NULL,
+                        language TEXT NOT NULL,
+                        status TEXT DEFAULT 'queued',
+                        score INTEGER DEFAULT 0,
+                        max_score INTEGER DEFAULT 100,
+                        test_results JSONB DEFAULT '[]'::jsonb,
+                        created_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                logger.info("Coding submissions table verified")
+            except Exception as e:
+                logger.debug(f"Coding submissions table creation skipped: {e}")
 
 
     except Exception as e:
