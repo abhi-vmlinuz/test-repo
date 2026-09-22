@@ -41,7 +41,7 @@ const AdminCategories = () => {
 
     const fetchCategories = async () => {
         try {
-            const response = await axios.get(`${API}/admin/categories`);
+            const response = await axios.get(`${API}/admin/public-categories`);
             setCategories(response.data);
         } catch (error) {
             toast.error('Failed to load categories');
@@ -71,10 +71,10 @@ const AdminCategories = () => {
         e.preventDefault();
         try {
             if (editingCategory) {
-                await axios.put(`${API}/admin/categories/${editingCategory.id}`, formData);
+                await axios.put(`${API}/admin/public-categories/${editingCategory.id}`, formData);
                 toast.success('Category updated');
             } else {
-                await axios.post(`${API}/admin/categories`, formData);
+                await axios.post(`${API}/admin/public-categories`, formData);
                 toast.success('Category created');
             }
             setShowModal(false);
@@ -89,7 +89,7 @@ const AdminCategories = () => {
             return;
         }
         try {
-            await axios.delete(`${API}/admin/categories/${category.id}`);
+            await axios.delete(`${API}/admin/public-categories/${category.id}`);
             toast.success('Category deleted');
             fetchCategories();
         } catch (error) {

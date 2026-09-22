@@ -164,7 +164,7 @@ const AdminChallenges = () => {
         try {
             const [challengesRes, categoriesRes] = await Promise.all([
                 axios.get(`${API}/admin/challenges`),
-                axios.get(`${API}/admin/categories`)
+                axios.get(`${API}/admin/public-categories`)
             ]);
             setChallenges(challengesRes.data);
             setCategories(categoriesRes.data);

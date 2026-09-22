@@ -2787,6 +2787,28 @@ async def admin_delete_category(category_id: str, admin: dict = Depends(require_
         return {"success": True}
 
 
+@api_router.put("/admin/public-categories/{category_id}")
+async def admin_update_category(
+    category_id: str, data: CategoryCreate, admin: dict = Depends(require_admin)
+):
+    """Update a category"""
+    pool = await Database.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE ctf_categories
+            SET name=$2, description=$3, icon=$4, color=$5, "updatedAt"=NOW()
+            WHERE id::text = $1
+        """,
+            category_id,
+            data.name,
+            data.description,
+            data.icon,
+            data.color,
+        )
+        return {"success": True}
+
+
 # ===========================================
 # PUBLIC CTF: ADMIN - CHALLENGES
 # ===========================================
@@ -3756,16 +3778,15 @@ DOCKER_BUILDS_DIR = Path("/tmp/nexus-docker-builds")
 DOCKER_BUILDS_DIR.mkdir(exist_ok=True)
 
 
-
 @api_router.get("/admin/docker-images")
 async def list_docker_images(admin: dict = Depends(require_admin)):
     """
-    List available Docker images from GHCR and challenge database.
+    List available Docker images from Registry/GHCR and challenge database.
     Returns images that can be used for challenges.
-    Only shows database images if they still exist in GHCR.
+    Only shows database images if they still exist in registry.
     """
     images = []
-    ghcr_images = set()  # Track GHCR images for validation
+    ghcr_images = set()  # Track registry images for validation
     db_images = []  # Store DB images to validate later
 
     # 1. Get images from existing challenges (already built/uploaded)
@@ -3796,7 +3817,45 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
     except Exception as e:
         logger.error(f"Failed to fetch images from DB: {e}")
 
-    # 2. Try to fetch from GHCR API (if token available)
+    # 2. Get images from local build metadata table
+    try:
+        pool = await Database.get_pool()
+        async with pool.acquire() as conn:
+            # Ensure table exists
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS docker_image_metadata (
+                    id SERIAL PRIMARY KEY,
+                    image_url TEXT UNIQUE NOT NULL,
+                    image_name TEXT,
+                    ports JSONB DEFAULT '[]',
+                    dockerfile_content TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            meta_rows = await conn.fetch("""
+                SELECT image_url, image_name, created_at
+                FROM docker_image_metadata
+                ORDER BY created_at DESC
+                LIMIT 100
+            """)
+            for row in meta_rows:
+                img_url = row["image_url"]
+                if not any(img["image"].lower() == img_url.lower() for img in images):
+                    images.append(
+                        {
+                            "image": img_url,
+                            "source": "registry",
+                            "label": row["image_name"] or img_url.split("/")[-1].split(":")[0],
+                            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                        }
+                    )
+                    # Automatically track metadata images as existing
+                    ghcr_images.add(img_url.lower())
+    except Exception as e:
+        logger.error(f"Failed to fetch images from metadata: {e}")
+
+    # 3. Try to fetch from GHCR API or Local Registry catalog
     ghcr_username = os.environ.get("GHCR_USERNAME", "")
     ghcr_token = os.environ.get("GHCR_TOKEN", "")
 
@@ -3816,15 +3875,46 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                 if token_row:
                     ghcr_token = token_row["value"]
         except Exception as e:
-            logger.warning(f"Could not fetch GHCR settings from DB: {e}")
+            logger.warning(f"Could not fetch Registry settings from DB: {e}")
 
-    ghcr_api_success = False  # Track if we successfully queried GHCR API
+    is_local_registry = False
+    if ghcr_username and (":" in ghcr_username or "localhost" in ghcr_username or "127.0.0.1" in ghcr_username):
+        is_local_registry = True
 
-    if ghcr_token and ghcr_username:
+    ghcr_api_success = False  # Track if we successfully queried API
+
+    if is_local_registry:
+        logger.info(f"Querying local registry catalog: {ghcr_username}")
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"http://{ghcr_username}/v2/_catalog", timeout=5.0)
+                if resp.status_code == 200:
+                    ghcr_api_success = True
+                    catalog = resp.json()
+                    repositories = catalog.get("repositories", [])
+                    for repo in repositories:
+                        # Get tags for repo
+                        tags_resp = await client.get(f"http://{ghcr_username}/v2/{repo}/tags/list", timeout=5.0)
+                        if tags_resp.status_code == 200:
+                            tags_data = tags_resp.json()
+                            for tag in tags_data.get("tags", []):
+                                image_url = f"{ghcr_username}/{repo}:{tag}"
+                                ghcr_images.add(image_url.lower())
+                                if not any(img["image"].lower() == image_url.lower() for img in images):
+                                    images.append(
+                                        {
+                                            "image": image_url,
+                                            "source": "registry",
+                                            "label": repo,
+                                            "created_at": None,
+                                        }
+                                    )
+        except Exception as e:
+            logger.warning(f"Failed to fetch catalog from local registry: {e}")
+    elif ghcr_token and ghcr_username:
         logger.info(f"Fetching GHCR images for user: {ghcr_username}")
         try:
             async with httpx.AsyncClient() as client:
-                # First try authenticated user's packages (works with PAT tokens)
                 resp = await client.get(
                     "https://api.github.com/user/packages?package_type=container",
                     headers={
@@ -3850,15 +3940,16 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
                         # Track this image as existing in GHCR
                         ghcr_images.add(image_url.lower())
 
-                        # Add to images list
-                        images.append(
-                            {
-                                "image": image_url,
-                                "source": "ghcr",
-                                "label": pkg["name"],
-                                "created_at": pkg.get("created_at"),
-                            }
-                        )
+                        # Add to images list if not duplicate
+                        if not any(img["image"].lower() == image_url.lower() for img in images):
+                            images.append(
+                                {
+                                    "image": image_url,
+                                    "source": "ghcr",
+                                    "label": pkg["name"],
+                                    "created_at": pkg.get("created_at"),
+                                }
+                            )
                 else:
                     logger.warning(
                         f"GHCR API returned: {resp.status_code} - {resp.text[:200]}"
@@ -3867,36 +3958,30 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
             logger.error(f"Failed to fetch from GHCR API: {e}")
     else:
         logger.info(
-            f"GHCR not configured - token: {bool(ghcr_token)}, username: {bool(ghcr_username)}"
+            f"Registry not configured - token: {bool(ghcr_token)}, username: {bool(ghcr_username)}"
         )
 
-    # 3. Only add database images if they exist in GHCR (prevents showing deleted images)
+    # 4. Handle database/registry matching and validation
     for db_img in db_images:
         image_lower = db_img["image"].lower()
-        # Check if this image exists in GHCR
         if image_lower in ghcr_images:
-            # Don't add duplicate - it's already in the list from GHCR
-            # But mark the GHCR entry as "In Use" if a challenge uses it
             for img in images:
-                if img["image"].lower() == image_lower and img["source"] == "ghcr":
+                if img["image"].lower() == image_lower:
                     img["in_use"] = True
                     img["used_by"] = db_img["label"]
                     break
         elif not ghcr_api_success:
-            # GHCR API call failed - show all DB images with warning
-            db_img["warning"] = "Cannot verify - GHCR not connected"
+            db_img["warning"] = "Cannot verify - Registry not connected"
             if not any(img["image"].lower() == image_lower for img in images):
                 images.append(db_img)
         else:
-            # GHCR API succeeded but image not found - it was deleted
-            # Add it with orphan warning so admin can clean it up
-            db_img["warning"] = "Deleted from GHCR - Orphaned"
+            db_img["warning"] = "Deleted from Registry - Orphaned"
             db_img["is_orphaned"] = True
             if not any(img["image"].lower() == image_lower for img in images):
                 images.append(db_img)
 
     logger.info(
-        f"Returning {len(images)} total images (GHCR API success: {ghcr_api_success})"
+        f"Returning {len(images)} total images (API success: {ghcr_api_success})"
     )
 
     # 4. Also fetch Challenge Packs (multi-container bundles)
@@ -4670,7 +4755,7 @@ async def build_docker_image(
     admin: dict = Depends(require_admin),
 ):
     """
-    Build Docker image(s) from uploaded ZIP and push to GHCR.
+    Build Docker image(s) from uploaded ZIP and push to Registry/GHCR.
 
     Supports:
     - Single Dockerfile: Builds one image
@@ -4681,7 +4766,7 @@ async def build_docker_image(
     # Clean up old builds first
     cleanup_old_builds()
 
-    # Get GHCR credentials
+    # Get GHCR/Registry credentials
     ghcr_username = os.environ.get("GHCR_USERNAME")
     ghcr_token = os.environ.get("GHCR_TOKEN")
 
@@ -4701,13 +4786,26 @@ async def build_docker_image(
                 if token_row:
                     ghcr_token = token_row["value"]
         except Exception as e:
-            logger.warning(f"Could not fetch GHCR settings from DB: {e}")
+            logger.warning(f"Could not fetch Registry settings from DB: {e}")
 
-    if not ghcr_username or not ghcr_token:
-        raise HTTPException(
-            status_code=400,
-            detail="GHCR not configured. Go to Image Registry settings.",
-        )
+    is_local_registry = False
+    registry_host = "ghcr.io"
+    if ghcr_username and (":" in ghcr_username or "localhost" in ghcr_username or "127.0.0.1" in ghcr_username):
+        is_local_registry = True
+        registry_host = ghcr_username
+
+    if not is_local_registry:
+        if not ghcr_username or not ghcr_token:
+            raise HTTPException(
+                status_code=400,
+                detail="GHCR not configured. Go to Image Registry settings.",
+            )
+    else:
+        if not ghcr_username:
+            raise HTTPException(
+                status_code=400,
+                detail="Registry host not configured. Go to Image Registry settings.",
+            )
 
     if not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
@@ -4761,11 +4859,14 @@ async def build_docker_image(
                 status_code=500, detail="Docker not available on server"
             )
 
-        # Login to GHCR first
-        docker_client.login(
-            username=ghcr_username, password=ghcr_token, registry="ghcr.io"
-        )
-        logger.info("Logged in to GHCR")
+        if not is_local_registry:
+            # Login to GHCR first
+            docker_client.login(
+                username=ghcr_username, password=ghcr_token, registry="ghcr.io"
+            )
+            logger.info("Logged in to GHCR")
+        else:
+            logger.info(f"Using local registry: {registry_host} (skipping login)")
 
         # =====================================
         # DOCKER COMPOSE BUILD (Multi-Container)
@@ -4838,7 +4939,10 @@ async def build_docker_image(
                             pass
 
                     # Build image for this service
-                    service_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}-{service_name}:latest"
+                    if is_local_registry:
+                        service_image_name = f"{registry_host}/{clean_name}-{service_name}:latest"
+                    else:
+                        service_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}-{service_name}:latest"
 
                     logger.info(
                         f"Building service '{service_name}': {service_image_name}"
@@ -4852,26 +4956,27 @@ async def build_docker_image(
                             rm=True,
                         )
 
-                        # Push to GHCR
+                        # Push to registry
                         logger.info(f"Pushing {service_image_name}")
                         docker_client.images.push(service_image_name)
 
-                        # Make public
-                        try:
-                            async with httpx.AsyncClient() as client:
-                                pkg_name = f"{clean_name}-{service_name}"
-                                await client.patch(
-                                    f"https://api.github.com/user/packages/container/{pkg_name}",
-                                    headers={
-                                        "Authorization": f"Bearer {ghcr_token}",
-                                        "Accept": "application/vnd.github+json",
-                                        "X-GitHub-Api-Version": "2022-11-28",
-                                    },
-                                    json={"visibility": "public"},
-                                    timeout=10.0,
-                                )
-                        except:
-                            pass
+                        # Make public (only for GHCR)
+                        if not is_local_registry:
+                            try:
+                                async with httpx.AsyncClient() as client:
+                                    pkg_name = f"{clean_name}-{service_name}"
+                                    await client.patch(
+                                        f"https://api.github.com/user/packages/container/{pkg_name}",
+                                        headers={
+                                            "Authorization": f"Bearer {ghcr_token}",
+                                            "Accept": "application/vnd.github+json",
+                                            "X-GitHub-Api-Version": "2022-11-28",
+                                        },
+                                        json={"visibility": "public"},
+                                        timeout=10.0,
+                                    )
+                            except:
+                                pass
 
                         built_images.append(
                             {
@@ -5019,7 +5124,10 @@ async def build_docker_image(
             except Exception as e:
                 logger.warning(f"Could not parse Dockerfile for ports: {e}")
 
-            full_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}:latest"
+            if is_local_registry:
+                full_image_name = f"{registry_host}/{clean_name}:latest"
+            else:
+                full_image_name = f"ghcr.io/{ghcr_username.lower()}/{clean_name}:latest"
 
             logger.info(f"Building single image: {full_image_name}")
 
@@ -5029,25 +5137,26 @@ async def build_docker_image(
                 )
                 logger.info(f"Image built successfully: {full_image_name}")
 
-                # Push to GHCR
-                logger.info(f"Pushing image to GHCR: {full_image_name}")
+                # Push to registry
+                logger.info(f"Pushing image to registry: {full_image_name}")
                 docker_client.images.push(full_image_name)
 
-                # Make public
-                try:
-                    async with httpx.AsyncClient() as client:
-                        await client.patch(
-                            f"https://api.github.com/user/packages/container/{clean_name}",
-                            headers={
-                                "Authorization": f"Bearer {ghcr_token}",
-                                "Accept": "application/vnd.github+json",
-                                "X-GitHub-Api-Version": "2022-11-28",
-                            },
-                            json={"visibility": "public"},
-                            timeout=10.0,
-                        )
-                except:
-                    pass
+                # Make public (only for GHCR)
+                if not is_local_registry:
+                    try:
+                        async with httpx.AsyncClient() as client:
+                            await client.patch(
+                                f"https://api.github.com/user/packages/container/{clean_name}",
+                                headers={
+                                    "Authorization": f"Bearer {ghcr_token}",
+                                    "Accept": "application/vnd.github+json",
+                                    "X-GitHub-Api-Version": "2022-11-28",
+                                },
+                                json={"visibility": "public"},
+                                timeout=10.0,
+                            )
+                    except:
+                        pass
 
                 # Store image metadata
                 try:
@@ -5090,7 +5199,7 @@ async def build_docker_image(
                     "type": "single",
                     "image": full_image_name,
                     "ports": detected_ports,
-                    "message": f"Image {clean_name} built and pushed to GHCR!",
+                    "message": f"Image {clean_name} built and pushed to registry!",
                 }
 
             except Exception as build_error:
@@ -5886,6 +5995,19 @@ def _get_nexus_headers(user_id: str = None) -> dict:
         headers["X-User-ID"] = user_id
     return headers
 
+
+def _nexus_client() -> httpx.AsyncClient:
+    """Return an httpx.AsyncClient pre-configured with the Nexus API key.
+    Use this instead of httpx.AsyncClient() for ALL Nexus Engine calls so
+    the Authorization header is always injected, even in call-sites that
+    don't explicitly call _get_nexus_headers().
+    """
+    default_headers = {}
+    if NEXUS_API_KEY:
+        default_headers["Authorization"] = f"Bearer {NEXUS_API_KEY}"
+    return httpx.AsyncClient(headers=default_headers, timeout=30.0)
+
+
 # Nexus session storage (user_id -> session_id mapping)
 nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}
 
@@ -5960,7 +6082,7 @@ async def start_docker_instance(
         if user_id in nexus_sessions and challenge_id in nexus_sessions[user_id]:
             existing_session_id = nexus_sessions[user_id][challenge_id]
             try:
-                async with httpx.AsyncClient() as client:
+                async with _nexus_client() as client:
                     resp = await client.get(
                         f"{NEXUS_ENGINE_URL}/api/v1/sessions/{existing_session_id}",
                         headers=_get_nexus_headers(),
@@ -5997,7 +6119,7 @@ async def start_docker_instance(
 
         # Spawn new session via Nexus
         try:
-            async with httpx.AsyncClient() as client:
+            async with _nexus_client() as client:
                 # Prepare nexus challenge config
                 nexus_challenge = {
                     "name": challenge["title"],
@@ -6060,15 +6182,23 @@ async def start_docker_instance(
                 )
 
                 if create_resp.status_code == 201:
-                    nexus_chal_id = create_resp.json().get("id", challenge_id)
+                    create_data = create_resp.json()
+                    # Nexus returns {"challenge": {"id": "..."}, ...}
+                    nexus_chal_id = (
+                        create_data.get("challenge", {}).get("id")
+                        or create_data.get("id")
+                        or challenge_id
+                    )
                     logger.info(
                         f"Created/updated Nexus challenge {nexus_chal_id} with ports: {challenge_ports}"
                     )
                 else:
-                    # Fallback to using the challenge_id directly
-                    nexus_chal_id = challenge_id
                     logger.warning(
-                        f"Could not create Nexus challenge: {create_resp.status_code}"
+                        f"Could not create Nexus challenge: {create_resp.status_code} - {create_resp.text}"
+                    )
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Failed to register challenge with Nexus: {create_resp.text}"
                     )
 
                 # Fetch the real VPN IP from Nexus Engine.
@@ -6182,7 +6312,7 @@ async def stop_docker_instance(
 ):
     """Stop a running container via Nexus Engine"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.delete(
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
                 headers=_get_nexus_headers(),
@@ -6234,7 +6364,7 @@ async def extend_docker_instance(
     """Extend container TTL by 30 minutes"""
     try:
         # First, check remaining time from Nexus to enforce 30-minute rule
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             # Get current session status first
             status_resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
@@ -6349,7 +6479,7 @@ async def get_docker_status(
 ):
     """Get container status and connection info"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=10.0
             )
@@ -6420,7 +6550,7 @@ async def get_challenge_session(
         session_id = nexus_sessions[user_id][challenge_id]
         logger.info(f"Found session {session_id} in cache for user {user_id}")
         try:
-            async with httpx.AsyncClient() as client:
+            async with _nexus_client() as client:
                 resp = await client.get(
                     f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=10.0
                 )
@@ -6472,7 +6602,7 @@ async def get_challenge_session(
                 session_valid = True  # Assume valid unless Nexus explicitly says 404
 
                 try:
-                    async with httpx.AsyncClient() as client:
+                    async with _nexus_client() as client:
                         resp = await client.get(
                             f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
                             timeout=5.0,  # Shorter timeout
@@ -6558,7 +6688,7 @@ async def admin_nexus_stats(current_user: dict = Depends(require_admin)):
 
     # 1. Check Nexus Engine health
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(f"{NEXUS_ENGINE_URL}/health", timeout=5.0)
             if resp.status_code == 200:
                 stats["nexus_engine_healthy"] = True
@@ -6609,7 +6739,7 @@ async def admin_list_sessions(current_user: dict = Depends(require_admin)):
     # 1. Get sessions from Nexus Engine (admin endpoint)
     nexus_sessions = {}
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/sessions", timeout=10.0
             )
@@ -6692,7 +6822,7 @@ async def admin_terminate_session(
 ):
     """Admin-only: Terminate any session by ID"""
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.delete(
                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=30.0
             )
@@ -6773,7 +6903,7 @@ async def admin_cleanup_orphans(current_user: dict = Depends(require_admin)):
 
             # Identify and Kill orphans
             orphans = [sid for sid in k8s_session_ids if sid not in db_session_ids]
-            async with httpx.AsyncClient() as client:
+            async with _nexus_client() as client:
                 for sid in orphans:
                     await client.delete(
                         f"{NEXUS_ENGINE_URL}/api/v1/sessions/{sid}", timeout=5.0
@@ -6820,7 +6950,7 @@ async def nexus_cleanup_janitor_task():
                 for session in running_sessions:
                     session_id = session["session_id"]
                     try:
-                        async with httpx.AsyncClient() as client:
+                        async with _nexus_client() as client:
                             resp = await client.get(
                                 f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}",
                                 timeout=5.0,
@@ -7094,7 +7224,7 @@ async def admin_nexus_nodes(current_user: dict = Depends(require_admin)):
     Proxies to Nexus Engine /api/v1/admin/nodes endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/nodes", timeout=10.0
             )
@@ -7118,7 +7248,7 @@ async def admin_nexus_ports(current_user: dict = Depends(require_admin)):
     Proxies to Nexus Engine /api/v1/admin/ports endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/ports", timeout=10.0
             )
@@ -7141,7 +7271,7 @@ async def admin_nexus_config(current_user: dict = Depends(require_admin)):
     Proxies to Nexus Engine /api/v1/admin/config endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/config", timeout=10.0
             )
@@ -7186,7 +7316,7 @@ async def admin_nexus_vpn_status(current_user: dict = Depends(require_admin)):
     Proxies to Nexus Engine /api/v1/admin/vpn/stats endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/vpn/stats", timeout=10.0
             )
@@ -7216,7 +7346,7 @@ async def admin_nexus_cluster_health(current_user: dict = Depends(require_admin)
     Proxies to Nexus Engine /api/v1/admin/cluster/health endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/cluster/health", timeout=10.0
             )
@@ -7248,7 +7378,7 @@ async def admin_nexus_vpn_users(current_user: dict = Depends(require_admin)):
     Proxies to Nexus Engine /api/v1/admin/vpn/users endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/vpn/users", timeout=10.0
             )
@@ -7272,7 +7402,7 @@ async def admin_nexus_vpn_connections(current_user: dict = Depends(require_admin
     Proxies to Nexus Engine /api/v1/admin/vpn/connections endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/vpn/connections", timeout=15.0
             )
@@ -7296,7 +7426,7 @@ async def admin_nexus_cluster_nodes(current_user: dict = Depends(require_admin))
     Proxies to Nexus Engine /api/v1/admin/cluster/nodes endpoint.
     """
     try:
-        async with httpx.AsyncClient() as client:
+        async with _nexus_client() as client:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/admin/cluster/nodes", timeout=15.0
             )
@@ -7505,11 +7635,11 @@ async def shutdown():
 async def vpn_config_proxy(current_user: dict = Depends(get_current_user)):
     """Proxy: GET /api/v1/vpn/config from Nexus Engine → return as .conf download."""
     user_id = str(current_user["id"])
-    async with httpx.AsyncClient() as client:
+    async with _nexus_client() as client:
         try:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/vpn/config",
-                headers={"X-User-ID": user_id},
+                headers=_get_nexus_headers(user_id),
                 timeout=15.0,
             )
             if resp.status_code != 200:
@@ -7531,11 +7661,11 @@ async def vpn_config_proxy(current_user: dict = Depends(get_current_user)):
 async def vpn_status_proxy(current_user: dict = Depends(get_current_user)):
     """Proxy: GET /api/v1/vpn/status from Nexus Engine."""
     user_id = str(current_user["id"])
-    async with httpx.AsyncClient() as client:
+    async with _nexus_client() as client:
         try:
             resp = await client.get(
                 f"{NEXUS_ENGINE_URL}/api/v1/vpn/status",
-                headers={"X-User-ID": user_id},
+                headers=_get_nexus_headers(user_id),
                 timeout=10.0,
             )
             return resp.json()
@@ -7547,11 +7677,11 @@ async def vpn_status_proxy(current_user: dict = Depends(get_current_user)):
 async def vpn_regenerate_proxy(current_user: dict = Depends(get_current_user)):
     """Proxy: POST /api/v1/vpn/regenerate to Nexus Engine → return new .conf download."""
     user_id = str(current_user["id"])
-    async with httpx.AsyncClient() as client:
+    async with _nexus_client() as client:
         try:
             resp = await client.post(
                 f"{NEXUS_ENGINE_URL}/api/v1/vpn/regenerate",
-                headers={"X-User-ID": user_id},
+                headers=_get_nexus_headers(user_id),
                 timeout=15.0,
             )
             if resp.status_code != 200:
