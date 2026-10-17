@@ -1807,6 +1807,7 @@ async def get_challenges(
         SELECT 
             c.id, c."categoryId", c.title, c.description, c.difficulty, 
             c.points, c."dockerImage", c.hints, c.questions, c.solves, c."isPublished", c.tags, c."hasDocker",
+            c."isCodingChallenge", c.language,
             EXISTS(
                 SELECT 1 FROM ctf_public_progress p 
                 WHERE p."challengeId" = c.id AND p."userId" = $1 AND p.solved = true
@@ -1875,6 +1876,8 @@ async def get_challenges(
                     "is_solved": ch["is_solved"],
                     "docker_image": ch["dockerImage"],
                     "has_docker": ch.get("hasDocker", False),
+                    "is_coding_challenge": bool(ch.get("isCodingChallenge", False)),
+                    "language": ch.get("language") or "c",
                     "hints": hints,
                     "questions": questions,
                     "tags": tags,
@@ -2252,8 +2255,202 @@ async def submit_question(
 
 
 # ===========================================
-# CODING ARENA: RUN & SUBMIT
-# ===========================================
+async def get_or_recover_session(user_id: str, challenge_id: str, challenge_slug: str = "") -> Optional[str]:
+    """Find active session ID from memory or Nexus Engine"""
+    if user_id in nexus_sessions:
+        for cid, sid in nexus_sessions[user_id].items():
+            if (
+                cid == challenge_id
+                or (challenge_slug and challenge_slug in cid)
+                or cid.startswith(challenge_id[:8])
+            ):
+                return sid
+
+    try:
+        async with _nexus_client() as client:
+            resp = await client.get(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions",
+                headers=_get_nexus_headers(),
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                for sess in data.get("sessions", []):
+                    if sess.get("user_id") == user_id and sess.get("status") == "running":
+                        sid = sess.get("session_id")
+                        cid = sess.get("challenge_id", "")
+                        if user_id not in nexus_sessions:
+                            nexus_sessions[user_id] = {}
+                        nexus_sessions[user_id][cid] = sid
+                        if (
+                            cid == challenge_id
+                            or (challenge_slug and challenge_slug in cid)
+                            or cid.startswith(challenge_id[:8])
+                        ):
+                            return sid
+    except Exception as e:
+        logger.warning(f"Could not recover session from Nexus: {e}")
+    return None
+
+
+async def evaluate_in_nexus_pod(
+    session_id: str,
+    source_code: str,
+    language: str,
+    test_cases: List[Dict[str, Any]],
+    time_limit_ms: int = 2000,
+) -> Dict[str, Any]:
+    """Compile and evaluate code directly in student's Nexus pod"""
+    lang = language.lower()
+    if "py" in lang:
+        filename = "solution.py"
+        compile_cmd = "python3 -m py_compile solution.py"
+        run_prefix = "python3 solution.py"
+    elif "cpp" in lang or "c++" in lang:
+        filename = "main.cpp"
+        compile_cmd = "g++ -O2 main.cpp -o /tmp/solution"
+        run_prefix = "/tmp/solution"
+    elif "java" in lang:
+        filename = "Solution.java"
+        compile_cmd = "javac Solution.java"
+        run_prefix = "java Solution"
+    elif "javascript" in lang or "js" in lang or "node" in lang:
+        filename = "solution.js"
+        compile_cmd = "node -c solution.js"
+        run_prefix = "node solution.js"
+    elif "go" in lang or "golang" in lang:
+        filename = "main.go"
+        compile_cmd = "go build -o /tmp/solution main.go"
+        run_prefix = "/tmp/solution"
+    elif "rust" in lang or "rs" in lang:
+        filename = "main.rs"
+        compile_cmd = "rustc -O main.rs -o /tmp/solution"
+        run_prefix = "/tmp/solution"
+    else:
+        filename = "main.c"
+        compile_cmd = "gcc -O2 main.c -o /tmp/solution"
+        run_prefix = "/tmp/solution"
+
+    timeout_s = max(2, int(time_limit_ms / 1000) + 1)
+
+    async with _nexus_client() as client:
+        # 1. Sync code into pod
+        await client.put(
+            f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/files",
+            json={"filename": filename, "content": source_code},
+            headers=_get_nexus_headers(),
+            timeout=5.0,
+        )
+
+        # 2. Compile
+        comp_res = await client.post(
+            f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/exec",
+            json={"command": compile_cmd, "timeout_seconds": 10},
+            headers=_get_nexus_headers(),
+            timeout=12.0,
+        )
+        comp_data = comp_res.json() if comp_res.status_code == 200 else {}
+        if not comp_data.get("success", False) or comp_data.get("error"):
+            err_msg = comp_data.get("stderr") or comp_data.get("error") or "Compilation failed"
+            return {
+                "status": "Compile Error",
+                "compile_error": err_msg,
+                "score": 0,
+                "max_score": sum(int(tc.get("points", 10)) for tc in test_cases),
+                "all_passed": False,
+                "test_cases": [
+                    {
+                        "id": tc.get("id", i + 1),
+                        "status": "Compile Error",
+                        "passed": False,
+                        "points": int(tc.get("points", 10)),
+                        "earned_points": 0,
+                        "input": tc.get("input", ""),
+                        "expected": tc.get("expected", ""),
+                        "stdout": "",
+                        "stderr": err_msg,
+                    }
+                    for i, tc in enumerate(test_cases)
+                ],
+            }
+
+        # 3. Run each test case
+        results = []
+        total_score = 0
+        max_score = 0
+        all_passed = True
+        total_runtime_ms = 0
+
+        for i, tc in enumerate(test_cases):
+            pts = int(tc.get("points", 10))
+            max_score += pts
+            is_hidden = bool(tc.get("is_hidden", False))
+            tc_input = tc.get("input", "")
+            tc_expected = tc.get("expected", "").strip()
+
+            import base64
+            import time
+            b64_in = base64.b64encode(tc_input.encode()).decode()
+            exec_cmd = f"printf '%s' '{b64_in}' | base64 -d | {run_prefix}"
+
+            t0 = time.time()
+            tc_res = await client.post(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/exec",
+                json={"command": exec_cmd, "timeout_seconds": timeout_s},
+                headers=_get_nexus_headers(),
+                timeout=float(timeout_s + 3),
+            )
+            runtime_ms = int((time.time() - t0) * 1000)
+            total_runtime_ms += runtime_ms
+
+            tc_data = tc_res.json() if tc_res.status_code == 200 else {}
+            stdout = tc_data.get("stdout", "")
+            stderr = tc_data.get("stderr", "")
+            timed_out = "timed out" in tc_data.get("error", "").lower()
+
+            if timed_out:
+                status_desc = "Time Limit Exceeded"
+                passed = False
+            elif not tc_data.get("success", False) and stderr:
+                status_desc = "Runtime Error"
+                passed = False
+            elif stdout.strip() == tc_expected:
+                status_desc = "Accepted"
+                passed = True
+            else:
+                status_desc = "Wrong Answer"
+                passed = False
+
+            if passed:
+                total_score += pts
+            else:
+                all_passed = False
+
+            test_report = {
+                "id": tc.get("id", i + 1),
+                "is_hidden": is_hidden,
+                "passed": passed,
+                "status": status_desc,
+                "points": pts,
+                "earned_points": pts if passed else 0,
+                "runtime_ms": runtime_ms,
+                "memory_kb": 1024,
+                "stdout": stdout,
+                "stderr": stderr,
+                "input": "[Hidden Test Case]" if is_hidden else tc_input,
+                "expected": "[Hidden]" if is_hidden else tc_expected,
+            }
+            results.append(test_report)
+
+        return {
+            "status": "Accepted" if all_passed else "Wrong Answer",
+            "score": total_score,
+            "max_score": max_score,
+            "all_passed": all_passed,
+            "total_runtime_ms": total_runtime_ms,
+            "test_cases": results,
+            "mode": "pod_exec",
+        }
 
 
 @api_router.post("/challenges/{challenge_id}/coding-run")
@@ -2268,7 +2465,7 @@ async def coding_run(
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow(
             """
-            SELECT id, title, "dockerImage" as docker_image, language, "testCases" as test_cases
+            SELECT id, title, slug, "dockerImage" as docker_image, language, "testCases" as test_cases
             FROM ctf_public_challenges 
             WHERE id::text = $1 OR slug = $1
         """,
@@ -2278,53 +2475,6 @@ async def coding_run(
             raise HTTPException(status_code=404, detail="Challenge not found")
 
         real_challenge_id = str(challenge["id"])
-        session_id = nexus_sessions.get(user_id, {}).get(real_challenge_id)
-
-        # If pod session exists, execute locally in the pod
-        if session_id:
-            filename = "main.c"
-            lang = req.language.lower()
-            if "py" in lang:
-                filename = "solution.py"
-            elif "cpp" in lang or "c++" in lang:
-                filename = "main.cpp"
-
-            try:
-                async with _nexus_client() as client:
-                    # Write file into $HOME
-                    await client.put(
-                        f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/files",
-                        json={"filename": filename, "content": req.source_code},
-                        headers=_get_nexus_headers(),
-                        timeout=5.0,
-                    )
-
-                    # Prepare run command
-                    if "py" in lang:
-                        run_cmd = f"python3 {filename}"
-                    elif "cpp" in lang or "c++" in lang:
-                        run_cmd = f"g++ -O2 {filename} -o main && ./main"
-                    else:
-                        run_cmd = f"gcc -O2 {filename} -o main && ./main"
-
-                    exec_res = await client.post(
-                        f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}/exec",
-                        json={"command": run_cmd, "timeout_seconds": 10},
-                        headers=_get_nexus_headers(),
-                        timeout=12.0,
-                    )
-                    if exec_res.status_code == 200:
-                        data = exec_res.json()
-                        return {
-                            "stdout": data.get("stdout", ""),
-                            "stderr": data.get("stderr", ""),
-                            "success": data.get("success", True),
-                            "mode": "pod_exec",
-                        }
-            except Exception as e:
-                logger.warning(f"Pod exec failed, falling back to judge: {e}")
-
-        # Fallback to JudgeService evaluation on sample visible test case
         test_cases_data = challenge.get("test_cases") or []
         if isinstance(test_cases_data, str):
             test_cases_data = json.loads(test_cases_data)
@@ -2333,10 +2483,36 @@ async def coding_run(
         if not visible_tests and req.stdin is not None:
             visible_tests = [{"id": 1, "input": req.stdin, "expected": "", "points": 10, "is_hidden": False}]
 
+        time_limit = challenge.get("time_limit_ms") or 2000
+        lang = (req.language or challenge.get("language") or "c").lower()
+
+        # Check for active Nexus pod session
+        session_id = await get_or_recover_session(
+            user_id, real_challenge_id, challenge_slug=challenge.get("slug") or ""
+        )
+
+        if session_id:
+            eval_result = await evaluate_in_nexus_pod(
+                session_id=session_id,
+                source_code=req.source_code,
+                language=lang,
+                test_cases=visible_tests,
+                time_limit_ms=time_limit,
+            )
+            return {
+                "stdout": eval_result["test_cases"][0]["stdout"] if eval_result.get("test_cases") else "",
+                "stderr": eval_result.get("compile_error") or "",
+                "success": eval_result.get("all_passed", False),
+                "mode": "pod_exec",
+                "results": eval_result,
+            }
+
+        # Fallback to JudgeService evaluation if no pod session
         res = await JudgeService.evaluate_submission(
             source_code=req.source_code,
-            language=req.language or challenge.get("language") or "c",
+            language=lang,
             test_cases=visible_tests,
+            time_limit_ms=time_limit,
         )
         return {
             "stdout": res["test_cases"][0]["stdout"] if res.get("test_cases") else "",
@@ -2353,13 +2529,13 @@ async def coding_submit(
     req: CodingSubmitRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Authoritatively evaluate submission via Judge0, score, and release flag upon 100% pass"""
+    """Authoritatively evaluate submission via Nexus Pod / Judge0, score, and release flag upon 100% pass"""
     user_id = str(current_user["id"])
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
         challenge = await conn.fetchrow(
             """
-            SELECT id, title, points, flag, language, "testCases" as test_cases,
+            SELECT id, title, slug, points, flag, language, "testCases" as test_cases,
                    "timeLimitMs" as time_limit_ms, "memoryLimitMb" as memory_limit_mb
             FROM ctf_public_challenges 
             WHERE id::text = $1 OR slug = $1
@@ -2376,15 +2552,28 @@ async def coding_submit(
 
         time_limit = challenge.get("time_limit_ms") or 2000
         mem_limit = challenge.get("memory_limit_mb") or 128
+        lang = (req.language or challenge.get("language") or "c").lower()
 
-        # 1. Authoritative evaluation via Judge0
-        eval_result = await JudgeService.evaluate_submission(
-            source_code=req.source_code,
-            language=req.language or challenge.get("language") or "c",
-            test_cases=test_cases_data,
-            time_limit_ms=time_limit,
-            memory_limit_mb=mem_limit,
+        # 1. Authoritative evaluation via active Nexus Pod or Judge0
+        session_id = await get_or_recover_session(
+            user_id, real_challenge_id, challenge_slug=challenge.get("slug") or ""
         )
+        if session_id:
+            eval_result = await evaluate_in_nexus_pod(
+                session_id=session_id,
+                source_code=req.source_code,
+                language=lang,
+                test_cases=test_cases_data,
+                time_limit_ms=time_limit,
+            )
+        else:
+            eval_result = await JudgeService.evaluate_submission(
+                source_code=req.source_code,
+                language=lang,
+                test_cases=test_cases_data,
+                time_limit_ms=time_limit,
+                memory_limit_mb=mem_limit,
+            )
 
         sub_id = generate_uuid()
         total_score = eval_result["score"]
@@ -4363,7 +4552,7 @@ async def list_docker_images(admin: dict = Depends(require_admin)):
 
 @api_router.get("/admin/settings/ghcr")
 async def get_ghcr_settings(admin: dict = Depends(require_admin)):
-    """Get GHCR configuration"""
+    """Get GHCR or local registry configuration"""
     try:
         pool = await Database.get_pool()
         async with pool.acquire() as conn:
@@ -4381,24 +4570,47 @@ async def get_ghcr_settings(admin: dict = Depends(require_admin)):
                 else os.environ.get("GHCR_USERNAME", "")
             )
             has_token = bool(token_row) or bool(os.environ.get("GHCR_TOKEN"))
+            is_local = bool(username and (":" in username or "localhost" in username or "127.0.0.1" in username))
+
+            connected = has_token
+            if is_local:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(f"http://{username}/v2/", timeout=3.0)
+                        connected = (resp.status_code == 200)
+                except Exception:
+                    connected = False
 
             return {
                 "username": username,
                 "token": "***" if has_token else "",  # Don't expose token
-                "connected": has_token,
+                "connected": connected,
+                "is_local": is_local,
             }
     except Exception as e:
         # Table might not exist yet, fall back to env vars
+        username = os.environ.get("GHCR_USERNAME", "")
+        has_token = bool(os.environ.get("GHCR_TOKEN"))
+        is_local = bool(username and (":" in username or "localhost" in username or "127.0.0.1" in username))
+        connected = has_token
+        if is_local:
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(f"http://{username}/v2/", timeout=3.0)
+                    connected = (resp.status_code == 200)
+            except Exception:
+                connected = False
         return {
-            "username": os.environ.get("GHCR_USERNAME", ""),
-            "token": "***" if os.environ.get("GHCR_TOKEN") else "",
-            "connected": bool(os.environ.get("GHCR_TOKEN")),
+            "username": username,
+            "token": "***" if has_token else "",
+            "connected": connected,
+            "is_local": is_local,
         }
 
 
 class GHCRConfig(BaseModel):
     username: str
-    token: str
+    token: str = ""
 
 
 @api_router.post("/admin/settings/ghcr")
@@ -4429,6 +4641,8 @@ async def save_ghcr_settings(config: GHCRConfig, admin: dict = Depends(require_a
                 config.username,
             )
 
+            is_local = bool(config.username and (":" in config.username or "localhost" in config.username or "127.0.0.1" in config.username))
+
             # Upsert token (only if not masked)
             if config.token and config.token != "***":
                 await conn.execute(
@@ -4439,15 +4653,19 @@ async def save_ghcr_settings(config: GHCRConfig, admin: dict = Depends(require_a
                 """,
                     config.token,
                 )
+            elif is_local and not config.token:
+                await conn.execute("DELETE FROM admin_settings WHERE key = 'ghcr_token'")
 
             # Also update environment for current process
             os.environ["GHCR_USERNAME"] = config.username
             if config.token and config.token != "***":
                 os.environ["GHCR_TOKEN"] = config.token
+            elif is_local and not config.token:
+                os.environ.pop("GHCR_TOKEN", None)
 
-            return {"success": True, "message": "GHCR settings saved"}
+            return {"success": True, "message": "Registry settings saved"}
     except Exception as e:
-        logger.error(f"Failed to save GHCR settings: {e}")
+        logger.error(f"Failed to save Registry settings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -4455,34 +4673,45 @@ async def save_ghcr_settings(config: GHCRConfig, admin: dict = Depends(require_a
 async def test_ghcr_connection(
     config: GHCRConfig, admin: dict = Depends(require_admin)
 ):
-    """Test GHCR connection with provided credentials"""
+    """Test GHCR or local registry connection with provided credentials"""
+    is_local = bool(config.username and (":" in config.username or "localhost" in config.username or "127.0.0.1" in config.username))
     try:
         async with httpx.AsyncClient() as client:
-            # Test by listing packages
-            resp = await client.get(
-                f"https://api.github.com/users/{config.username}/packages?package_type=container",
-                headers={
-                    "Authorization": f"Bearer {config.token}",
-                    "Accept": "application/vnd.github+json",
-                },
-                timeout=10.0,
-            )
-
-            if resp.status_code == 200:
-                packages = resp.json()
-                return {
-                    "success": True,
-                    "message": f"Connection successful! Found {len(packages)} packages.",
-                }
-            elif resp.status_code == 401:
-                return {
-                    "success": False,
-                    "error": "Invalid token - authentication failed",
-                }
-            elif resp.status_code == 404:
-                return {"success": False, "error": "User not found"}
+            if is_local:
+                resp = await client.get(f"http://{config.username}/v2/", timeout=5.0)
+                if resp.status_code == 200:
+                    return {
+                        "success": True,
+                        "message": f"Connection successful! Local registry at {config.username} is active.",
+                    }
+                else:
+                    return {"success": False, "error": f"Local registry returned HTTP {resp.status_code}"}
             else:
-                return {"success": False, "error": f"API error: {resp.status_code}"}
+                # Test by listing packages on GitHub
+                resp = await client.get(
+                    f"https://api.github.com/users/{config.username}/packages?package_type=container",
+                    headers={
+                        "Authorization": f"Bearer {config.token}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    timeout=10.0,
+                )
+
+                if resp.status_code == 200:
+                    packages = resp.json()
+                    return {
+                        "success": True,
+                        "message": f"Connection successful! Found {len(packages)} packages.",
+                    }
+                elif resp.status_code == 401:
+                    return {
+                        "success": False,
+                        "error": "Invalid token - authentication failed",
+                    }
+                elif resp.status_code == 404:
+                    return {"success": False, "error": "User not found"}
+                else:
+                    return {"success": False, "error": f"API error: {resp.status_code}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

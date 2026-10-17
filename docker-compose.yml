@@ -72,6 +72,13 @@ services:
     volumes:
       - judge0-redis-data:/data
 
+  registry-proxy:
+    image: alpine/socat
+    container_name: rlabz-registry-proxy
+    network_mode: host
+    restart: always
+    command: ["tcp-listen:5000,fork,reuseaddr", "tcp:192.168.122.125:5000"]
+
   backend:
     build:
       context: ./backend
@@ -82,9 +89,9 @@ services:
       DATABASE_URL: "postgresql://rlabz:rlabz_dev_password@127.0.0.1:5432/ctf_platform"
       JWT_SECRET: "nexus-test-jwt-secret-change-in-prod"
       CORS_ORIGINS: "*"
-      NEXUS_ENGINE_URL: "http://127.0.0.1:8081"
+      NEXUS_ENGINE_URL: "http://192.168.122.125:8081"
       JUDGE0_URL: "http://127.0.0.1:2358"
-      GHCR_USERNAME: ""
+      GHCR_USERNAME: "localhost:5000"
       GHCR_TOKEN: ""
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -102,6 +109,8 @@ services:
     container_name: rlabz-frontend
     ports:
       - "3000:80"
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
     depends_on:
       - backend
 

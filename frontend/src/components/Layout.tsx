@@ -3,7 +3,14 @@ import { Shield, LayoutDashboard, Flag, Trophy, User, LogOut, Zap, Menu, X, Wifi
 import { useState } from 'react';
 import CreativeBackground from './CreativeBackground';
 
-const Layout = ({ user, children, logout }) => {
+interface LayoutProps {
+    user?: any;
+    children: React.ReactNode;
+    logout?: () => void;
+    fullWidth?: boolean;
+}
+
+const Layout = ({ user, children, logout, fullWidth = false }: LayoutProps) => {
     const location = useLocation();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -136,7 +143,7 @@ const Layout = ({ user, children, logout }) => {
 
             {/* Main Content Area */}
             <main className="flex-1 lg:ml-64 relative z-10 w-full pt-16 lg:pt-0 min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
-                <div className="py-8 px-6 lg:px-10 lg:py-10 max-w-7xl mx-auto">
+                <div className={fullWidth ? "p-3 lg:p-4 w-full" : "py-8 px-6 lg:px-10 lg:py-10 max-w-7xl mx-auto"}>
                     {children}
                 </div>
             </main>

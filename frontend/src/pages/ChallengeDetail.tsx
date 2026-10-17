@@ -572,13 +572,13 @@ const ChallengeDetail = ({ user, logout }) => {
   // Render dedicated 3-pane Coding Arena for coding challenges
   if (challenge.is_coding_challenge || challenge.isCodingChallenge) {
     return (
-      <Layout user={user} logout={logout}>
-        <div className="mb-4">
+      <Layout user={user} logout={logout} fullWidth>
+        <div className="mb-2.5 px-1">
           <button
             onClick={() => navigate('/challenges')}
-            className="text-gray-500 hover:text-zinc-900 flex items-center gap-2 text-sm font-medium transition-colors group"
+            className="text-gray-500 hover:text-zinc-900 flex items-center gap-1.5 text-xs font-medium transition-colors group"
           >
-            <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            <ArrowLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-1" />
             Back to Challenges
           </button>
         </div>

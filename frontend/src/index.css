@@ -285,3 +285,142 @@ code {
         border-bottom-color: inherit;
     }
 }
+
+/* ==============================================
+   Coding Arena Scoped Styles (Clean Light Theme)
+   ============================================== */
+.coding-arena pre {
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 0.375rem !important;
+    padding: 0.5rem 0.75rem !important;
+    margin: 0 !important;
+    color: #09090b !important;
+    font-family: 'JetBrains Mono', Menlo, Monaco, monospace !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    line-height: 1.5 !important;
+    box-shadow: none !important;
+}
+
+.coding-arena pre.passed-output {
+    background-color: #f0fdf4 !important;
+    border-color: #86efac !important;
+    color: #14532d !important;
+}
+
+.coding-arena pre.failed-output {
+    background-color: #fef2f2 !important;
+    border-color: #fca5a5 !important;
+    color: #7f1d1d !important;
+}
+
+.coding-arena code {
+    font-family: 'JetBrains Mono', Menlo, Monaco, monospace !important;
+    color: #09090b !important;
+    background-color: #f1f5f9 !important;
+    padding: 0.15rem 0.4rem !important;
+    border-radius: 0.25rem !important;
+    border: 1px solid #e2e8f0 !important;
+    font-size: 0.85em !important;
+    font-weight: 600 !important;
+}
+
+.coding-arena pre code {
+    background-color: transparent !important;
+    border: none !important;
+    color: inherit !important;
+    padding: 0 !important;
+    font-weight: inherit !important;
+}
+
+/* Markdown styling inside problem description */
+.coding-arena-markdown h1,
+.coding-arena-markdown h2,
+.coding-arena-markdown h3,
+.coding-arena-markdown h4 {
+    color: #09090b !important;
+    font-weight: 700 !important;
+    margin-top: 1rem !important;
+    margin-bottom: 0.35rem !important;
+}
+
+.coding-arena-markdown h1 {
+    font-size: 1.15rem !important;
+}
+
+.coding-arena-markdown h2 {
+    font-size: 1.05rem !important;
+}
+
+.coding-arena-markdown h3 {
+    font-size: 0.875rem !important;
+    color: #18181b !important;
+    letter-spacing: -0.01em;
+}
+
+.coding-arena-markdown p {
+    color: #3f3f46 !important;
+    line-height: 1.6 !important;
+    margin-bottom: 0.75rem !important;
+}
+
+.coding-arena-markdown ul {
+    list-style-type: disc !important;
+    padding-left: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+    color: #3f3f46 !important;
+}
+
+.coding-arena-markdown ol {
+    list-style-type: decimal !important;
+    padding-left: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+    color: #3f3f46 !important;
+}
+
+.coding-arena-markdown li {
+    margin-bottom: 0.35rem !important;
+    color: #3f3f46 !important;
+    line-height: 1.5 !important;
+}
+
+.coding-arena-markdown code {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-weight: 600 !important;
+    padding: 0.15rem 0.4rem !important;
+    border-radius: 0.25rem !important;
+    border: 1px solid #cbd5e1 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.82em !important;
+}
+
+.coding-arena-markdown pre {
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+    padding: 0.75rem !important;
+    margin: 0.5rem 0 !important;
+    overflow-x: auto !important;
+}
+
+.coding-arena-markdown pre code {
+    background-color: transparent !important;
+    border: none !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+}
+
+.coding-arena-markdown strong {
+    color: #09090b !important;
+    font-weight: 600 !important;
+}
+
+.coding-arena-markdown blockquote {
+    border-left: 3px solid #2563eb !important;
+    padding-left: 0.75rem !important;
+    color: #64748b !important;
+    background-color: #f8fafc;
+    margin: 0.5rem 0 !important;
+}

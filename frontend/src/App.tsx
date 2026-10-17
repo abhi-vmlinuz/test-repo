@@ -61,18 +61,10 @@ function App() {
 
   useEffect(() => {
     checkAuth();
-    // Initialize theme on app load
-    const savedTheme = localStorage.getItem('rlabz-theme');
-    if (savedTheme) {
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      if (savedTheme === 'dark') document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-      if (prefersDark) document.documentElement.classList.add('dark');
-      else document.documentElement.classList.remove('dark');
-    }
+    // Strictly enforce light theme across the entire application
+    localStorage.removeItem('rlabz-theme');
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.documentElement.classList.remove('dark');
   }, []);
 
   const checkAuth = async () => {
@@ -121,7 +113,6 @@ function App() {
 
   return (
       <div className="App">
-        <ThemeToggle isAuthenticated={!!user} />
         <BrowserRouter>
           <ScrollToTop />
           <Routes>
