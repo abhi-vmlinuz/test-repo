@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API, toast } from '../../App';
-import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag, Paperclip, Download, FileText, Upload, FolderOpen, GitBranch } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, Eye, EyeOff, Save, X, Container, Flag, Paperclip, Download, FileText, Upload, FolderOpen, GitBranch, Code2, Play, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
@@ -22,6 +22,77 @@ interface ChallengePack {
     is_multi_container: boolean;
     created_at: string;
 }
+
+export const CODING_LANGUAGE_PRESETS: Record<string, {
+    name: string;
+    dockerImage: string;
+    starterCode: string;
+    timeLimitMs: number;
+    memoryLimitMb: number;
+}> = {
+    c: {
+        name: 'C (GCC 9.2.0)',
+        dockerImage: 'gcc:latest',
+        starterCode: '#include <stdio.h>\n#include <stdlib.h>\n\nint main() {\n    // Write your solution here\n    return 0;\n}',
+        timeLimitMs: 2000,
+        memoryLimitMb: 128,
+    },
+    cpp: {
+        name: 'C++ (G++ 9.2.0)',
+        dockerImage: 'gcc:latest',
+        starterCode: '#include <iostream>\n#include <vector>\n\nusing namespace std;\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    // Write your solution here\n    return 0;\n}',
+        timeLimitMs: 2000,
+        memoryLimitMb: 128,
+    },
+    python: {
+        name: 'Python (3.11)',
+        dockerImage: 'python:3.11-slim',
+        starterCode: 'import sys\n\ndef solve():\n    # Read input from sys.stdin\n    pass\n\nif __name__ == "__main__":\n    solve()\n',
+        timeLimitMs: 4000,
+        memoryLimitMb: 256,
+    },
+    java: {
+        name: 'Java (OpenJDK 17)',
+        dockerImage: 'eclipse-temurin:17-jdk',
+        starterCode: 'import java.util.*;\nimport java.io.*;\n\npublic class Solution {\n    public static void main(String[] args) throws IOException {\n        Scanner scanner = new Scanner(System.in);\n        // Write solution here\n    }\n}',
+        timeLimitMs: 4000,
+        memoryLimitMb: 256,
+    },
+    javascript: {
+        name: 'JavaScript (Node.js 18)',
+        dockerImage: 'node:18-slim',
+        starterCode: 'const fs = require(\'fs\');\n\nfunction main() {\n    const input = fs.readFileSync(0, \'utf-8\');\n    // Write solution here\n}\n\nmain();\n',
+        timeLimitMs: 3000,
+        memoryLimitMb: 256,
+    },
+    go: {
+        name: 'Go (1.22)',
+        dockerImage: 'golang:1.22',
+        starterCode: 'package main\n\nimport (\n\t"bufio"\n\t"fmt"\n\t"os"\n)\n\nfunc main() {\n\t// Write your solution here\n}\n',
+        timeLimitMs: 2500,
+        memoryLimitMb: 128,
+    },
+    rust: {
+        name: 'Rust (2021 Edition)',
+        dockerImage: 'rust:latest',
+        starterCode: 'use std::io::{self, BufRead};\n\nfn main() {\n    // Write your solution here\n}\n',
+        timeLimitMs: 2000,
+        memoryLimitMb: 128,
+    }
+};
+
+export const detectLanguageFromImage = (imageName: string): string | null => {
+    if (!imageName) return null;
+    const lower = imageName.toLowerCase();
+    if (lower.includes('python') || lower.includes('py3') || lower.includes('py-')) return 'python';
+    if (lower.includes('java') || lower.includes('jdk') || lower.includes('temurin')) return 'java';
+    if (lower.includes('node') || lower.includes('javascript') || lower.includes('js-')) return 'javascript';
+    if (lower.includes('cpp') || lower.includes('c++') || lower.includes('g++')) return 'cpp';
+    if (lower.includes('rust')) return 'rust';
+    if (lower.includes('golang') || lower.includes('go-') || lower.includes('/go:')) return 'go';
+    if (lower.includes('gcc') || lower.includes('clang') || lower.includes('c-') || lower.includes('/c:')) return 'c';
+    return null;
+};
 
 const AdminChallenges = () => {
     const [challenges, setChallenges] = useState([]);
@@ -56,7 +127,14 @@ const AdminChallenges = () => {
         is_published: true,
         // Multi-container pack support
         challenge_pack_id: '' as string,
-        is_multi_container: false
+        is_multi_container: false,
+        // Coding Arena support
+        is_coding_challenge: false,
+        language: 'c',
+        starter_code: '#include <stdio.h>\n\nint main() {\n    // Write your solution here\n    return 0;\n}',
+        test_cases: [] as { id: number; input: string; expected: string; is_hidden: boolean; points: number }[],
+        time_limit_ms: 2000,
+        memory_limit_mb: 128,
     });
 
     const [artifacts, setArtifacts] = useState<any[]>([]);
@@ -73,6 +151,7 @@ const AdminChallenges = () => {
     const [saving, setSaving] = useState(false);  // Prevent double-click on save
     const [showDockerfileModal, setShowDockerfileModal] = useState(false);
     const [imageNotFoundWarning, setImageNotFoundWarning] = useState(false);
+    const [customCodingImageInput, setCustomCodingImageInput] = useState(false);
 
     // GitHub OAuth state
     const [githubConnected, setGithubConnected] = useState(false);
@@ -190,12 +269,12 @@ const AdminChallenges = () => {
         }
     };
 
-    // Load images when Docker tab is active
+    // Load images when Docker tab or Coding Challenge is active
     useEffect(() => {
-        if (showModal && formData.has_docker) {
+        if (showModal && (formData.has_docker || formData.is_coding_challenge)) {
             fetchDockerImages();
         }
-    }, [showModal, formData.has_docker]);
+    }, [showModal, formData.has_docker, formData.is_coding_challenge]);
 
     // Check if docker image exists AFTER images are loaded
     useEffect(() => {
@@ -264,7 +343,13 @@ const AdminChallenges = () => {
             tags: [],
             is_published: true,
             challenge_pack_id: '',
-            is_multi_container: false
+            is_multi_container: false,
+            is_coding_challenge: false,
+            language: 'c',
+            starter_code: CODING_LANGUAGE_PRESETS.c.starterCode,
+            test_cases: [],
+            time_limit_ms: 2000,
+            memory_limit_mb: 128
         });
         setArtifacts([]);
         setImageNotFoundWarning(false);
@@ -273,6 +358,10 @@ const AdminChallenges = () => {
 
     const openEditModal = (challenge) => {
         setEditingChallenge(challenge);
+
+        const isCoding = Boolean(challenge.is_coding_challenge || challenge.isCodingChallenge);
+        const currentLang = (challenge.language || 'c').toLowerCase();
+        const preset = CODING_LANGUAGE_PRESETS[currentLang] || CODING_LANGUAGE_PRESETS.c;
 
         // Determine docker_source based on stored data
         let dockerSource: 'image' | 'pack' | 'github' | 'upload' = 'image';
@@ -289,10 +378,10 @@ const AdminChallenges = () => {
             category_id: challenge.category_id,
             difficulty: challenge.difficulty,
             points: challenge.points,
-            has_main_flag: !!(challenge.flag && challenge.flag.trim()),
+            has_main_flag: isCoding ? false : !!(challenge.flag && challenge.flag.trim()),
             flag: challenge.flag || '',
-            has_docker: challenge.has_docker || !!(challenge.docker_image) || !!(challenge.challenge_pack_id),
-            docker_image: challenge.docker_image || '',
+            has_docker: isCoding ? true : (challenge.has_docker || !!(challenge.docker_image) || !!(challenge.challenge_pack_id)),
+            docker_image: challenge.docker_image || (isCoding ? preset.dockerImage : ''),
             docker_source: dockerSource,
             docker_port: challenge.docker_port || null,
             ports: challenge.ports || [],
@@ -305,7 +394,14 @@ const AdminChallenges = () => {
             is_published: challenge.is_published !== false,
             // Pack support
             challenge_pack_id: challenge.challenge_pack_id || '',
-            is_multi_container: challenge.is_multi_container || false
+            is_multi_container: challenge.is_multi_container || false,
+            // Coding Arena support
+            is_coding_challenge: isCoding,
+            language: currentLang,
+            starter_code: challenge.starter_code || challenge.starterCode || preset.starterCode,
+            test_cases: challenge.test_cases || challenge.testCases || [],
+            time_limit_ms: challenge.time_limit_ms || challenge.timeLimitMs || preset.timeLimitMs,
+            memory_limit_mb: challenge.memory_limit_mb || challenge.memoryLimitMb || preset.memoryLimitMb
         });
 
         // Image check is now done in useEffect after dockerImages are loaded
@@ -429,20 +525,29 @@ const AdminChallenges = () => {
         if (saving) return;
         setSaving(true);
 
+        const isCoding = Boolean(formData.is_coding_challenge);
+        const preset = CODING_LANGUAGE_PRESETS[formData.language] || CODING_LANGUAGE_PRESETS.c;
+
         // Prepare data - only include docker fields if has_docker is true
-        // Only include flag if has_main_flag is true
+        // Only include flag if has_main_flag is true and not a coding challenge
         const submitData = {
             ...formData,
-            flag: formData.has_main_flag ? formData.flag : '',
-            // For packs, docker_image stays empty but we use challenge_pack_id
-            docker_image: formData.has_docker && formData.docker_source !== 'pack' ? formData.docker_image : null,
+            is_coding_challenge: isCoding,
+            flag: isCoding ? '' : (formData.has_main_flag ? formData.flag : ''),
+            // For coding challenges, auto-bind docker image from presets if not explicitly provided
+            docker_image: isCoding
+                ? (formData.docker_image || preset.dockerImage)
+                : (formData.has_docker && formData.docker_source !== 'pack' ? formData.docker_image : null),
+            has_docker: isCoding ? true : formData.has_docker,
             docker_port: formData.has_docker ? formData.docker_port : null,
-            ports: formData.has_docker ? formData.ports : [],
+            ports: isCoding ? (formData.ports.length > 0 ? formData.ports : [22, 8080]) : (formData.has_docker ? formData.ports : []),
             github_repo: formData.has_docker && formData.docker_source === 'github' ? formData.github_repo : null,
             github_path: formData.has_docker && formData.docker_source === 'github' ? formData.github_path : null,
             // Include pack data if selecting a pack
             challenge_pack_id: formData.has_docker && formData.docker_source === 'pack' ? formData.challenge_pack_id : null,
             is_multi_container: formData.has_docker && formData.docker_source === 'pack' ? formData.is_multi_container : false,
+            // Clean up sub-questions if coding challenge
+            questions: isCoding ? [] : formData.questions,
         };
         delete submitData.has_main_flag;
         delete submitData.docker_source;
@@ -552,6 +657,38 @@ const AdminChallenges = () => {
         setFormData(prev => ({
             ...prev,
             questions: prev.questions.filter((_, i) => i !== index)
+        }));
+    };
+
+    // Coding Arena test cases management
+    const addTestCase = () => {
+        setFormData(prev => ({
+            ...prev,
+            test_cases: [
+                ...prev.test_cases,
+                {
+                    id: prev.test_cases.length + 1,
+                    input: '',
+                    expected: '',
+                    is_hidden: prev.test_cases.length > 0,
+                    points: 10
+                }
+            ]
+        }));
+    };
+
+    const updateTestCase = (index: number, field: string, value: any) => {
+        setFormData(prev => {
+            const updated = [...prev.test_cases];
+            updated[index] = { ...updated[index], [field]: value };
+            return { ...prev, test_cases: updated };
+        });
+    };
+
+    const removeTestCase = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            test_cases: prev.test_cases.filter((_, i) => i !== index)
         }));
     };
 
@@ -695,6 +832,58 @@ const AdminChallenges = () => {
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                            {/* Challenge Type Selector */}
+                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5">
+                                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Challenge Type</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                is_coding_challenge: false,
+                                                has_main_flag: true,
+                                            }));
+                                        }}
+                                        className={`flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg border transition-all ${
+                                            !formData.is_coding_challenge
+                                                ? 'bg-white text-indigo-700 border-indigo-300 shadow-sm font-semibold ring-2 ring-indigo-100'
+                                                : 'bg-white/60 text-gray-500 border-gray-200 hover:text-gray-900 hover:bg-white'
+                                        }`}
+                                    >
+                                        <Flag className="w-4 h-4 text-indigo-600" />
+                                        <span>CTF Challenge</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const preset = CODING_LANGUAGE_PRESETS[formData.language || 'c'] || CODING_LANGUAGE_PRESETS.c;
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                is_coding_challenge: true,
+                                                has_main_flag: false,
+                                                has_docker: true,
+                                                docker_image: prev.docker_image || preset.dockerImage,
+                                                starter_code: (!prev.starter_code || prev.starter_code.includes('Write your solution here')) ? preset.starterCode : prev.starter_code,
+                                            }));
+                                        }}
+                                        className={`flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-medium rounded-lg border transition-all ${
+                                            formData.is_coding_challenge
+                                                ? 'bg-white text-emerald-700 border-emerald-300 shadow-sm font-semibold ring-2 ring-emerald-100'
+                                                : 'bg-white/60 text-gray-500 border-gray-200 hover:text-gray-900 hover:bg-white'
+                                        }`}
+                                    >
+                                        <Code2 className="w-4 h-4 text-emerald-600" />
+                                        <span>Competitive Programming (Coding Arena)</span>
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    {!formData.is_coding_challenge 
+                                        ? '🚩 Security challenge: Students capture text flags and interact with live lab machines or network services.'
+                                        : '💻 Algorithms / Coding problem: Students write source code graded automatically against unit test cases in an interactive pod.'}
+                                </p>
+                            </div>
+
                             {/* Title */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
@@ -703,7 +892,7 @@ const AdminChallenges = () => {
                                     value={formData.title}
                                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                                     required
-                                    placeholder="SQL Injection Basics"
+                                    placeholder={formData.is_coding_challenge ? "Two Sum Problem" : "SQL Injection Basics"}
                                 />
                             </div>
 
@@ -728,7 +917,7 @@ const AdminChallenges = () => {
                                     required
                                     rows={6}
                                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                                    placeholder="A vulnerable login form..."
+                                    placeholder={formData.is_coding_challenge ? "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target..." : "A vulnerable login form..."}
                                 />
                             </div>
 
@@ -763,7 +952,9 @@ const AdminChallenges = () => {
 
                             {/* Points */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Base Points</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    {formData.is_coding_challenge ? 'Total Problem Points' : 'Base Points'}
+                                </label>
                                 <Input
                                     type="number"
                                     value={formData.points}
@@ -771,11 +962,321 @@ const AdminChallenges = () => {
                                     min={0}
                                     required
                                 />
-                                <p className="text-xs text-gray-400 mt-1">Points awarded for solving the main flag (0 if no main flag)</p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                    {formData.is_coding_challenge 
+                                        ? 'Score awarded to the contestant upon passing 100% of test cases'
+                                        : 'Points awarded for solving the main flag (0 if no main flag)'}
+                                </p>
                             </div>
 
-                            {/* Main Flag Toggle */}
-                            <div className="bg-indigo-50 rounded-xl p-4 space-y-4">
+                            {/* Coding Arena Configuration (Only shown for Competitive Programming) */}
+                            {formData.is_coding_challenge && (
+                                <div className="bg-emerald-50/40 rounded-xl p-5 space-y-5 border border-emerald-200">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-emerald-100 gap-2">
+                                        <div className="flex items-center gap-2.5">
+                                            <Code2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                                            <div>
+                                                <h3 className="font-semibold text-gray-900 text-sm">Coding Arena Configuration</h3>
+                                                <p className="text-xs text-gray-500">Monaco IDE, automated test grading, and dedicated Linux execution pod</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-emerald-800 font-medium bg-emerald-100/80 px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-emerald-200">
+                                                <Container className="w-3.5 h-3.5 text-emerald-600" />
+                                                Active Image: <code className="font-mono font-semibold">{formData.docker_image || CODING_LANGUAGE_PRESETS[formData.language]?.dockerImage || 'gcc:latest'}</code>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Docker Image & Language Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <label className="block text-xs font-semibold text-gray-700">Execution Docker Image</label>
+                                                <div className="flex items-center gap-2">
+                                                    {dockerImages.length > 0 && !customCodingImageInput && (
+                                                        <span className="text-[10px] text-emerald-700 font-medium bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                            {dockerImages.length} in registry
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCustomCodingImageInput(!customCodingImageInput)}
+                                                        className="text-[11px] text-emerald-600 hover:text-emerald-700 font-medium hover:underline"
+                                                    >
+                                                        {customCodingImageInput ? '← Select from registry' : '+ Custom Tag'}
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {customCodingImageInput ? (
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        value={formData.docker_image}
+                                                        onChange={(e) => {
+                                                            const newImage = e.target.value;
+                                                            const detected = detectLanguageFromImage(newImage);
+                                                            const preset = detected ? CODING_LANGUAGE_PRESETS[detected] : null;
+                                                            setFormData(prev => ({
+                                                                ...prev,
+                                                                docker_image: newImage,
+                                                                language: detected || prev.language,
+                                                                time_limit_ms: preset?.timeLimitMs || prev.time_limit_ms,
+                                                                memory_limit_mb: preset?.memoryLimitMb || prev.memory_limit_mb,
+                                                                starter_code: (!prev.starter_code || prev.starter_code.includes('Write your solution here') || prev.starter_code === CODING_LANGUAGE_PRESETS[prev.language]?.starterCode)
+                                                                    ? (preset?.starterCode || prev.starter_code)
+                                                                    : prev.starter_code,
+                                                            }));
+                                                        }}
+                                                        placeholder="e.g. localhost:5000/my-custom-image:v1"
+                                                        className="w-full px-3 py-2 text-xs font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                                                        autoFocus
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <select
+                                                    value={formData.docker_image}
+                                                    onChange={(e) => {
+                                                        const newImage = e.target.value;
+                                                        if (newImage === '__custom__') {
+                                                            setCustomCodingImageInput(true);
+                                                            return;
+                                                        }
+                                                        const detected = detectLanguageFromImage(newImage);
+                                                        const preset = detected ? CODING_LANGUAGE_PRESETS[detected] : null;
+                                                        setFormData(prev => ({
+                                                            ...prev,
+                                                            docker_image: newImage,
+                                                            language: detected || prev.language,
+                                                            time_limit_ms: preset?.timeLimitMs || prev.time_limit_ms,
+                                                            memory_limit_mb: preset?.memoryLimitMb || prev.memory_limit_mb,
+                                                            starter_code: (!prev.starter_code || prev.starter_code.includes('Write your solution here') || prev.starter_code === CODING_LANGUAGE_PRESETS[prev.language]?.starterCode)
+                                                                ? (preset?.starterCode || prev.starter_code)
+                                                                : prev.starter_code,
+                                                        }));
+                                                        if (detected && detected !== formData.language) {
+                                                            toast.info(`Auto-detected ${preset?.name || detected} from image`);
+                                                        }
+                                                    }}
+                                                    className="w-full px-3 py-2 text-xs font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                                                >
+                                                    <option value="">Select an image...</option>
+                                                    {dockerImages.length > 0 && (
+                                                        <optgroup label="Registry Images (Local)">
+                                                            {dockerImages.map((img) => (
+                                                                <option key={img.image} value={img.image}>
+                                                                    {img.label ? `${img.label} (${img.image})` : img.image}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    )}
+                                                    <optgroup label="Standard Base Presets">
+                                                        {Object.values(CODING_LANGUAGE_PRESETS).map(p => (
+                                                            <option key={p.dockerImage} value={p.dockerImage}>
+                                                                {p.name} ({p.dockerImage})
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                    {formData.docker_image && 
+                                                     !dockerImages.some(img => img.image === formData.docker_image) && 
+                                                     !Object.values(CODING_LANGUAGE_PRESETS).some(p => p.dockerImage === formData.docker_image) && (
+                                                        <optgroup label="Current Custom Image">
+                                                            <option value={formData.docker_image}>{formData.docker_image}</option>
+                                                        </optgroup>
+                                                    )}
+                                                    <option value="__custom__">✏️ Enter custom image tag...</option>
+                                                </select>
+                                            )}
+                                            <p className="text-[11px] text-gray-400 mt-1">
+                                                Select any image from your registry or enter a custom tag.
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Target Language & Runtime</label>
+                                            <select
+                                                value={formData.language}
+                                                onChange={(e) => {
+                                                    const newLang = e.target.value;
+                                                    const preset = CODING_LANGUAGE_PRESETS[newLang];
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        language: newLang,
+                                                        docker_image: (!prev.docker_image || Object.values(CODING_LANGUAGE_PRESETS).some(p => p.dockerImage === prev.docker_image))
+                                                            ? (preset?.dockerImage || prev.docker_image)
+                                                            : prev.docker_image,
+                                                        starter_code: (!prev.starter_code || prev.starter_code.includes('Write your solution here') || prev.starter_code === CODING_LANGUAGE_PRESETS[prev.language]?.starterCode)
+                                                            ? (preset?.starterCode || prev.starter_code)
+                                                            : prev.starter_code,
+                                                        time_limit_ms: preset?.timeLimitMs || prev.time_limit_ms,
+                                                        memory_limit_mb: preset?.memoryLimitMb || prev.memory_limit_mb,
+                                                    }));
+                                                    toast.info(`Switched runtime to ${preset?.name || newLang}`);
+                                                }}
+                                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                                            >
+                                                {Object.entries(CODING_LANGUAGE_PRESETS).map(([key, p]) => (
+                                                    <option key={key} value={key}>{p.name}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-[11px] text-gray-400 mt-1">
+                                                Controls Monaco syntax highlighting, default filename, and pod compiler flags.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Limits Row */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Time Limit (ms)</label>
+                                            <input
+                                                type="number"
+                                                value={formData.time_limit_ms}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, time_limit_ms: parseInt(e.target.value) || 2000 }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                                                placeholder="2000"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">Memory Limit (MB)</label>
+                                            <input
+                                                type="number"
+                                                value={formData.memory_limit_mb}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, memory_limit_mb: parseInt(e.target.value) || 128 }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                                                placeholder="128"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Starter Code */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="block text-xs font-semibold text-gray-700">Starter Code Template</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const preset = CODING_LANGUAGE_PRESETS[formData.language];
+                                                    if (preset) {
+                                                        setFormData(prev => ({ ...prev, starter_code: preset.starterCode }));
+                                                        toast.info(`Reset starter code to default ${preset.name} template`);
+                                                    }
+                                                }}
+                                                className="text-[11px] text-emerald-700 hover:text-emerald-900 underline"
+                                            >
+                                                Reset to Default Template
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            rows={6}
+                                            value={formData.starter_code}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, starter_code: e.target.value }))}
+                                            className="w-full px-3 py-2 text-xs font-mono border border-gray-200 rounded-lg bg-gray-900 text-gray-100 focus:ring-2 focus:ring-emerald-500"
+                                            placeholder="// Enter default starter template for the student..."
+                                        />
+                                        <p className="text-[11px] text-gray-500 mt-1">
+                                            This code populates the Monaco editor and is automatically written to the pod upon startup.
+                                        </p>
+                                    </div>
+
+                                    {/* Dynamic Test Cases */}
+                                    <div className="space-y-3 pt-2 border-t border-emerald-100">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className="text-sm font-semibold text-gray-800">Test Cases ({formData.test_cases.length})</h4>
+                                                <p className="text-xs text-gray-500">Total Points: {formData.test_cases.reduce((sum, t) => sum + (t.points || 0), 0)} pts</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={addTestCase}
+                                                className="px-3 py-1.5 text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" />
+                                                Add Test Case
+                                            </button>
+                                        </div>
+
+                                        {formData.test_cases.length === 0 ? (
+                                            <div className="p-4 text-center border-2 border-dashed border-emerald-200 rounded-xl text-gray-500 text-xs bg-white">
+                                                No test cases added yet. Click "+ Add Test Case" to create visible and hidden evaluation tests.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {formData.test_cases.map((tc, idx) => (
+                                                    <div key={idx} className="p-3.5 bg-white border border-gray-200 rounded-xl space-y-3 shadow-sm">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-bold text-gray-700 px-2 py-0.5 bg-gray-100 rounded">
+                                                                    Test #{idx + 1}
+                                                                </span>
+                                                                <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={tc.is_hidden}
+                                                                        onChange={(e) => updateTestCase(idx, 'is_hidden', e.target.checked)}
+                                                                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                                                    />
+                                                                    <span className={tc.is_hidden ? "font-semibold text-amber-600" : "text-gray-500"}>
+                                                                        {tc.is_hidden ? "🔒 Hidden from Student" : "👁 Visible Sample"}
+                                                                    </span>
+                                                                </label>
+                                                            </div>
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-xs text-gray-500 font-medium">Points:</span>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={tc.points}
+                                                                        onChange={(e) => updateTestCase(idx, 'points', parseInt(e.target.value) || 0)}
+                                                                        className="w-16 px-2 py-1 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-emerald-500"
+                                                                    />
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeTestCase(idx)}
+                                                                    className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Standard Input (stdin)</label>
+                                                                <textarea
+                                                                    rows={3}
+                                                                    value={tc.input}
+                                                                    onChange={(e) => updateTestCase(idx, 'input', e.target.value)}
+                                                                    className="w-full px-2.5 py-1.5 text-xs font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-gray-50"
+                                                                    placeholder="Input passed to program..."
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[11px] font-medium text-gray-600 mb-1">Expected Output (stdout)</label>
+                                                                <textarea
+                                                                    rows={3}
+                                                                    value={tc.expected}
+                                                                    onChange={(e) => updateTestCase(idx, 'expected', e.target.value)}
+                                                                    className="w-full px-2.5 py-1.5 text-xs font-mono border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-gray-50"
+                                                                    placeholder="Exact expected standard output..."
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* CTF-only: Main Flag and Lab Environment */}
+                            {!formData.is_coding_challenge && (
+                                <>
+                                    {/* Main Flag Toggle */}
+                                    <div className="bg-indigo-50 rounded-xl p-4 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <Flag className="w-5 h-5 text-indigo-600" />
@@ -1310,70 +1811,74 @@ const AdminChallenges = () => {
                                     </div>
                                 )}
                             </div>
+                        </>
+                    )}
 
-                            {/* Additional Questions (Multi-flag support) */}
-                            <div className="bg-gray-50 rounded-xl p-4 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h3 className="font-medium text-gray-700">Additional Questions</h3>
-                                        <p className="text-xs text-gray-400">Add sub-questions with their own flags and points</p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={addQuestion}
-                                        className="text-sm text-gray-900 hover:text-gray-700 font-medium"
-                                    >
-                                        + Add Question
-                                    </button>
-                                </div>
-                                {formData.questions.map((q, idx) => (
-                                    <div key={idx} className="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium text-gray-600">Question {idx + 1}</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeQuestion(idx)}
-                                                className="p-1 text-red-500 hover:bg-red-50 rounded"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                            {/* Additional Questions (Multi-flag support - CTF only) */}
+                            {!formData.is_coding_challenge && (
+                                <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+                                    <div className="flex items-center justify-between">
                                         <div>
-                                            <Input
-                                                type="text"
-                                                value={q.question}
-                                                onChange={(e) => updateQuestion(idx, 'question', e.target.value)}
-                                                placeholder="What is the database name?"
-                                            />
+                                            <h3 className="font-medium text-gray-700">Additional Questions</h3>
+                                            <p className="text-xs text-gray-400">Add sub-questions with their own flags and points</p>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={addQuestion}
+                                            className="text-sm text-gray-900 hover:text-gray-700 font-medium"
+                                        >
+                                            + Add Question
+                                        </button>
+                                    </div>
+                                    {formData.questions.map((q, idx) => (
+                                        <div key={idx} className="bg-white rounded-lg p-4 border border-gray-200 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-sm font-medium text-gray-600">Question {idx + 1}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeQuestion(idx)}
+                                                    className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                             <div>
-                                                <label className="text-xs text-gray-400">Flag</label>
                                                 <Input
                                                     type="text"
-                                                    value={q.flag}
-                                                    onChange={(e) => updateQuestion(idx, 'flag', e.target.value)}
-                                                    placeholder="CTF{answer}"
+                                                    value={q.question}
+                                                    onChange={(e) => updateQuestion(idx, 'question', e.target.value)}
+                                                    placeholder="What is the database name?"
                                                 />
                                             </div>
-                                            <div>
-                                                <label className="text-xs text-gray-400">Points</label>
-                                                <Input
-                                                    type="number"
-                                                    value={q.points}
-                                                    onChange={(e) => updateQuestion(idx, 'points', parseInt(e.target.value))}
-                                                    min={0}
-                                                />
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <label className="text-xs text-gray-400">Flag</label>
+                                                    <Input
+                                                        type="text"
+                                                        value={q.flag}
+                                                        onChange={(e) => updateQuestion(idx, 'flag', e.target.value)}
+                                                        placeholder="CTF{answer}"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs text-gray-400">Points</label>
+                                                    <Input
+                                                        type="number"
+                                                        value={q.points}
+                                                        onChange={(e) => updateQuestion(idx, 'points', parseInt(e.target.value))}
+                                                        min={0}
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                                {formData.questions.length === 0 && (
-                                    <p className="text-sm text-gray-400 text-center py-4">
-                                        No additional questions. Click "Add Question" to create sub-tasks.
-                                    </p>
-                                )}
-                            </div>
+                                    ))}
+                                    {formData.questions.length === 0 && (
+                                        <p className="text-sm text-gray-400 text-center py-4">
+                                            No additional questions. Click "Add Question" to create sub-tasks.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Tags */}
                             <div className="bg-gray-50 rounded-xl p-4 space-y-3">
@@ -1418,7 +1923,10 @@ const AdminChallenges = () => {
                                 </div>
                                 <div className="flex flex-wrap gap-1">
                                     <span className="text-xs text-gray-400">Suggestions:</span>
-                                    {['web', 'crypto', 'forensics', 'pwn', 'reverse', 'misc', 'osint', 'network'].map(tag => (
+                                    {(formData.is_coding_challenge
+                                        ? ['algorithms', 'data-structures', 'arrays', 'strings', 'dp', 'math', 'trees', 'graphs', 'binary-search', 'sorting']
+                                        : ['web', 'crypto', 'forensics', 'pwn', 'reverse', 'misc', 'osint', 'network']
+                                    ).map(tag => (
                                         !formData.tags.includes(tag) && (
                                             <button
                                                 key={tag}
@@ -1467,8 +1975,9 @@ const AdminChallenges = () => {
                                 ))}
                             </div>
 
-                            {/* Challenge Artifacts */}
-                            <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
+                            {/* Challenge Artifacts (CTF only) */}
+                            {!formData.is_coding_challenge && (
+                                <div className="bg-white border rounded-xl p-4 space-y-4 shadow-sm">
                                 <div className="flex items-center justify-between border-b pb-2">
                                     <div className="flex items-center gap-2">
                                         <Paperclip className="w-5 h-5 text-gray-600" />
@@ -1554,6 +2063,7 @@ const AdminChallenges = () => {
                                     )}
                                 </div>
                             </div>
+                            )}
 
                             {/* Published Toggle */}
                             <div className="flex items-center gap-3">

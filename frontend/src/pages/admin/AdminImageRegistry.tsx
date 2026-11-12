@@ -256,8 +256,15 @@ const AdminImageRegistry = () => {
         }
     };
 
+    const isLocalRegistry = Boolean(
+        ghcrConfig.username &&
+        (ghcrConfig.username.includes(':') ||
+            ghcrConfig.username.includes('localhost') ||
+            ghcrConfig.username.includes('127.0.0.1'))
+    );
+
     const saveGHCRConfig = async () => {
-        if (ghcrConfig.token === '***') {
+        if (!isLocalRegistry && ghcrConfig.token === '***') {
             toast.error('Please enter your token again');
             return;
         }
@@ -267,7 +274,7 @@ const AdminImageRegistry = () => {
                 username: ghcrConfig.username,
                 token: ghcrConfig.token
             });
-            toast.success('GHCR configuration saved!');
+            toast.success('Registry configuration saved!');
             setGhcrConfig(prev => ({ ...prev, connected: true }));
             setIsEditing(false);
             await fetchImages();
@@ -278,7 +285,7 @@ const AdminImageRegistry = () => {
     };
 
     const testConnection = async () => {
-        if (!ghcrConfig.token || ghcrConfig.token === '***') {
+        if (!isLocalRegistry && (!ghcrConfig.token || ghcrConfig.token === '***')) {
             toast.error('Please enter your token first');
             return;
         }
@@ -461,19 +468,27 @@ const AdminImageRegistry = () => {
                     )}
                 </div>
 
-                {/* Saved Configuration View (GitHub-style) */}
+                {/* Saved Configuration View */}
                 {!isEditing && ghcrConfig.connected ? (
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
                         <div className="flex items-center justify-between p-4 bg-gray-50">
                             <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-gray-500">Username:</span>
+                                    <span className="text-sm font-medium text-gray-500">
+                                        {isLocalRegistry ? 'Registry Host:' : 'Username:'}
+                                    </span>
                                     <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">{ghcrConfig.username}</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium text-gray-500">Token:</span>
-                                    <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">ghp_••••••••••••</span>
-                                </div>
+                                {!isLocalRegistry ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-gray-500">Token:</span>
+                                        <span className="font-mono text-sm bg-gray-100 px-2 py-0.5 rounded">ghp_••••••••••••</span>
+                                    </div>
+                                ) : (
+                                    <Badge variant="outline" className="text-xs text-blue-600 bg-blue-50 border-blue-200">
+                                        Local Registry
+                                    </Badge>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button
@@ -484,15 +499,17 @@ const AdminImageRegistry = () => {
                                     <Edit2 className="w-3.5 h-3.5 mr-1.5" />
                                     Edit
                                 </Button>
-                                <a
-                                    href={`https://github.com/${ghcrConfig.username}?tab=packages`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
-                                >
-                                    <ExternalLink className="w-3.5 h-3.5" />
-                                    View on GitHub
-                                </a>
+                                {!isLocalRegistry && (
+                                    <a
+                                        href={`https://github.com/${ghcrConfig.username}?tab=packages`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700"
+                                    >
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                        View on GitHub
+                                    </a>
+                                )}
                             </div>
                         </div>
                         <div className="p-3 bg-emerald-50 border-t border-emerald-100 flex items-center gap-2">
@@ -505,24 +522,28 @@ const AdminImageRegistry = () => {
                     <>
                         <div className="grid md:grid-cols-2 gap-4 mt-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">GitHub Username</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Registry Host / GitHub Username
+                                </label>
                                 <Input
                                     value={ghcrConfig.username}
                                     onChange={(e) => setGhcrConfig(prev => ({ ...prev, username: e.target.value }))}
-                                    placeholder="e.g., RLabZ"
+                                    placeholder="e.g., localhost:5000 or RLabZ"
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Personal Access Token
-                                    <span className="text-gray-400 font-normal ml-1">(write:packages scope)</span>
+                                    <span className="text-gray-400 font-normal ml-1">
+                                        {isLocalRegistry ? '(optional for local registry)' : '(write:packages scope)'}
+                                    </span>
                                 </label>
                                 <div className="relative">
                                     <Input
                                         type={showToken ? 'text' : 'password'}
                                         value={ghcrConfig.token}
                                         onChange={(e) => setGhcrConfig(prev => ({ ...prev, token: e.target.value }))}
-                                        placeholder="ghp_xxxxxxxxxxxx"
+                                        placeholder={isLocalRegistry ? "Not required for local registry" : "ghp_xxxxxxxxxxxx"}
                                     />
                                     <button
                                         type="button"
@@ -538,7 +559,7 @@ const AdminImageRegistry = () => {
                         <div className="flex gap-3 mt-4">
                             <Button
                                 onClick={testConnection}
-                                disabled={testingConnection || !ghcrConfig.username || !ghcrConfig.token || ghcrConfig.token === '***'}
+                                disabled={testingConnection || !ghcrConfig.username || (!isLocalRegistry && (!ghcrConfig.token || ghcrConfig.token === '***'))}
                                 variant="outline"
                             >
                                 {testingConnection ? (
@@ -555,7 +576,7 @@ const AdminImageRegistry = () => {
                             </Button>
                             <Button
                                 onClick={saveGHCRConfig}
-                                disabled={saving || !ghcrConfig.username || !ghcrConfig.token || ghcrConfig.token === '***'}
+                                disabled={saving || !ghcrConfig.username || (!isLocalRegistry && (!ghcrConfig.token || ghcrConfig.token === '***'))}
                             >
                                 {saving ? 'Saving...' : 'Save Configuration'}
                             </Button>
@@ -805,7 +826,7 @@ const AdminImageRegistry = () => {
                         {!ghcrConfig.connected && (
                             <p className="text-sm text-amber-600 mt-3">
                                 <AlertCircle className="w-4 h-4 inline mr-1" />
-                                Connect GHCR above before building
+                                Connect Registry above before building
                             </p>
                         )}
                     </>
