@@ -53,6 +53,19 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from judge_service import JudgeService
 
+# Judge0's worker pool is the real bottleneck behind grading. Letting every
+# request through at once only grows the queue past the poll budget, which
+# turns healthy submissions into "pending". Cap in-flight batches instead.
+JUDGE_CONCURRENCY = int(os.environ.get("JUDGE_CONCURRENCY", "8"))
+_judge_semaphore: Optional[asyncio.Semaphore] = None
+
+
+def get_judge_semaphore() -> asyncio.Semaphore:
+    global _judge_semaphore
+    if _judge_semaphore is None:
+        _judge_semaphore = asyncio.Semaphore(JUDGE_CONCURRENCY)
+    return _judge_semaphore
+
 # Optional Docker support
 try:
     import docker
@@ -2365,8 +2378,11 @@ async def evaluate_in_nexus_pod(
                         "passed": False,
                         "points": int(tc.get("points", 10)),
                         "earned_points": 0,
-                        "input": tc.get("input", ""),
-                        "expected": tc.get("expected", ""),
+                        # Masked for hidden cases. A compile error says nothing
+                        # about the test data, so there is no reason to hand the
+                        # student a free oracle by echoing the inputs back.
+                        "input": "[Hidden Test Case]" if tc.get("is_hidden") else tc.get("input", ""),
+                        "expected": "[Hidden]" if tc.get("is_hidden") else tc.get("expected", ""),
                         "stdout": "",
                         "stderr": err_msg,
                     }
@@ -2435,8 +2451,10 @@ async def evaluate_in_nexus_pod(
                 "earned_points": pts if passed else 0,
                 "runtime_ms": runtime_ms,
                 "memory_kb": 1024,
-                "stdout": stdout,
-                "stderr": stderr,
+                "stdout": "[Hidden]" if is_hidden else stdout,
+                "stderr": "" if is_hidden else stderr,
+                # Pod exec is sample-run only, so hidden cases should never get
+                # here. Mask anyway rather than trusting the caller.
                 "input": "[Hidden Test Case]" if is_hidden else tc_input,
                 "expected": "[Hidden]" if is_hidden else tc_expected,
             }
@@ -2508,16 +2526,18 @@ async def coding_run(
             }
 
         # Fallback to JudgeService evaluation if no pod session
-        res = await JudgeService.evaluate_submission(
-            source_code=req.source_code,
-            language=lang,
-            test_cases=visible_tests,
-            time_limit_ms=time_limit,
-        )
+        async with get_judge_semaphore():
+            res = await JudgeService.evaluate_submission(
+                source_code=req.source_code,
+                language=lang,
+                test_cases=visible_tests,
+                time_limit_ms=time_limit,
+            )
         return {
             "stdout": res["test_cases"][0]["stdout"] if res.get("test_cases") else "",
             "stderr": res.get("compile_error") or "",
             "success": res.get("all_passed", False),
+            "pending": res.get("pending", False),
             "mode": "judge_run",
             "results": res,
         }
@@ -2529,7 +2549,7 @@ async def coding_submit(
     req: CodingSubmitRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Authoritatively evaluate submission via Nexus Pod / Judge0, score, and release flag upon 100% pass"""
+    """Authoritatively evaluate submission via Judge0, score, and release flag upon 100% pass"""
     user_id = str(current_user["id"])
     pool = await Database.get_pool()
     async with pool.acquire() as conn:
@@ -2554,25 +2574,37 @@ async def coding_submit(
         mem_limit = challenge.get("memory_limit_mb") or 128
         lang = (req.language or challenge.get("language") or "c").lower()
 
-        # 1. Authoritative evaluation via active Nexus Pod or Judge0
-        session_id = await get_or_recover_session(
-            user_id, real_challenge_id, challenge_slug=challenge.get("slug") or ""
-        )
-        if session_id:
-            eval_result = await evaluate_in_nexus_pod(
-                session_id=session_id,
-                source_code=req.source_code,
-                language=lang,
-                test_cases=test_cases_data,
-                time_limit_ms=time_limit,
-            )
-        else:
+        # 1. Authoritative evaluation. Judge0 only.
+        #
+        # The student has a shell in their own Nexus pod, so anything executed
+        # there is theirs to observe: `ps aux` shows the exec command line with
+        # the hidden input base64-encoded, and a shadowed gcc/python3/base64 on
+        # PATH can fabricate whatever output they like. Pod exec is therefore
+        # limited to coding_run(), which only ever sees non-hidden cases.
+        async with get_judge_semaphore():
             eval_result = await JudgeService.evaluate_submission(
                 source_code=req.source_code,
                 language=lang,
                 test_cases=test_cases_data,
                 time_limit_ms=time_limit,
                 memory_limit_mb=mem_limit,
+            )
+
+        if eval_result.get("pending"):
+            # No verdict: the grader was unreachable or too slow. Recording
+            # this as a failure would turn a queue spike into a mass false
+            # negative, so refuse the submission instead of scoring it.
+            logger.warning(
+                f"Grading pending for user {user_id} on {real_challenge_id}: "
+                f"{eval_result.get('error')}"
+            )
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "The grader is busy right now, so this submission was not "
+                    "recorded. Please try again in a few seconds."
+                ),
+                headers={"Retry-After": "5"},
             )
 
         sub_id = generate_uuid()
