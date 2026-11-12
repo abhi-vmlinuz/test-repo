@@ -416,7 +416,7 @@ export default function CodingArenaView({ challenge, user, onRefreshChallenge }:
             fetchSubmissions();
 
             const logs: string[] = [];
-            if (result.status === 'Compile Error') {
+            if (result.status === 'Compile Error' || result.status === 'compile_error' || result.compile_error) {
                 logs.push('Compilation Error:');
                 if (result.compile_error) logs.push(result.compile_error);
                 toast.error('Compilation Error');

@@ -49,6 +49,12 @@ services:
       - POSTGRES_USER=judge0
       - POSTGRES_PASSWORD=judge0_password
       - POSTGRES_DB=judge0
+      # Judge0 defaults COUNT to 2 * nproc. Pin it for reproducible event-day
+      # capacity; tune this against the host CPU and load test before the
+      # event. A five-case submission at a 2s limit is ~10s of work, so four
+      # workers can drain roughly one submission every 2.5 seconds when the
+      # cases are CPU-bound.
+      - COUNT=4
     depends_on:
       - judge0-db
       - judge0-redis
