@@ -4,35 +4,37 @@ _Rewrite this file each session. Don't let it grow forever._
 
 ## Last known state
 
-2026-11-21: PR #2 (`fix/coding-grading-integrity`) is open and mergeable on
-GitHub; grading is Judge0-only on that branch. `main` still has the old
-pod-exec submit path until the PR is merged.
+2026-11-22: grading integrity is on `main` (PR #2, `9bdb4ec`), along with the
+continuity scaffolding and the private-share note. 8 Judge0 tests pass on
+`main`. Nothing is in flight.
 
 ## Current task
 
-- Goal: land grading integrity on `main`, then start AttackBox on Nexus.
+- Goal: verify the grading fix against the live Judge0, then start AttackBox.
 - In scope (files/dirs): `backend/judge_service.py`, `backend/server.py`,
   `backend/tests/`, `frontend/src/components/CodingArenaView.tsx`.
 - Out of scope: anything in `nexus-framework`; artifact mounts and egress
   policy (they need engine changes first).
 - Done when: a wrong submission returns per-case fail with no hidden data, a
   correct one returns the flag, and stopping Judge0 returns 503 "retry"
-  rather than a failure.
+  rather than a failure, confirmed against a running Judge0 rather than
+  unit tests alone.
 
 ## Last session
 
-- Done: merged the coding arena onto `main` (PR #1, fast-forward). Fixed
-  hidden-test leakage, Judge0-only submit, pending instead of failed, scaled
-  poll budget, explicit Judge0 `COUNT=4`, backend semaphore, `false` →
-  `False` bug, arena compile-error message. Added 8 tests in
-  `backend/tests/test_judge_service.py`.
-- Half-finished (files touched, what's missing): PR #2 is unmerged. Nothing
-  else is partially edited.
+- Done: merged the coding arena onto `main` (PR #1). Fixed hidden-test
+  leakage, Judge0-only submit, pending instead of failed, scaled poll budget,
+  explicit Judge0 `COUNT=4`, backend semaphore, the `false` → `False` bug and
+  the arena compile-error message. Added 8 tests. Also merged the continuity
+  scaffolding and the private-share note.
+- Half-finished (files touched, what's missing): nothing partially edited.
+  The grading fix is unit-tested but has not been run against a live Judge0
+  on a real host, so `COUNT=4` is still a guess.
 
 ## Next up
 
-1. Merge PR #2, then verify against the live Judge0 on the VM
-   (`curl -s http://127.0.0.1:2358/about`).
+1. Verify grading against a live Judge0: wrong answer, correct answer, and
+   Judge0 stopped (expect 503, not a failure). Tune `COUNT` from the result.
 2. AttackBox on Nexus: backend WebSocket proxy with JWT + ownership check,
    `nexus-role=env` sessions, then remove the Conductor path
    (`VITE_CONDUCTOR_URL`, `TerminalComponent.tsx`).
