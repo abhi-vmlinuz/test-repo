@@ -39,12 +39,28 @@ pod-exec submit path until the PR is merged.
 3. Per-challenge artifact directories plus a bind mount, so env pods get
    `/artifacts` at spawn.
 
+## Private share (not in git)
+
+`~/nexus-private/` is one directory, mounted or symlinked on every machine so
+the path stays stable. It holds what must not be committed:
+
+- `plan/nexus-euphoria-event-plan.md` — the December event strategy, decisions
+  and P0-P3 schedule. Read this before starting event work.
+- `db/ctf_platform-schema.sql`, `db/ctf_platform-full.dump` — the live schema
+  and a full backup, since this repo has no migrations.
+- `env/rlabz-ctf-backend.env` — the backend env file.
+
+If it is missing, say so instead of inventing values: the plan and the schema
+are the two things the code cannot tell you.
+
 ## Open questions / blockers
 
 - No schema-creation path for a fresh install: no `migrations/`, no `.sql`
-  dump, and the backend image has no Node so `prisma db push` cannot run in
-  the container. The arena columns exist only because they were added to the
-  live database by hand. Needed before a second college can self-host.
+  dump in the repo, and the backend image has no Node so `prisma db push`
+  cannot run in the container. The arena columns exist only because they were
+  added to the live database by hand. A schema and full dump now exist in
+  `~/nexus-private/db/` as a stopgap; committing a `schema.sql` plus an init
+  step is still open, and is needed before a second college can self-host.
 - `docker-compose.yml` hardcodes `192.168.122.125` (test VM) in three places,
   and `server.py` defaults `NEXUS_ENGINE_URL` to an old cloud host.
 - Judge0 worker count is set to 4 without measuring the real event host.
