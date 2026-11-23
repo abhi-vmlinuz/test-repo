@@ -6,6 +6,7 @@ These cover the two properties the arena depends on:
 2. A grader that does not answer is reported as pending, never as a failure.
 """
 
+import asyncio
 import base64
 
 import pytest
@@ -103,30 +104,106 @@ class _ExplodingClient:
         raise ConnectionError("judge0 is down")
 
 
-@pytest.mark.asyncio
-async def test_unreachable_judge0_reports_pending(monkeypatch):
+def test_unreachable_judge0_reports_pending(monkeypatch):
+    # asyncio.run keeps this test free of pytest-asyncio, which the backend
+    # image does not install. A plugin the image lacks is a test that never
+    # runs where it matters.
     import judge_service
 
     monkeypatch.setattr(judge_service.httpx, "AsyncClient", _ExplodingClient)
-    result = await JudgeService.evaluate_submission(
-        source_code="int main(){}",
-        language="c",
-        test_cases=[{"id": 1, "input": "1", "expected": "1", "points": 10}],
+    result = asyncio.run(
+        JudgeService.evaluate_submission(
+            source_code="int main(){}",
+            language="c",
+            test_cases=[{"id": 1, "input": "1", "expected": "1", "points": 10}],
+        )
     )
 
     assert result["pending"] is True
     assert result["status"] == "pending"
 
 
-@pytest.mark.asyncio
-async def test_empty_test_list_does_not_raise(monkeypatch):
+def test_empty_test_list_does_not_raise(monkeypatch):
     # Regression: the default smoke test used `false` (JS) instead of `False`,
     # which raised NameError before any request was made.
     import judge_service
 
     monkeypatch.setattr(judge_service.httpx, "AsyncClient", _ExplodingClient)
-    result = await JudgeService.evaluate_submission(
-        source_code="int main(){}", language="c", test_cases=[]
+    result = asyncio.run(
+        JudgeService.evaluate_submission(
+            source_code="int main(){}", language="c", test_cases=[]
+        )
     )
 
     assert result["pending"] is True
+
+
+class _Resp:
+    def __init__(self, code: int, body):
+        self.status_code = code
+        self._body = body
+        self.text = ""
+
+    def json(self):
+        return self._body
+
+
+class _RecordingClient:
+    """Captures the batch payload and answers with one accepted case."""
+
+    last_payload = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, url, json=None, **kwargs):
+        type(self).last_payload = json
+        return _Resp(201, [{"token": "tok-1"}])
+
+    async def get(self, url, **kwargs):
+        return _Resp(
+            200,
+            {
+                "submissions": [
+                    {
+                        "status_id": 3,
+                        "status": {"description": "Accepted"},
+                        "stdout": _b64("1\n"),
+                        "stderr": "",
+                        "compile_output": "",
+                        "time": "0.010",
+                        "memory": 1024,
+                    }
+                ]
+            },
+        )
+
+
+def test_batch_disables_isolate_cgroups(monkeypatch):
+    # Judge0 1.13.1 bundles isolate 1.8.1, which needs cgroup v1. On a cgroup v2
+    # host `isolate --cg` fails and every submission returns status 13
+    # (Internal Error). The runner drops --cg only when both per-process flags
+    # are true, so these two keys are load-bearing, not tuning knobs.
+    import judge_service
+
+    _RecordingClient.last_payload = None
+    monkeypatch.setattr(judge_service.httpx, "AsyncClient", _RecordingClient)
+
+    result = asyncio.run(
+        JudgeService.evaluate_submission(
+            source_code="print(1)",
+            language="python",
+            test_cases=[{"id": 1, "input": "", "expected": "1", "points": 10}],
+        )
+    )
+
+    assert result["pending"] is False
+    submission = _RecordingClient.last_payload["submissions"][0]
+    assert submission["enable_per_process_and_thread_time_limit"] is True
+    assert submission["enable_per_process_and_thread_memory_limit"] is True

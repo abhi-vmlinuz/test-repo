@@ -135,14 +135,26 @@ const TerminalComponent = ({
 
         term.writeln('\x1b[33m⚡ Connecting to secure environment...\x1b[0m');
 
-        // Connect WebSocket
+        // Connect WebSocket.
+        //
+        // Challenge sessions go through this backend, never straight to the
+        // engine: the engine wants an API key on the handshake, a browser
+        // cannot send that header, and the key must not be shipped to the
+        // browser. The proxy also refuses sessions the caller does not own.
         let wsUrl = '';
         if (customWsUrl) {
             wsUrl = customWsUrl;
         } else if (sessionId) {
-            const engineUrl = import.meta.env.VITE_NEXUS_ENGINE_URL || import.meta.env.VITE_NEXUS_URL || import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
-            const wsBase = engineUrl.replace(/^http/, 'ws');
-            wsUrl = `${wsBase}/api/v1/sessions/${sessionId}/terminal`;
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+            let wsBase: string;
+            if (backendUrl) {
+                wsBase = backendUrl.replace(/^http/, 'ws');
+            } else {
+                const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                wsBase = `${scheme}://${window.location.host}`;
+            }
+            const token = localStorage.getItem('token') || '';
+            wsUrl = `${wsBase}/api/nexus/sessions/${sessionId}/terminal?token=${encodeURIComponent(token)}`;
         } else {
             const conductorUrl = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
             const wsBase = conductorUrl.replace(/^http/, 'ws');
@@ -179,8 +191,20 @@ const TerminalComponent = ({
             }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
             setStatus('disconnected');
+            // Close codes come from the backend proxy and say what went wrong;
+            // without them every failure reads as a generic disconnect.
+            const reasons: Record<number, string> = {
+                4401: 'Session expired — sign in again.',
+                4403: 'This environment belongs to another account.',
+                4404: 'That session no longer exists. Start the challenge again.',
+                4502: 'The challenge service is unreachable. Tell an organiser.',
+            };
+            if (reasons[event.code]) {
+                term.writeln(`\r\n\x1b[31m⚠ ${reasons[event.code]}\x1b[0m`);
+                return;
+            }
             term.writeln('\r\n\x1b[33m⚠ Terminal session disconnected.\x1b[0m \x1b[90m(Pod is still running — click Reconnect above to attach a new shell)\x1b[0m');
         };
 

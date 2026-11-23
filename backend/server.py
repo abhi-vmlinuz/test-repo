@@ -16,6 +16,8 @@ from fastapi import (
     HTTPException,
     Depends,
     Query,
+    WebSocket,
+    WebSocketDisconnect,
     status,
     File,
     UploadFile,
@@ -6607,6 +6609,148 @@ nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: sessi
 # Rate limiting: track last start request per user
 nexus_start_cooldowns: Dict[str, datetime] = {}  # {user_id: last_start_timestamp}
 NEXUS_START_COOLDOWN_SECONDS = 45  # Minimum seconds between start requests
+
+
+# ===========================================
+# NEXUS TERMINAL PROXY
+# ===========================================
+# The engine requires the API key on every route, including the WebSocket
+# handshake, and a browser cannot set headers on a WebSocket. The key must never
+# reach the browser, so this proxy is the only way in.
+#
+# It also enforces ownership. The engine attaches anyone who presents a valid
+# session id, so without this check a leaked id is a shell in someone else's
+# environment. Ownership is read from the engine, not from the in-process
+# `nexus_sessions` cache, which is empty after a restart.
+NEXUS_WS_UNAUTHORIZED = 4401
+NEXUS_WS_FORBIDDEN = 4403
+NEXUS_WS_NOT_FOUND = 4404
+NEXUS_WS_UPSTREAM = 4502
+
+
+def _engine_ws_url(session_id: str) -> str:
+    base = NEXUS_ENGINE_URL.rstrip("/")
+    if base.startswith("https://"):
+        base = "wss://" + base[len("https://"):]
+    elif base.startswith("http://"):
+        base = "ws://" + base[len("http://"):]
+    return f"{base}/api/v1/sessions/{session_id}/terminal"
+
+
+async def _open_engine_terminal(session_id: str):
+    """Connect to the engine's PTY WebSocket as the trusted server."""
+    import websockets
+
+    headers = {"Authorization": f"Bearer {NEXUS_API_KEY}"} if NEXUS_API_KEY else {}
+    kwargs = {"open_timeout": 10, "ping_interval": 20, "max_size": None}
+    url = _engine_ws_url(session_id)
+    try:
+        # websockets < 14
+        return await websockets.connect(url, extra_headers=headers, **kwargs)
+    except TypeError:
+        # websockets >= 14 renamed the argument
+        return await websockets.connect(url, additional_headers=headers, **kwargs)
+
+
+async def _nexus_session_owner(session_id: str):
+    """Return (http_status, user_id_or_None) for a session, asking the engine."""
+    async with _nexus_client() as client:
+        res = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}")
+    if res.status_code != 200:
+        return res.status_code, None
+    return 200, (res.json() or {}).get("user_id")
+
+
+@api_router.websocket("/nexus/sessions/{session_id}/terminal")
+async def nexus_terminal_proxy(
+    websocket: WebSocket, session_id: str, token: str = Query("")
+):
+    """Authenticated, ownership-checked WebSocket PTY proxy to nexus-engine."""
+    # Accept first so the client gets a close code and reason instead of the
+    # opaque 403 Starlette sends for a rejected handshake.
+    await websocket.accept()
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+    except Exception:
+        await websocket.close(code=NEXUS_WS_UNAUTHORIZED, reason="invalid token")
+        return
+    if not user_id:
+        await websocket.close(code=NEXUS_WS_UNAUTHORIZED, reason="invalid token")
+        return
+
+    try:
+        engine_status, owner = await _nexus_session_owner(session_id)
+    except httpx.HTTPError as e:
+        logger.warning(f"[NEXUS-WS] engine unreachable for {session_id}: {e}")
+        await websocket.close(code=NEXUS_WS_UPSTREAM, reason="engine unreachable")
+        return
+
+    if engine_status == 404:
+        await websocket.close(code=NEXUS_WS_NOT_FOUND, reason="session not found")
+        return
+    if engine_status != 200:
+        logger.warning(
+            f"[NEXUS-WS] engine returned {engine_status} for session {session_id}"
+        )
+        await websocket.close(code=NEXUS_WS_UPSTREAM, reason="engine error")
+        return
+    if owner != user_id:
+        logger.warning(
+            f"[NEXUS-WS] user {user_id} attempted to attach to session "
+            f"{session_id} owned by {owner}"
+        )
+        await websocket.close(code=NEXUS_WS_FORBIDDEN, reason="not your session")
+        return
+
+    try:
+        upstream = await _open_engine_terminal(session_id)
+    except Exception as e:
+        logger.warning(f"[NEXUS-WS] cannot open engine terminal {session_id}: {e}")
+        await websocket.close(code=NEXUS_WS_UPSTREAM, reason="terminal unavailable")
+        return
+
+    async def client_to_engine():
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                return
+            if message.get("text") is not None:
+                await upstream.send(message["text"])
+            elif message.get("bytes") is not None:
+                await upstream.send(message["bytes"])
+
+    async def engine_to_client():
+        async for message in upstream:
+            if isinstance(message, bytes):
+                await websocket.send_bytes(message)
+            else:
+                await websocket.send_text(message)
+
+    tasks = [
+        asyncio.create_task(client_to_engine()),
+        asyncio.create_task(engine_to_client()),
+    ]
+    try:
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        for task in done:
+            if task.cancelled():
+                continue
+            exc = task.exception()
+            if isinstance(exc, WebSocketDisconnect):
+                logger.info(f"[NEXUS-WS] client left session {session_id}")
+            elif exc is not None:
+                logger.info(f"[NEXUS-WS] session {session_id} ended: {exc!r}")
+    finally:
+        await upstream.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 class NexusSessionRequest(BaseModel):
