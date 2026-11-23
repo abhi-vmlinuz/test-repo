@@ -6605,6 +6605,9 @@ def _nexus_client() -> httpx.AsyncClient:
 
 # Nexus session storage (user_id -> session_id mapping)
 nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}
+# Active attackbox sessions (browser pods), user_id -> session_id. Not the
+# source of truth: the engine is, and this is just a fast lookup.
+attackbox_sessions: Dict[str, str] = {}
 
 # Rate limiting: track last start request per user
 nexus_start_cooldowns: Dict[str, datetime] = {}  # {user_id: last_start_timestamp}
@@ -6755,6 +6758,124 @@ async def nexus_terminal_proxy(
 
 class NexusSessionRequest(BaseModel):
     challenge_id: str
+
+
+# ===========================================
+# ATTACKBOX (BROWSER ENV PODS)
+# ===========================================
+
+
+class AttackboxStartRequest(BaseModel):
+    # Optional: mount the challenge's files into /artifacts. The engine
+    # resolves this to its own artefact root; arbitrary caller-supplied paths
+    # are not accepted (D-009).
+    artifact_challenge_id: Optional[str] = None
+
+
+async def _active_attackbox_session(user_id: str) -> Optional[Dict[str, Any]]:
+    """Return the user's running env session, or None."""
+    try:
+        async with _nexus_client() as client:
+            res = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions", timeout=15.0)
+    except httpx.HTTPError as e:
+        logger.warning(f"[ATTACKBOX] engine unreachable for list: {e}")
+        return None
+    if res.status_code != 200:
+        return None
+    for s in (res.json() or {}).get("sessions", []):
+        if (
+            s.get("user_id") == user_id
+            and s.get("role") == "env"
+            and s.get("status") == "running"
+        ):
+            return s
+    return None
+
+
+@api_router.post("/attackbox/start")
+async def start_attackbox(
+    request: Optional[AttackboxStartRequest] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Start (or return the existing) BrowserAttackBox for the current user."""
+    user_id = str(current_user["id"])
+
+    existing = await _active_attackbox_session(user_id)
+    if existing:
+        attackbox_sessions[user_id] = existing["session_id"]
+        return {
+            "success": True,
+            "session_id": existing["session_id"],
+            "status": existing.get("status"),
+            "already_running": True,
+        }
+
+    body: Dict[str, Any] = {"user_id": user_id}
+    if request is not None and request.artifact_challenge_id:
+        body["artifact_challenge_id"] = request.artifact_challenge_id
+
+    try:
+        async with _nexus_client() as client:
+            spawn = await client.post(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/env",
+                json=body,
+                timeout=180.0,
+            )
+    except httpx.HTTPError as e:
+        logger.warning(f"[ATTACKBOX] engine unreachable to spawn: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to start the attackbox: {e}")
+
+    if spawn.status_code != 201:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Nexus error: {spawn.json().get('error', spawn.text)}",
+        )
+
+    data = spawn.json()
+    attackbox_sessions[user_id] = data["session_id"]
+    logger.info(f"[ATTACKBOX] started session {data['session_id']} for user {user_id}")
+    return {
+        "success": True,
+        "session_id": data["session_id"],
+        "status": data.get("status"),
+        "artifacts_mounted": data.get("artifacts_mounted", False),
+    }
+
+
+@api_router.delete("/attackbox/sessions/{session_id}")
+async def stop_attackbox(
+    session_id: str, current_user: dict = Depends(get_current_user)
+):
+    """Stop the current user's BrowserAttackBox. Not a boss: ownership is
+    checked against the engine, because the web app cache is empty after a
+    restart."""
+    user_id = str(current_user["id"])
+
+    try:
+        async with _nexus_client() as client:
+            res = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=15.0)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Failed to stop the attackbox: {e}")
+
+    if res.status_code == 200:
+        sess = res.json()
+        if sess.get("user_id") != user_id:
+            raise HTTPException(status_code=404, detail="attackbox not found")
+        async with _nexus_client() as client:
+            await client.delete(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=30.0)
+    elif res.status_code == 404:
+        raise HTTPException(status_code=404, detail="attackbox not found")
+
+    attackbox_sessions.pop(user_id, None)
+    return {"success": True, "session_id": session_id}
+
+
+@api_router.get("/attackbox/sessions/current")
+async def get_current_attackbox(current_user: dict = Depends(get_current_user)):
+    """The current user's running env session, for the UI."""
+    user_id = str(current_user["id"])
+    sess = await _active_attackbox_session(user_id)
+    return {"success": True, "session_id": sess["session_id"] if sess else None}
 
 
 @api_router.post("/docker/start/{challenge_id}")

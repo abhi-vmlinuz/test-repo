@@ -15,9 +15,6 @@ import TerminalComponent from '@/components/TerminalComponent';
 import BetaFeature from '@/components/BetaFeature';
 import CodingArenaView from '@/components/CodingArenaView';
 
-// Conductor URL: set via VITE_CONDUCTOR_URL for production (Cloudflare Tunnel)
-const CONDUCTOR_URL = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
-
 const TERMINAL_SESSION_STATUSES = new Set(['none', 'expired', 'stopped', 'terminated']);
 
 const ChallengeDetail = ({ user, logout }) => {
@@ -52,50 +49,33 @@ const ChallengeDetail = ({ user, logout }) => {
   const [terminalVmId, setTerminalVmId] = useState<string | null>(null);
   const [startingTerminal, setStartingTerminal] = useState(false);
   const [showOsModal, setShowOsModal] = useState(false);
-  const [selectedDistro, setSelectedDistro] = useState('kali');
-  const [availableDistros, setAvailableDistros] = useState<{ name: string, default: boolean }[]>([]);
-
-  const fetchDistros = async () => {
-    try {
-      const res = await axios.get(`${CONDUCTOR_URL}/api/v1/distros`);
-      if (res.data.success) {
-        setAvailableDistros(res.data.data);
-        const defaultDistro = res.data.data.find(d => d.default);
-        if (defaultDistro) setSelectedDistro(defaultDistro.name);
-      }
-    } catch (e) {
-      console.error("Failed to fetch distros:", e);
-      // Fallback if conductor offline
-      setAvailableDistros([{ name: 'kali', default: true }, { name: 'ubuntu', default: false }]);
-    }
-  };
 
   const handleOpenTerminalModal = () => {
-    fetchDistros();
+    if (terminalVmId) {
+      // Already running: just connect.
+      setShowOsModal(false);
+      return;
+    }
     setShowOsModal(true);
   };
 
   const handleStartTerminal = async () => {
     setStartingTerminal(true);
     try {
-      // Get artifact URLs to inject
-      const artifactUrls = artifacts.map(a => `${API}/artifacts/download/${a.id}`);
-
-      const res = await axios.post(`${CONDUCTOR_URL}/api/v1/vms`, {
-        challenge_id: id,
-        user_id: user?.id || 'anonymous',
-        distro: selectedDistro,
-        artifacts: artifactUrls
+      // Browser attackbox: the web app asks the engine for a session. The
+      // engine mounts the challenge's artefacts into /artifacts for the pod.
+      const res = await axios.post(`${API}/attackbox/start`, {
+        artifact_challenge_id: id,
       });
 
       if (res.data.success) {
-        setTerminalVmId(res.data.data.id);
+        setTerminalVmId(res.data.session_id);
         setShowOsModal(false);
-        toast.success(`Terminal environment started (${selectedDistro})`);
+        toast.success("Browser attackbox started");
       }
     } catch (e) {
       console.error(e);
-      toast.error("Failed to start terminal environment. Is the conductor running?");
+      toast.error("Failed to start the attackbox");
     } finally {
       setStartingTerminal(false);
     }
@@ -104,7 +84,7 @@ const ChallengeDetail = ({ user, logout }) => {
   const handleStopTerminal = async () => {
     if (!terminalVmId) return;
     try {
-      await axios.delete(`${CONDUCTOR_URL}/api/v1/vms/${terminalVmId}`);
+      await axios.delete(`${API}/attackbox/sessions/${terminalVmId}`);
       setTerminalVmId(null);
       toast.info("Terminal session ended");
     } catch (e) {
@@ -1147,36 +1127,19 @@ const ChallengeDetail = ({ user, logout }) => {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-1 gap-3">
-                {availableDistros.map(distro => (
-                  <button
-                    key={distro.name}
-                    onClick={() => setSelectedDistro(distro.name)}
-                    className={`flex items-center justify-between p-4 rounded-lg border transition-all ${selectedDistro === distro.name
-                      ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500'
-                      : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
-                      }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${selectedDistro === distro.name ? 'bg-emerald-100 text-emerald-600' : 'bg-zinc-100 text-zinc-500'
-                        }`}>
-                        <Terminal className="w-5 h-5" />
-                      </div>
-                      <div className="text-left">
-                        <p className={`font-bold capitalize ${selectedDistro === distro.name ? 'text-emerald-900' : 'text-zinc-900'}`}>
-                          {distro.name} Linux
-                        </p>
-                        <p className="text-xs text-zinc-500">Standard Environment</p>
-                      </div>
-                    </div>
-                    {selectedDistro === distro.name && <CheckCircle2 className="w-5 h-5 text-emerald-500" />}
-                  </button>
-                ))}
+              <div className="flex items-center gap-3 p-4 rounded-lg border border-zinc-200">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-zinc-100 text-zinc-600">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-bold text-zinc-900">Browser Attackbox</p>
+                  <p className="text-xs text-zinc-500">The platform spins up a Linux environment you reach through a browser terminal.</p>
+                </div>
               </div>
 
               <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 flex gap-3 text-sm text-amber-800">
                 <Lightbulb className="w-5 h-5 flex-shrink-0 text-amber-600" />
-                <p>This will launch a temporary VM. Artifacts from this challenge will be automatically injected into <code>/root/</code>.</p>
+                <p>Challenge files are mounted at <code>/artifacts</code> when the environment starts.</p>
               </div>
             </div>
 

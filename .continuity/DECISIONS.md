@@ -45,3 +45,10 @@ Append-only. Newest at the bottom. Don't edit old entries; supersede them with a
 - Because: Judge0 1.13.1 bundles isolate 1.8.1, which only manages cgroup v1. On a cgroup v2 host (Fedora 41+, any current distro) `isolate --cg` fails with `Failed to create control group /sys/fs/cgroup/memory/box-N` and every submission returns status 13 (Internal Error), which the platform would otherwise present as a wrong answer. Those two flags make Judge0's runner omit `--cg` and fall back to rlimits, enforcing the same total CPU and memory caps. Verified live: 23 checks pass against Judge0 on a cgroup2fs host.
 - Trade-off: limits apply per process group rather than per process/thread, so a submission cannot be charged for a child process separately. Wall time is still capped by Judge0's `wall_time_limit`.
 - Revisit if: Judge0 ships an isolate with cgroup v2 support, at which point the flags can go back to false.
+
+## D-007: The web app never mounts artefacts into an attackbox itself
+- Date: 2026-11-23
+- Chose: `POST /api/attackbox/start` takes only `artifact_challenge_id` (an ID); the engine mounts `NEXUS_ARTIFACT_ROOT/<id>` at `/artifacts` in the pod. `rlabz-ctf` sends no volume list.
+- Over: having the backend name a host path, or a list of `${API}/artifacts/download/{id}` URLs to pass into the pod (the old Conductor design).
+- Because: the web app is untrusted data. Host paths mean whatever lands in its codebase gets the pod's kubelet socket. URLs mean a browser job to download into the box and a race against spawn — worse, because it can ask for *anything* with a correct-looking name, not just the current challenge. The engine already refuses the path-shaped case with 400.
+- Revisit if: someone legitimately needs several mounts per session.

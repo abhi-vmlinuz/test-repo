@@ -16,7 +16,11 @@ and `CreateEnv` on an unmerged branch.
   PTY, with ownership enforced, and a verified grading path underneath it.
 - In scope (files/dirs): `backend/server.py`, `backend/judge_service.py`,
   `backend/tests/`, `frontend/src/components/TerminalComponent.tsx`,
+  `frontend/src/pages/ChallengeDetail.tsx`, `frontend/src/pages/TerminalPage.tsx`,
   `frontend/default.conf.template`.
+- Done this session: `/api/attackbox/start` and
+  `/api/attackbox/sessions/{id}` in `server.py`; the AttackBox modal now calls
+  them. `py_compile`-clean. Frontend build status: see Last session.
 - Out of scope: the slim Kali image, the artifact mount wiring in the web app,
   removing `ChallengeDetail`'s Conductor calls, egress policy.
 - Done when: the proxy is merged, nginx forwards upgrades, and grading passes
@@ -24,6 +28,9 @@ and `CreateEnv` on an unmerged branch.
 
 ## Last session
 
+- Done: attackbox endpoints — POST /api/attackbox/start (reuse-or-spawn),
+  DELETE /api/attackbox/sessions/{id} (owner-checked), GET
+  /api/attackbox/sessions/current; frontend modal now calls them.
 - Done: live grading verification found a real defect — Judge0 1.13.1 cannot
   run on a cgroup v2 host, so every submission returned Internal Error and would
   have been presented as a wrong answer. Fixed by sending the per-process flags
