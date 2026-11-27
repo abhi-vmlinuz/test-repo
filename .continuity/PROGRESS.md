@@ -4,42 +4,42 @@ _Rewrite this file each session. Don't let it grow forever._
 
 ## Last known state
 
-2026-11-27: `main` is at `62ce3fb` (**PR #5** merged).
-Branch `fix/attackbox-terminal-proxy` (synced with `origin`) has:
-- Judge0 cgroup v2 fix (`enable_per_process_and_thread_*` flags, D-006; verified live, 23 checks)
-- Authenticated WebSocket terminal proxy `/api/nexus/sessions/{id}/terminal` + nginx WS upgrade (D-005)
-- `/terminal/:vmId` and `TerminalComponent` routed exclusively through the Nexus backend proxy (all `VITE_CONDUCTOR_URL` fallbacks removed)
-- `/api/attackbox/start`, `/api/attackbox/sessions/{id}`, `/api/attackbox/sessions/current` wired to `ChallengeDetail.tsx` (calling engine `POST /api/v1/sessions/env` with `/artifacts`, D-007)
-- Per-challenge artifact storage (`uploads/artifacts/<challenge_id>/` via `_artifact_file_path`) + `docker-compose.yml` bind mount `/var/lib/nexus/artifacts:/app/uploads/artifacts` (D4)
+2026-11-27:
+- **PR `#6`** (`fix/attackbox-terminal-proxy` → `main`) is **MERGED** (`b461bc1`).
+- Current branch `feat/terminal-dark-theme-and-vpn-ux` (pushed to `origin`, PR open) adds:
+  - Dark theme (`#09090b`) and ASCII status prefixes in `TerminalComponent.tsx`
+  - WireGuard QR code modal/panel (`qrcode` package) and live handshake status badge in `VPNAccess.tsx`
+  - `GET /api/vpn/test-connection` proxy in `backend/server.py` reading `connected` from `nexus-engine`'s `GET /api/v1/vpn/status`
+- `nexus-vm` (`:8081`) is running `NEXUS_ENV_IMAGE=nexus-kali-slim:latest` (`cb39b8a84702`), verified live (`Kali GNU/Linux Rolling`, `nmap`/`sqlmap`/`gobuster`/`python3`, `/artifacts/readme.txt`).
 
 ## Current task
 
-- Goal: complete initial AttackBox + artifact wiring in `rlabz-ctf` and reopen PR `#6` for end-to-end verification against `nexus-vm`.
-- In scope (files/dirs): `backend/server.py`, `docker-compose.yml`, `frontend/src/components/TerminalComponent.tsx`, `.continuity/PROGRESS.md`.
-- Out of scope: migrating pre-existing flat artifact files on disk, `schema.sql` fresh-install dump, Judge0 placement change.
-- Done when: `py_compile`, `npm run build`, and PR `#6` are green, ready for live browser AttackBox smoke test on the Fedora host.
+- Goal: polish AttackBox UX (dark terminal) and VPN UX (QR code + real handshake status), then merge PR to `main`.
+- In scope (files/dirs): `frontend/src/components/TerminalComponent.tsx`, `frontend/src/pages/VPNAccess.tsx`, `frontend/package.json`, `frontend/package-lock.json`, `backend/server.py`, `.continuity/`.
+- Out of scope: `addition-spec.md` (`frozen`), `schema.sql` fresh-install dump, Judge0 placement change.
+- Done when: dark terminal + VPN QR/handshake status are verified in browser and PR is merged to `main`.
 
 ## Last session
 
-- Removed remaining `VITE_CONDUCTOR_URL` fallback from `TerminalComponent.tsx` (routes both `sessionId` and legacy `vmId` prop through `/api/nexus/sessions/{id}/terminal`).
-- Updated `upload_challenge_artifact` and `import_artifact_from_github` in `backend/server.py` to store under `uploads/artifacts/<challenge_id>/` (with traversal check), and added `/var/lib/nexus/artifacts:/app/uploads/artifacts` to `docker-compose.yml`.
-- Verified: `python3 -m py_compile backend/server.py` and `npm run build` pass; `grep` confirms zero Conductor references in `frontend/src/`.
-- Untracked `inspire/` directory left untouched.
+- Implemented `GET /api/vpn/test-connection` in `backend/server.py` and QR code + `HANDSHAKE ACTIVE` badge in `VPNAccess.tsx`.
+- Verified `py_compile backend/server.py`, `npm run build` (`11.75s`), `rlabz-backend` container rebuild/restart, and live `nexus-kali-slim:latest` AttackBox pod on `nexus-vm`.
 
 ## Next up
 
-1. Run `docker compose up -d --build` on the Fedora host and verify the full browser AttackBox flow (start from `ChallengeDetail` → shell echo → `/artifacts` mount → stop) against `nexus-vm`.
-2. Merge `rlabz-ctf` PR `#6` and `nexus-framework` MR `!8` (`feat/attackbox-env-session`).
-3. Egress default-deny + per-challenge `internet_allowed` verification and 3× peak load test once host specs are known.
+1. Verify dark terminal + `nexus-kali-slim:latest` + VPN QR code in browser at `http://127.0.0.1:3000`.
+2. Merge `rlabz-ctf` PR (`feat/terminal-dark-theme-and-vpn-ux`) and `nexus-framework` MR (`feat/kali-slim-and-egress`).
+3. Clean up hardcoded VM IPs (`§4.15`), commit `schema.sql` (`§4.14`), and run 3× peak load test once host specs are known.
 
 ## Open questions / blockers
 
+- `docker-compose.yml` still points `NEXUS_ENGINE_URL` and `VITE_NEXUS_URL` at `192.168.122.125:8081` (`nexus-vm`).
 - Real event host specs and Judge0 placement (same host vs. separate) are still open in `~/nexus-private/plan/nexus-euphoria-event-plan.md`.
-- Note: `docker-compose.yml` still points `NEXUS_ENGINE_URL` and `VITE_NEXUS_URL` at `192.168.122.125:8081` (`nexus-vm`).
 
-## Private share (not in git)
+## Noticed, not touched
 
-This repo has no runtime secrets. Deployment env, database dumps and the event
-plan live in `~/nexus-private/` (chmod 700), referenced from there rather than
-committed. On another machine, mount or symlink that directory before running
-anything that needs credentials.
+- Untracked `inspire/` directory in repo root.
+
+## Don't redo
+
+- Do not re-add `VITE_CONDUCTOR_URL` or Conductor VM calls.
+- Do not bypass `backend/judge_service.py` for grading; Judge0 is the sole grading authority.

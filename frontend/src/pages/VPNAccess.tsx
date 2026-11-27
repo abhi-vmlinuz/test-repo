@@ -9,8 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, Shield, Wifi, WifiOff, RefreshCw, CheckCircle2,
   Terminal, Globe, Lock, Zap, HelpCircle, ChevronDown, ChevronUp,
-  Copy, ExternalLink, Monitor, Activity, Server, ArrowRight, ShieldCheck, XCircle
+  Copy, ExternalLink, Monitor, Activity, Server, ArrowRight, ShieldCheck, XCircle, QrCode
 } from 'lucide-react';
+import QRCode from 'qrcode';
 
 // VPN API is proxied through nginx at /api/vpn/ -> Nexus Engine
 const VPN_API_BASE = import.meta.env.VITE_BACKEND_URL || '';
@@ -23,6 +24,9 @@ const VPNAccess = ({ user, logout }) => {
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionTestResult, setConnectionTestResult] = useState<'success' | 'failed' | null>(null);
   const [showFAQ, setShowFAQ] = useState<number | null>(null);
+  const [showQR, setShowQR] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [loadingQR, setLoadingQR] = useState(false);
 
   useEffect(() => {
     fetchVPNStatus();
@@ -34,6 +38,9 @@ const VPNAccess = ({ user, logout }) => {
         headers: { 'X-User-ID': user?.id }
       });
       setVpnStatus(response.data);
+      if (response.data?.has_vpn) {
+        setConnectionTestResult(response.data.connected ? 'success' : null);
+      }
     } catch (error: any) {
       if (error.response?.status === 404) {
         setVpnStatus({ has_vpn: false, connected: false });
@@ -109,12 +116,40 @@ const VPNAccess = ({ user, logout }) => {
       await axios.post(`${VPN_API_BASE}/api/vpn/regenerate`, {}, {
         headers: { 'X-User-ID': user?.id }
       });
+      setQrDataUrl(null);
+      setShowQR(false);
       toast.success('VPN configuration regenerated! Download the new config.');
       fetchVPNStatus();
     } catch (error) {
       toast.error('Failed to regenerate VPN configuration');
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const handleToggleQR = async () => {
+    if (showQR) {
+      setShowQR(false);
+      return;
+    }
+    if (qrDataUrl) {
+      setShowQR(true);
+      return;
+    }
+    setLoadingQR(true);
+    try {
+      const response = await axios.get(`${VPN_API_BASE}/api/vpn/config`, {
+        headers: { 'X-User-ID': user?.id },
+        responseType: 'text',
+      });
+      const dataUrl = await QRCode.toDataURL(response.data, { width: 220, margin: 2 });
+      setQrDataUrl(dataUrl);
+      setShowQR(true);
+      fetchVPNStatus();
+    } catch (error) {
+      toast.error('Failed to generate VPN QR code');
+    } finally {
+      setLoadingQR(false);
     }
   };
 
@@ -217,21 +252,46 @@ const VPNAccess = ({ user, logout }) => {
                       <RefreshCw className={`w-3 h-3 ${regenerating ? 'animate-spin' : ''}`} />
                       REGENERATE KEYS
                     </button>
-                    <Button
-                      onClick={handleDownloadConfig}
-                      disabled={downloading}
-                      className="bg-white hover:bg-zinc-100 text-zinc-900 font-black px-8 py-6 rounded-2xl shadow-lg border-b-4 border-zinc-200 active:transform active:translate-y-1 active:border-b-0 transition-all flex items-center gap-3"
-                    >
-                      {downloading ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Download className="w-5 h-5" />
-                      )}
-                      DOWNLOAD CONFIG
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleToggleQR}
+                        disabled={loadingQR}
+                        variant="outline"
+                        className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-zinc-700 font-bold px-5 py-6 rounded-2xl transition-all flex items-center gap-2"
+                      >
+                        {loadingQR ? <RefreshCw className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                        {showQR ? 'HIDE QR' : 'QR CODE'}
+                      </Button>
+                      <Button
+                        onClick={handleDownloadConfig}
+                        disabled={downloading}
+                        className="bg-white hover:bg-zinc-100 text-zinc-900 font-black px-8 py-6 rounded-2xl shadow-lg border-b-4 border-zinc-200 active:transform active:translate-y-1 active:border-b-0 transition-all flex items-center gap-3"
+                      >
+                        {downloading ? (
+                          <RefreshCw className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Download className="w-5 h-5" />
+                        )}
+                        DOWNLOAD CONFIG
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
+
+              {showQR && qrDataUrl && (
+                <div className="bg-zinc-950 px-8 py-6 border-t border-zinc-800 flex flex-col sm:flex-row items-center gap-6">
+                  <div className="bg-white p-3 rounded-2xl">
+                    <img src={qrDataUrl} alt="WireGuard QR Code" className="w-44 h-44" />
+                  </div>
+                  <div className="text-zinc-300 text-sm space-y-2">
+                    <p className="font-bold text-white uppercase tracking-wider text-xs">Scan with WireGuard Mobile App</p>
+                    <p className="text-zinc-400 max-w-md">
+                      Open the WireGuard app on iOS or Android, tap <span className="text-zinc-200 font-semibold">+</span> &rarr; <span className="text-zinc-200 font-semibold">Create from QR code</span>, and scan this code to import your tunnel config.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="p-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -288,7 +348,7 @@ const VPNAccess = ({ user, logout }) => {
                             <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950/30 rounded-full flex items-center justify-center mb-3">
                               <Wifi className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
                             </div>
-                            <Badge variant="default" className="bg-emerald-500 text-white border-0 font-bold mb-1">CONNECTED</Badge>
+                            <Badge variant="default" className="bg-emerald-500 text-white border-0 font-bold mb-1">HANDSHAKE ACTIVE</Badge>
                             <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">TUNNEL ESTABLISHED</p>
                           </motion.div>
                         ) : connectionTestResult === 'failed' ? (

@@ -42,26 +42,26 @@ const TerminalComponent = ({
             fontSize: 14,
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
             theme: {
-                background: '#ffffff',
-                foreground: '#0f172a',
-                cursor: '#16a34a',
-                selectionBackground: 'rgba(59, 130, 246, 0.25)',
-                black: '#0f172a',
-                red: '#dc2626',
-                green: '#16a34a',
-                yellow: '#ca8a04',
-                blue: '#2563eb',
-                ['mag' + 'enta']: '#9333ea',
-                cyan: '#0891b2',
-                white: '#f8fafc',
-                brightBlack: '#64748b',
-                brightRed: '#ef4444',
-                brightGreen: '#22c55e',
-                brightYellow: '#eab308',
-                brightBlue: '#3b82f6',
-                ['brightMag' + 'enta']: '#a855f7',
-                brightCyan: '#06b6d4',
-                brightWhite: '#0f172a',
+                background: '#09090b',
+                foreground: '#e4e4e7',
+                cursor: '#22c55e',
+                selectionBackground: 'rgba(59, 130, 246, 0.35)',
+                black: '#18181b',
+                red: '#ef4444',
+                green: '#22c55e',
+                yellow: '#eab308',
+                blue: '#3b82f6',
+                ['mag' + 'enta']: '#a855f7',
+                cyan: '#06b6d4',
+                white: '#e4e4e7',
+                brightBlack: '#71717a',
+                brightRed: '#f87171',
+                brightGreen: '#4ade80',
+                brightYellow: '#facc15',
+                brightBlue: '#60a5fa',
+                ['brightMag' + 'enta']: '#c084fc',
+                brightCyan: '#22d3ee',
+                brightWhite: '#ffffff',
             },
             allowProposedApi: true,
         });
@@ -133,7 +133,7 @@ const TerminalComponent = ({
         const currentTermEl = terminalRef.current;
         currentTermEl?.addEventListener('paste', handleBrowserPaste);
 
-        term.writeln('\x1b[33m⚡ Connecting to secure environment...\x1b[0m');
+        term.writeln('\x1b[90m[*] Connecting to environment...\x1b[0m');
 
         // Connect WebSocket.
         //
@@ -164,7 +164,7 @@ const TerminalComponent = ({
         ws.onopen = () => {
             wasConnected.current = true;
             setStatus('connected');
-            term.writeln('\r\n\x1b[32m✔ Connected to terminal session.\x1b[0m\r\n');
+            term.writeln('\x1b[32m[+] Connected.\x1b[0m\r\n');
             term.focus();
             // Send initial resize event
             ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
@@ -199,16 +199,16 @@ const TerminalComponent = ({
                 4502: 'The challenge service is unreachable. Tell an organiser.',
             };
             if (reasons[event.code]) {
-                term.writeln(`\r\n\x1b[31m⚠ ${reasons[event.code]}\x1b[0m`);
+                term.writeln(`\r\n\x1b[31m[!] ${reasons[event.code]}\x1b[0m`);
                 return;
             }
-            term.writeln('\r\n\x1b[33m⚠ Terminal session disconnected.\x1b[0m \x1b[90m(Pod is still running — click Reconnect above to attach a new shell)\x1b[0m');
+            term.writeln('\r\n\x1b[33m[!] Terminal session disconnected.\x1b[0m \x1b[90m(Pod is still running — click Reconnect above to attach a new shell)\x1b[0m');
         };
 
         ws.onerror = (error) => {
             console.error('WebSocket error:', error);
             setStatus('error');
-            term.writeln('\r\n\x1b[31m⚠ Connection error.\x1b[0m');
+            term.writeln('\r\n\x1b[31m[!] Connection error.\x1b[0m');
         };
 
         wsRef.current = ws;
@@ -266,22 +266,22 @@ const TerminalComponent = ({
     };
 
     return (
-        <div className={`flex flex-col h-full bg-white ${hideHeader ? 'border-0 rounded-none overflow-hidden' : 'border border-zinc-200 rounded-lg overflow-hidden shadow-sm'}`}>
+        <div className={`flex flex-col h-full bg-zinc-950 ${hideHeader ? 'border-0 rounded-none overflow-hidden' : 'border border-zinc-800 rounded-lg overflow-hidden shadow-sm'}`}>
             {/* Terminal Header */}
             {!hideHeader && (
-                <div className="flex items-center justify-between px-4 py-2 bg-zinc-50 border-b border-zinc-200">
+                <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-zinc-800">
                     <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-emerald-500 animate-pulse' :
                             status === 'connecting' ? 'bg-amber-500' : 'bg-red-500'
                             }`} />
-                        <span className="text-xs font-mono text-zinc-600 font-medium">
-                            {status === 'connected' ? 'root@kali:~' : `Status: ${status}`}
+                        <span className="text-xs font-mono text-zinc-300 font-medium">
+                            {status === 'connected' ? 'kali@nexus:~' : `Status: ${status}`}
                         </span>
                     </div>
                     <div className="flex items-center gap-1">
                         <button
                             onClick={handleReload}
-                            className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded-md transition-colors"
+                            className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
                             title="Reload Connection"
                         >
                             <RefreshCw className="w-3.5 h-3.5" />
@@ -290,7 +290,7 @@ const TerminalComponent = ({
                         {vmId && (
                             <button
                                 onClick={() => window.open(`/terminal/${vmId}`, '_blank')}
-                                className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded-md transition-colors"
+                                className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
                                 title="Open in New Tab"
                             >
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -300,7 +300,7 @@ const TerminalComponent = ({
                         {onToggleFullscreen && (
                             <button
                                 onClick={onToggleFullscreen}
-                                className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 rounded-md transition-colors"
+                                className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-md transition-colors"
                                 title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
                             >
                                 {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -310,7 +310,7 @@ const TerminalComponent = ({
                         {onClose && (
                             <button
                                 onClick={onClose}
-                                className="p-1.5 text-zinc-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-950/50 rounded-md transition-colors"
                                 title="Destroy Pod & Close Terminal"
                             >
                                 <X className="w-3.5 h-3.5" />
