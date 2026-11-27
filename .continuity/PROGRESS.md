@@ -4,42 +4,40 @@ _Rewrite this file each session. Don't let it grow forever._
 
 ## Last known state
 
-2026-11-27: `main` is at `62ce3fb` (**PR #5** merged).
-Branch `fix/attackbox-terminal-proxy` (synced with `origin`) has:
-- Judge0 cgroup v2 fix (`enable_per_process_and_thread_*` flags, D-006; verified live, 23 checks)
-- Authenticated WebSocket terminal proxy `/api/nexus/sessions/{id}/terminal` + nginx WS upgrade (D-005)
-- `/terminal/:vmId` and `TerminalComponent` routed exclusively through the Nexus backend proxy (all `VITE_CONDUCTOR_URL` fallbacks removed)
-- `/api/attackbox/start`, `/api/attackbox/sessions/{id}`, `/api/attackbox/sessions/current` wired to `ChallengeDetail.tsx` (calling engine `POST /api/v1/sessions/env` with `/artifacts`, D-007)
-- Per-challenge artifact storage (`uploads/artifacts/<challenge_id>/` via `_artifact_file_path`) + `docker-compose.yml` bind mount `/var/lib/nexus/artifacts:/app/uploads/artifacts` (D4)
+2026-11-27:
+- **PR `#6`** (`fix/attackbox-terminal-proxy` → `main`) is **MERGED** (`b461bc1` on `origin/main`).
+- Current branch `feat/terminal-dark-theme-and-vpn-ux` (`fcaef01`, pushed to `origin`, no PR yet) switches `TerminalComponent.tsx` to dark theme (`#09090b`) and removes all startup/disconnect emojis; `frontend/dist` is rebuilt and live on `:3000`.
+- Fedora host compose stack is running all 8 containers (`rlabz-frontend` `:3000`, `rlabz-backend` `:4000`, `rlabz-postgres` `:5432`, `rlabz-judge0-*` `:2358`, `rlabz-registry-proxy` `:5000`), with dummy challenge `b16e16b9-fc80-479c-846b-00e1394165a4` + `readme.txt` artifact seeded for testing.
 
 ## Current task
 
-- Goal: complete initial AttackBox + artifact wiring in `rlabz-ctf` and reopen PR `#6` for end-to-end verification against `nexus-vm`.
-- In scope (files/dirs): `backend/server.py`, `docker-compose.yml`, `frontend/src/components/TerminalComponent.tsx`, `.continuity/PROGRESS.md`.
-- Out of scope: migrating pre-existing flat artifact files on disk, `schema.sql` fresh-install dump, Judge0 placement change.
-- Done when: `py_compile`, `npm run build`, and PR `#6` are green, ready for live browser AttackBox smoke test on the Fedora host.
+- Goal: polish AttackBox UX (dark terminal) and VPN UX (QR code + real handshake status), then open PR for `feat/terminal-dark-theme-and-vpn-ux`.
+- In scope (files/dirs): `frontend/src/components/TerminalComponent.tsx`, VPN Access page, `.continuity/`.
+- Out of scope: `addition-spec.md` (`frozen`), `schema.sql` fresh-install dump, Judge0 placement change.
+- Done when: dark terminal + VPN UX are verified in browser and PR is opened/merged to `main`.
 
 ## Last session
 
-- Removed remaining `VITE_CONDUCTOR_URL` fallback from `TerminalComponent.tsx` (routes both `sessionId` and legacy `vmId` prop through `/api/nexus/sessions/{id}/terminal`).
-- Updated `upload_challenge_artifact` and `import_artifact_from_github` in `backend/server.py` to store under `uploads/artifacts/<challenge_id>/` (with traversal check), and added `/var/lib/nexus/artifacts:/app/uploads/artifacts` to `docker-compose.yml`.
-- Verified: `python3 -m py_compile backend/server.py` and `npm run build` pass; `grep` confirms zero Conductor references in `frontend/src/`.
-- Untracked `inspire/` directory left untouched.
+- Removed `BetaFeature("firecracker_terminal")` gate from `ChallengeDetail.tsx` and fixed `asyncpg` UUID-vs-str cast in `download_artifact` / `delete_challenge_artifact` (`server.py`).
+- Verified live on Fedora host + `nexus-vm`: Judge0 (`23/23` live checks), backend unit tests (`14 passed` in container), artifact download (`200`), and full browser AttackBox flow (launch, PTY echo, `/artifacts/readme.txt`, `wget 10.42.0.9:8080`, `X` teardown).
+- Merged **PR `#6`** (`b461bc1`), then switched `TerminalComponent.tsx` to dark theme + ASCII prefixes on `feat/terminal-dark-theme-and-vpn-ux` (`fcaef01`) and rebuilt `frontend/dist`.
 
 ## Next up
 
-1. Run `docker compose up -d --build` on the Fedora host and verify the full browser AttackBox flow (start from `ChallengeDetail` → shell echo → `/artifacts` mount → stop) against `nexus-vm`.
-2. Merge `rlabz-ctf` PR `#6` and `nexus-framework` MR `!8` (`feat/attackbox-env-session`).
-3. Egress default-deny + per-challenge `internet_allowed` verification and 3× peak load test once host specs are known.
+1. Verify dark terminal + `nexus-kali-slim:latest` in browser at `http://127.0.0.1:3000`.
+2. Add VPN UX improvements (QR code on VPN Access page + real handshake `connected` status from `GET /api/v1/vpn/status`).
+3. Open PR for `feat/terminal-dark-theme-and-vpn-ux` → `main`.
 
 ## Open questions / blockers
 
+- `docker-compose.yml` still points `NEXUS_ENGINE_URL` and `VITE_NEXUS_URL` at `192.168.122.125:8081` (`nexus-vm`).
 - Real event host specs and Judge0 placement (same host vs. separate) are still open in `~/nexus-private/plan/nexus-euphoria-event-plan.md`.
-- Note: `docker-compose.yml` still points `NEXUS_ENGINE_URL` and `VITE_NEXUS_URL` at `192.168.122.125:8081` (`nexus-vm`).
 
-## Private share (not in git)
+## Noticed, not touched
 
-This repo has no runtime secrets. Deployment env, database dumps and the event
-plan live in `~/nexus-private/` (chmod 700), referenced from there rather than
-committed. On another machine, mount or symlink that directory before running
-anything that needs credentials.
+- Untracked `inspire/` directory in repo root.
+
+## Don't redo
+
+- Do not re-add `VITE_CONDUCTOR_URL` or Conductor VM calls.
+- Do not bypass `backend/judge_service.py` for grading; Judge0 is the sole grading authority.
