@@ -4,59 +4,39 @@ _Rewrite this file each session. Don't let it grow forever._
 
 ## Last known state
 
-2026-11-23: grading is verified against a live Judge0 (23 checks, branch
-`fix/attackbox-terminal-proxy`), and the backend terminal proxy exists with
-tests. Nothing merged yet from this session. `nexus-framework` has the engine
-half of the AttackBox on `main` (`87cccdb`, env-role label + hostPath volumes)
-and `CreateEnv` on an unmerged branch.
+2026-11-27: `main` is at `62ce3fb` (**PR #5** `chore/refresh-progress` merged).
+Branch `fix/attackbox-terminal-proxy` (`7011306`, synced with `origin`) has:
+- Judge0 cgroup v2 fix (`enable_per_process_and_thread_*` flags, D-006; verified live, 23 checks)
+- Authenticated WebSocket terminal proxy `/api/nexus/sessions/{id}/terminal` + nginx WS upgrade (D-005)
+- `/terminal/:vmId` routed through the Nexus backend proxy (`TerminalPage.tsx`)
+- `/api/attackbox/start`, `/api/attackbox/sessions/{id}`, `/api/attackbox/sessions/current` wired to `ChallengeDetail.tsx` (calling engine `POST /api/v1/sessions/env` with `/artifacts`, D-007)
+
+**PR status note:** GitHub **PR #6** (`fix/attackbox-terminal-proxy`) is **CLOSED (unmerged)** as of `2026-11-23T10:01:11Z`; commits `9482d3b`, `4ac5ac8`, and `7011306` are not on `main`.
 
 ## Current task
 
-- Goal: make the AttackBox usable end to end: browser → backend proxy → engine
-  PTY, with ownership enforced, and a verified grading path underneath it.
-- In scope (files/dirs): `backend/server.py`, `backend/judge_service.py`,
-  `backend/tests/`, `frontend/src/components/TerminalComponent.tsx`,
-  `frontend/src/pages/ChallengeDetail.tsx`, `frontend/src/pages/TerminalPage.tsx`,
-  `frontend/default.conf.template`.
-- Done this session: `/api/attackbox/start` and
-  `/api/attackbox/sessions/{id}` in `server.py`; the AttackBox modal now calls
-  them. `py_compile`-clean. Frontend build status: see Last session.
-- Out of scope: the slim Kali image, the artifact mount wiring in the web app,
-  removing `ChallengeDetail`'s Conductor calls, egress policy.
-- Done when: the proxy is merged, nginx forwards upgrades, and grading passes
-  against a real Judge0 on a cgroup v2 host.
+- Goal: sync continuity state across `rlabz-ctf` and `nexus-framework`, then align on the next December P0/AttackBox milestone.
+- In scope (files/dirs): `.continuity/PROGRESS.md`.
+- Out of scope: feature edits until plan/agenda is confirmed with user.
+- Done when: `PROGRESS.md` matches `HEAD` (`7011306`) and actual PR `#5`/`#6` states.
 
 ## Last session
 
-- Done: attackbox endpoints — POST /api/attackbox/start (reuse-or-spawn),
-  DELETE /api/attackbox/sessions/{id} (owner-checked), GET
-  /api/attackbox/sessions/current; frontend modal now calls them.
-- Done: live grading verification found a real defect — Judge0 1.13.1 cannot
-  run on a cgroup v2 host, so every submission returned Internal Error and would
-  have been presented as a wrong answer. Fixed by sending the per-process flags
-  that make the runner skip `--cg` (D-006). Added `tests/live_judge0_check.py`
-  (23 checks, all pass) and a unit test that pins the flags. Converted three
-  async tests to `asyncio.run` so they run in the backend image, which has no
-  pytest-asyncio. Added the authenticated terminal proxy (D-005) with 5 tests,
-  and taught nginx to forward WebSocket upgrades on `/api/`.
-- Half-finished (files touched, what's missing): `ChallengeDetail.tsx` still
-  talks to Conductor for the AttackBox; the web app has no endpoint that calls
-  the engine's new `POST /api/v1/sessions/env`; the slim Kali image does not
-  exist; artifacts are not mounted in real deployments yet.
+- Verified git log (`9482d3b`–`7011306`) and GitHub PR states (`#5` merged, `#6` closed unmerged).
+- Note on local test env: host `python3` has no `pytest` installed (`backend` tests run inside the backend container image); `frontend/node_modules` is present.
+- Untracked `inspire/` directory left untouched.
 
 ## Next up
 
-1. Merge both branches: `nexus-framework` `feat/attackbox-env-session` and this
-   repo's `fix/attackbox-terminal-proxy`.
-2. Backend endpoint `POST /api/attackbox/start` → engine
-   `POST /api/v1/sessions/env`, returning `session_id`; `DELETE` to terminate.
-   Then replace the Conductor modal in `ChallengeDetail.tsx` with it.
-3. Slim Kali image (no systemd, no sshd, no code-server) and point
-   `NEXUS_ENV_IMAGE` at it.
-4. Artifact directories on the host plus `NEXUS_ARTIFACT_ROOT`, so an env pod
-   gets `/artifacts` at spawn instead of fetching a URL list from the browser.
-5. Egress default-deny with DNS allow, and a per-challenge `internet_allowed`.
-6. Load test at 3× peak once host specs are known.
+1. Reopen PR `#6` (or open a fresh PR for `fix/attackbox-terminal-proxy` → `main`), run full browser-level AttackBox smoke test (including stopping from `TerminalPage`), and merge alongside `nexus-framework` MR `!8`.
+2. Slim Kali image (no systemd, no sshd, no code-server) and point `NEXUS_ENV_IMAGE` at it.
+3. Host artifact directories under `NEXUS_ARTIFACT_ROOT` so env pods receive `/artifacts` at spawn.
+4. Egress default-deny + per-challenge `internet_allowed`, and 3× peak load test once host specs are known.
+
+## Open questions / blockers
+
+- Why was PR `#6` closed on 2026-11-23 without merging? Confirm whether to reopen `#6` or open a new PR from `fix/attackbox-terminal-proxy`.
+- Real event host specs and Judge0 placement (same host vs. separate) are still open in `~/nexus-private/plan/nexus-euphoria-event-plan.md`.
 
 ## Private share (not in git)
 
