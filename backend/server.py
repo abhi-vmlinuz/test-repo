@@ -16,6 +16,8 @@ from fastapi import (
     HTTPException,
     Depends,
     Query,
+    WebSocket,
+    WebSocketDisconnect,
     status,
     File,
     UploadFile,
@@ -4061,6 +4063,15 @@ async def get_challenge_artifacts(challenge_id: str):
         return [dict(r) for r in rows]
 
 
+def _artifact_file_path(challenge_id: str, storage_name: str) -> Path:
+    """Resolve per-challenge artifact path under uploads/artifacts/<challenge_id>/."""
+    if not challenge_id or "/" in challenge_id or "\\" in challenge_id or ".." in challenge_id:
+        raise HTTPException(status_code=400, detail="Invalid challenge_id for artifact storage")
+    target_dir = ROOT_DIR / "uploads" / "artifacts" / challenge_id
+    target_dir.mkdir(parents=True, exist_ok=True)
+    return target_dir / storage_name
+
+
 @api_router.post("/admin/challenges/{challenge_id}/artifacts")
 async def upload_challenge_artifact(
     challenge_id: str,
@@ -4088,7 +4099,7 @@ async def upload_challenge_artifact(
     artifact_id = uuid.uuid4()
     # Store with UUID as filename to prevent traversal/overwrite
     storage_name = f"{artifact_id}_{clean_filename}"
-    file_path = ROOT_DIR / "uploads" / "artifacts" / storage_name
+    file_path = _artifact_file_path(challenge_id, storage_name)
 
     try:
         # Check size by reading chunk by chunk or fully
@@ -4137,7 +4148,7 @@ async def delete_challenge_artifact(
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT file_path FROM ctf_challenge_artifacts WHERE id::text = $1",
-            uuid.UUID(artifact_id),
+            str(uuid.UUID(artifact_id)),
         )
         if not row:
             raise HTTPException(status_code=404, detail="Artifact not found")
@@ -4148,7 +4159,7 @@ async def delete_challenge_artifact(
 
         await conn.execute(
             "DELETE FROM ctf_challenge_artifacts WHERE id::text = $1",
-            uuid.UUID(artifact_id),
+            str(uuid.UUID(artifact_id)),
         )
         return {"success": True}
 
@@ -4160,7 +4171,7 @@ async def download_artifact(artifact_id: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT file_path, filename, mime_type FROM ctf_challenge_artifacts WHERE id::text = $1",
-            uuid.UUID(artifact_id),
+            str(uuid.UUID(artifact_id)),
         )
         if not row:
             raise HTTPException(status_code=404, detail="Artifact not found")
@@ -4251,7 +4262,7 @@ async def import_artifact_from_github(
 
             artifact_id = uuid.uuid4()
             storage_name = f"{artifact_id}_{clean_filename}"
-            file_path = ROOT_DIR / "uploads" / "artifacts" / storage_name
+            file_path = _artifact_file_path(challenge_id, storage_name)
 
             # Ensure directory exists
             file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -6603,14 +6614,277 @@ def _nexus_client() -> httpx.AsyncClient:
 
 # Nexus session storage (user_id -> session_id mapping)
 nexus_sessions: Dict[str, Dict[str, str]] = {}  # {user_id: {challenge_id: session_id}}
+# Active attackbox sessions (browser pods), user_id -> session_id. Not the
+# source of truth: the engine is, and this is just a fast lookup.
+attackbox_sessions: Dict[str, str] = {}
 
 # Rate limiting: track last start request per user
 nexus_start_cooldowns: Dict[str, datetime] = {}  # {user_id: last_start_timestamp}
 NEXUS_START_COOLDOWN_SECONDS = 45  # Minimum seconds between start requests
 
 
+# ===========================================
+# NEXUS TERMINAL PROXY
+# ===========================================
+# The engine requires the API key on every route, including the WebSocket
+# handshake, and a browser cannot set headers on a WebSocket. The key must never
+# reach the browser, so this proxy is the only way in.
+#
+# It also enforces ownership. The engine attaches anyone who presents a valid
+# session id, so without this check a leaked id is a shell in someone else's
+# environment. Ownership is read from the engine, not from the in-process
+# `nexus_sessions` cache, which is empty after a restart.
+NEXUS_WS_UNAUTHORIZED = 4401
+NEXUS_WS_FORBIDDEN = 4403
+NEXUS_WS_NOT_FOUND = 4404
+NEXUS_WS_UPSTREAM = 4502
+
+
+def _engine_ws_url(session_id: str) -> str:
+    base = NEXUS_ENGINE_URL.rstrip("/")
+    if base.startswith("https://"):
+        base = "wss://" + base[len("https://"):]
+    elif base.startswith("http://"):
+        base = "ws://" + base[len("http://"):]
+    return f"{base}/api/v1/sessions/{session_id}/terminal"
+
+
+async def _open_engine_terminal(session_id: str):
+    """Connect to the engine's PTY WebSocket as the trusted server."""
+    import websockets
+
+    headers = {"Authorization": f"Bearer {NEXUS_API_KEY}"} if NEXUS_API_KEY else {}
+    kwargs = {"open_timeout": 10, "ping_interval": 20, "max_size": None}
+    url = _engine_ws_url(session_id)
+    try:
+        # websockets < 14
+        return await websockets.connect(url, extra_headers=headers, **kwargs)
+    except TypeError:
+        # websockets >= 14 renamed the argument
+        return await websockets.connect(url, additional_headers=headers, **kwargs)
+
+
+async def _nexus_session_owner(session_id: str):
+    """Return (http_status, user_id_or_None) for a session, asking the engine."""
+    async with _nexus_client() as client:
+        res = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}")
+    if res.status_code != 200:
+        return res.status_code, None
+    return 200, (res.json() or {}).get("user_id")
+
+
+@api_router.websocket("/nexus/sessions/{session_id}/terminal")
+async def nexus_terminal_proxy(
+    websocket: WebSocket, session_id: str, token: str = Query("")
+):
+    """Authenticated, ownership-checked WebSocket PTY proxy to nexus-engine."""
+    # Accept first so the client gets a close code and reason instead of the
+    # opaque 403 Starlette sends for a rejected handshake.
+    await websocket.accept()
+
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+    except Exception:
+        await websocket.close(code=NEXUS_WS_UNAUTHORIZED, reason="invalid token")
+        return
+    if not user_id:
+        await websocket.close(code=NEXUS_WS_UNAUTHORIZED, reason="invalid token")
+        return
+
+    try:
+        engine_status, owner = await _nexus_session_owner(session_id)
+    except httpx.HTTPError as e:
+        logger.warning(f"[NEXUS-WS] engine unreachable for {session_id}: {e}")
+        await websocket.close(code=NEXUS_WS_UPSTREAM, reason="engine unreachable")
+        return
+
+    if engine_status == 404:
+        await websocket.close(code=NEXUS_WS_NOT_FOUND, reason="session not found")
+        return
+    if engine_status != 200:
+        logger.warning(
+            f"[NEXUS-WS] engine returned {engine_status} for session {session_id}"
+        )
+        await websocket.close(code=NEXUS_WS_UPSTREAM, reason="engine error")
+        return
+    if owner != user_id:
+        logger.warning(
+            f"[NEXUS-WS] user {user_id} attempted to attach to session "
+            f"{session_id} owned by {owner}"
+        )
+        await websocket.close(code=NEXUS_WS_FORBIDDEN, reason="not your session")
+        return
+
+    try:
+        upstream = await _open_engine_terminal(session_id)
+    except Exception as e:
+        logger.warning(f"[NEXUS-WS] cannot open engine terminal {session_id}: {e}")
+        await websocket.close(code=NEXUS_WS_UPSTREAM, reason="terminal unavailable")
+        return
+
+    async def client_to_engine():
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                return
+            if message.get("text") is not None:
+                await upstream.send(message["text"])
+            elif message.get("bytes") is not None:
+                await upstream.send(message["bytes"])
+
+    async def engine_to_client():
+        async for message in upstream:
+            if isinstance(message, bytes):
+                await websocket.send_bytes(message)
+            else:
+                await websocket.send_text(message)
+
+    tasks = [
+        asyncio.create_task(client_to_engine()),
+        asyncio.create_task(engine_to_client()),
+    ]
+    try:
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        for task in done:
+            if task.cancelled():
+                continue
+            exc = task.exception()
+            if isinstance(exc, WebSocketDisconnect):
+                logger.info(f"[NEXUS-WS] client left session {session_id}")
+            elif exc is not None:
+                logger.info(f"[NEXUS-WS] session {session_id} ended: {exc!r}")
+    finally:
+        await upstream.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
+
 class NexusSessionRequest(BaseModel):
     challenge_id: str
+
+
+# ===========================================
+# ATTACKBOX (BROWSER ENV PODS)
+# ===========================================
+
+
+class AttackboxStartRequest(BaseModel):
+    # Optional: mount the challenge's files into /artifacts. The engine
+    # resolves this to its own artefact root; arbitrary caller-supplied paths
+    # are not accepted (D-009).
+    artifact_challenge_id: Optional[str] = None
+
+
+async def _active_attackbox_session(user_id: str) -> Optional[Dict[str, Any]]:
+    """Return the user's running env session, or None."""
+    try:
+        async with _nexus_client() as client:
+            res = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions", timeout=15.0)
+    except httpx.HTTPError as e:
+        logger.warning(f"[ATTACKBOX] engine unreachable for list: {e}")
+        return None
+    if res.status_code != 200:
+        return None
+    for s in (res.json() or {}).get("sessions", []):
+        if (
+            s.get("user_id") == user_id
+            and s.get("role") == "env"
+            and s.get("status") == "running"
+        ):
+            return s
+    return None
+
+
+@api_router.post("/attackbox/start")
+async def start_attackbox(
+    request: Optional[AttackboxStartRequest] = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """Start (or return the existing) BrowserAttackBox for the current user."""
+    user_id = str(current_user["id"])
+
+    existing = await _active_attackbox_session(user_id)
+    if existing:
+        attackbox_sessions[user_id] = existing["session_id"]
+        return {
+            "success": True,
+            "session_id": existing["session_id"],
+            "status": existing.get("status"),
+            "already_running": True,
+        }
+
+    body: Dict[str, Any] = {"user_id": user_id}
+    if request is not None and request.artifact_challenge_id:
+        body["artifact_challenge_id"] = request.artifact_challenge_id
+
+    try:
+        async with _nexus_client() as client:
+            spawn = await client.post(
+                f"{NEXUS_ENGINE_URL}/api/v1/sessions/env",
+                json=body,
+                timeout=180.0,
+            )
+    except httpx.HTTPError as e:
+        logger.warning(f"[ATTACKBOX] engine unreachable to spawn: {e}")
+        raise HTTPException(status_code=503, detail=f"Failed to start the attackbox: {e}")
+
+    if spawn.status_code != 201:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Nexus error: {spawn.json().get('error', spawn.text)}",
+        )
+
+    data = spawn.json()
+    attackbox_sessions[user_id] = data["session_id"]
+    logger.info(f"[ATTACKBOX] started session {data['session_id']} for user {user_id}")
+    return {
+        "success": True,
+        "session_id": data["session_id"],
+        "status": data.get("status"),
+        "artifacts_mounted": data.get("artifacts_mounted", False),
+    }
+
+
+@api_router.delete("/attackbox/sessions/{session_id}")
+async def stop_attackbox(
+    session_id: str, current_user: dict = Depends(get_current_user)
+):
+    """Stop the current user's BrowserAttackBox. Not a boss: ownership is
+    checked against the engine, because the web app cache is empty after a
+    restart."""
+    user_id = str(current_user["id"])
+
+    try:
+        async with _nexus_client() as client:
+            res = await client.get(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=15.0)
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=503, detail=f"Failed to stop the attackbox: {e}")
+
+    if res.status_code == 200:
+        sess = res.json()
+        if sess.get("user_id") != user_id:
+            raise HTTPException(status_code=404, detail="attackbox not found")
+        async with _nexus_client() as client:
+            await client.delete(f"{NEXUS_ENGINE_URL}/api/v1/sessions/{session_id}", timeout=30.0)
+    elif res.status_code == 404:
+        raise HTTPException(status_code=404, detail="attackbox not found")
+
+    attackbox_sessions.pop(user_id, None)
+    return {"success": True, "session_id": session_id}
+
+
+@api_router.get("/attackbox/sessions/current")
+async def get_current_attackbox(current_user: dict = Depends(get_current_user)):
+    """The current user's running env session, for the UI."""
+    user_id = str(current_user["id"])
+    sess = await _active_attackbox_session(user_id)
+    return {"success": True, "session_id": sess["session_id"] if sess else None}
 
 
 @api_router.post("/docker/start/{challenge_id}")

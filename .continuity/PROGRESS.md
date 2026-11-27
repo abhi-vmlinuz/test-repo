@@ -4,89 +4,42 @@ _Rewrite this file each session. Don't let it grow forever._
 
 ## Last known state
 
-2026-11-22: grading integrity is on `main` (PR #2, `9bdb4ec`), along with the
-continuity scaffolding and the private-share note. 8 Judge0 tests pass on
-`main`. Nothing is in flight.
+2026-11-27: `main` is at `62ce3fb` (**PR #5** merged).
+Branch `fix/attackbox-terminal-proxy` (synced with `origin`) has:
+- Judge0 cgroup v2 fix (`enable_per_process_and_thread_*` flags, D-006; verified live, 23 checks)
+- Authenticated WebSocket terminal proxy `/api/nexus/sessions/{id}/terminal` + nginx WS upgrade (D-005)
+- `/terminal/:vmId` and `TerminalComponent` routed exclusively through the Nexus backend proxy (all `VITE_CONDUCTOR_URL` fallbacks removed)
+- `/api/attackbox/start`, `/api/attackbox/sessions/{id}`, `/api/attackbox/sessions/current` wired to `ChallengeDetail.tsx` (calling engine `POST /api/v1/sessions/env` with `/artifacts`, D-007)
+- Per-challenge artifact storage (`uploads/artifacts/<challenge_id>/` via `_artifact_file_path`) + `docker-compose.yml` bind mount `/var/lib/nexus/artifacts:/app/uploads/artifacts` (D4)
 
 ## Current task
 
-- Goal: verify the grading fix against the live Judge0, then start AttackBox.
-- In scope (files/dirs): `backend/judge_service.py`, `backend/server.py`,
-  `backend/tests/`, `frontend/src/components/CodingArenaView.tsx`.
-- Out of scope: anything in `nexus-framework`; artifact mounts and egress
-  policy (they need engine changes first).
-- Done when: a wrong submission returns per-case fail with no hidden data, a
-  correct one returns the flag, and stopping Judge0 returns 503 "retry"
-  rather than a failure, confirmed against a running Judge0 rather than
-  unit tests alone.
+- Goal: complete initial AttackBox + artifact wiring in `rlabz-ctf` and reopen PR `#6` for end-to-end verification against `nexus-vm`.
+- In scope (files/dirs): `backend/server.py`, `docker-compose.yml`, `frontend/src/components/TerminalComponent.tsx`, `.continuity/PROGRESS.md`.
+- Out of scope: migrating pre-existing flat artifact files on disk, `schema.sql` fresh-install dump, Judge0 placement change.
+- Done when: `py_compile`, `npm run build`, and PR `#6` are green, ready for live browser AttackBox smoke test on the Fedora host.
 
 ## Last session
 
-- Done: merged the coding arena onto `main` (PR #1). Fixed hidden-test
-  leakage, Judge0-only submit, pending instead of failed, scaled poll budget,
-  explicit Judge0 `COUNT=4`, backend semaphore, the `false` → `False` bug and
-  the arena compile-error message. Added 8 tests. Also merged the continuity
-  scaffolding and the private-share note.
-- Half-finished (files touched, what's missing): nothing partially edited.
-  The grading fix is unit-tested but has not been run against a live Judge0
-  on a real host, so `COUNT=4` is still a guess.
+- Removed remaining `VITE_CONDUCTOR_URL` fallback from `TerminalComponent.tsx` (routes both `sessionId` and legacy `vmId` prop through `/api/nexus/sessions/{id}/terminal`).
+- Updated `upload_challenge_artifact` and `import_artifact_from_github` in `backend/server.py` to store under `uploads/artifacts/<challenge_id>/` (with traversal check), and added `/var/lib/nexus/artifacts:/app/uploads/artifacts` to `docker-compose.yml`.
+- Verified: `python3 -m py_compile backend/server.py` and `npm run build` pass; `grep` confirms zero Conductor references in `frontend/src/`.
+- Untracked `inspire/` directory left untouched.
 
 ## Next up
 
-1. Verify grading against a live Judge0: wrong answer, correct answer, and
-   Judge0 stopped (expect 503, not a failure). Tune `COUNT` from the result.
-2. AttackBox on Nexus: backend WebSocket proxy with JWT + ownership check,
-   `nexus-role=env` sessions, then remove the Conductor path
-   (`VITE_CONDUCTOR_URL`, `TerminalComponent.tsx`).
-3. Per-challenge artifact directories plus a bind mount, so env pods get
-   `/artifacts` at spawn.
-
-## Private share (not in git)
-
-`~/nexus-private/` is one directory, mounted or symlinked on every machine so
-the path stays stable. It holds what must not be committed:
-
-- `plan/nexus-euphoria-event-plan.md` — the December event strategy, decisions
-  and P0-P3 schedule. Read this before starting event work.
-- `db/ctf_platform-schema.sql`, `db/ctf_platform-full.dump` — the live schema
-  and a full backup, since this repo has no migrations.
-- `env/rlabz-ctf-backend.env` — the backend env file.
-
-If it is missing, say so instead of inventing values: the plan and the schema
-are the two things the code cannot tell you.
+1. Run `docker compose up -d --build` on the Fedora host and verify the full browser AttackBox flow (start from `ChallengeDetail` → shell echo → `/artifacts` mount → stop) against `nexus-vm`.
+2. Merge `rlabz-ctf` PR `#6` and `nexus-framework` MR `!8` (`feat/attackbox-env-session`).
+3. Egress default-deny + per-challenge `internet_allowed` verification and 3× peak load test once host specs are known.
 
 ## Open questions / blockers
 
-- No schema-creation path for a fresh install: no `migrations/`, no `.sql`
-  dump in the repo, and the backend image has no Node so `prisma db push`
-  cannot run in the container. The arena columns exist only because they were
-  added to the live database by hand. A schema and full dump now exist in
-  `~/nexus-private/db/` as a stopgap; committing a `schema.sql` plus an init
-  step is still open, and is needed before a second college can self-host.
-- `docker-compose.yml` hardcodes `192.168.122.125` (test VM) in three places,
-  and `server.py` defaults `NEXUS_ENGINE_URL` to an old cloud host.
-- Judge0 worker count is set to 4 without measuring the real event host.
+- Real event host specs and Judge0 placement (same host vs. separate) are still open in `~/nexus-private/plan/nexus-euphoria-event-plan.md`.
+- Note: `docker-compose.yml` still points `NEXUS_ENGINE_URL` and `VITE_NEXUS_URL` at `192.168.122.125:8081` (`nexus-vm`).
 
-## Noticed, not touched
+## Private share (not in git)
 
-- `docs/README.md`, `docs/FEATURES.md`, `docs/IMPLEMENTATION_SUMMARY.md` and
-  the `.docx`/`.pdf` briefs are outdated. They describe a courses/LMS product
-  with modules, lessons and enrollment codes that the backend does not
-  implement: there are no exam, course or cert routes, and the tables are CTF
-  challenges, progress, categories, artifacts, sessions and usage. Do not
-  derive the product from them.
-- `TerminalComponent.tsx` falls back to `http://localhost:8080` while the
-  engine listens on `8081`.
-- `loadtest.png`, `assets/*.png` and `challenge-zips/*.zip` are committed
-  build/asset state.
-- Conductor calls in the frontend pass `user_id` from the browser with no
-  authentication.
-
-## Don't redo
-
-- Do not route authoritative grading back through the student's pod. `ps aux`
-  exposes hidden inputs and the compiler can be shadowed.
-- Do not reintroduce `_fallback_evaluation`-style "everything failed" results
-  for judge timeouts.
-- Do not commit environment-specific IPs into `.env`; deployments supply them.
-- Do not adopt the Firecracker/Conductor prototype; pods replace it.
+This repo has no runtime secrets. Deployment env, database dumps and the event
+plan live in `~/nexus-private/` (chmod 700), referenced from there rather than
+committed. On another machine, mount or symlink that directory before running
+anything that needs credentials.

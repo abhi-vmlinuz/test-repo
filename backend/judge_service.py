@@ -98,6 +98,16 @@ class JudgeService:
                 "expected_output": _b64_encode(tc.get("expected", "")),
                 "cpu_time_limit": cpu_time_limit,
                 "memory_limit": memory_limit_kb,
+                # Judge0 1.13.1 ships isolate 1.8.1, which manages cgroup v1.
+                # A modern host runs cgroup v2 only, so `isolate --cg` dies with
+                # "Failed to create control group .../memory/box-N" and every
+                # submission becomes status 13 (Internal Error). Setting both
+                # per-process flags makes the runner drop --cg and fall back to
+                # rlimits, which enforces the same total CPU/memory caps for a
+                # submission without needing cgroup v1. Verified against a live
+                # Judge0 on a cgroup v2 host: PASS.
+                "enable_per_process_and_thread_time_limit": True,
+                "enable_per_process_and_thread_memory_limit": True,
             })
 
         try:

@@ -101,6 +101,7 @@ services:
       GHCR_TOKEN: ""
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/nexus/artifacts:/app/uploads/artifacts
     depends_on:
       postgres:
         condition: service_healthy
