@@ -6587,7 +6587,7 @@ async def admin_delete_challenge(
 # (Container orchestration for CTF challenges)
 # ===========================================
 
-NEXUS_ENGINE_URL = os.environ.get("NEXUS_ENGINE_URL", "http://13.233.126.78:8081")
+NEXUS_ENGINE_URL = os.environ.get("NEXUS_ENGINE_URL", "http://127.0.0.1:8081")
 NEXUS_API_KEY = os.environ.get("NEXUS_API_KEY", "")
 
 
