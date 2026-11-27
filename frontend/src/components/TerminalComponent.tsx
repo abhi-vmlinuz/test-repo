@@ -142,9 +142,10 @@ const TerminalComponent = ({
         // cannot send that header, and the key must not be shipped to the
         // browser. The proxy also refuses sessions the caller does not own.
         let wsUrl = '';
+        const targetSessionId = sessionId || vmId;
         if (customWsUrl) {
             wsUrl = customWsUrl;
-        } else if (sessionId) {
+        } else if (targetSessionId) {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
             let wsBase: string;
             if (backendUrl) {
@@ -154,11 +155,7 @@ const TerminalComponent = ({
                 wsBase = `${scheme}://${window.location.host}`;
             }
             const token = localStorage.getItem('token') || '';
-            wsUrl = `${wsBase}/api/nexus/sessions/${sessionId}/terminal?token=${encodeURIComponent(token)}`;
-        } else {
-            const conductorUrl = import.meta.env.VITE_CONDUCTOR_URL || 'http://localhost:8080';
-            const wsBase = conductorUrl.replace(/^http/, 'ws');
-            wsUrl = `${wsBase}/api/v1/vms/${vmId}/terminal`;
+            wsUrl = `${wsBase}/api/nexus/sessions/${targetSessionId}/terminal?token=${encodeURIComponent(token)}`;
         }
 
         const ws = new WebSocket(wsUrl);

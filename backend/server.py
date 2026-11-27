@@ -4063,6 +4063,15 @@ async def get_challenge_artifacts(challenge_id: str):
         return [dict(r) for r in rows]
 
 
+def _artifact_file_path(challenge_id: str, storage_name: str) -> Path:
+    """Resolve per-challenge artifact path under uploads/artifacts/<challenge_id>/."""
+    if not challenge_id or "/" in challenge_id or "\\" in challenge_id or ".." in challenge_id:
+        raise HTTPException(status_code=400, detail="Invalid challenge_id for artifact storage")
+    target_dir = ROOT_DIR / "uploads" / "artifacts" / challenge_id
+    target_dir.mkdir(parents=True, exist_ok=True)
+    return target_dir / storage_name
+
+
 @api_router.post("/admin/challenges/{challenge_id}/artifacts")
 async def upload_challenge_artifact(
     challenge_id: str,
@@ -4090,7 +4099,7 @@ async def upload_challenge_artifact(
     artifact_id = uuid.uuid4()
     # Store with UUID as filename to prevent traversal/overwrite
     storage_name = f"{artifact_id}_{clean_filename}"
-    file_path = ROOT_DIR / "uploads" / "artifacts" / storage_name
+    file_path = _artifact_file_path(challenge_id, storage_name)
 
     try:
         # Check size by reading chunk by chunk or fully
@@ -4253,7 +4262,7 @@ async def import_artifact_from_github(
 
             artifact_id = uuid.uuid4()
             storage_name = f"{artifact_id}_{clean_filename}"
-            file_path = ROOT_DIR / "uploads" / "artifacts" / storage_name
+            file_path = _artifact_file_path(challenge_id, storage_name)
 
             # Ensure directory exists
             file_path.parent.mkdir(parents=True, exist_ok=True)

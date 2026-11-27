@@ -4,39 +4,38 @@ _Rewrite this file each session. Don't let it grow forever._
 
 ## Last known state
 
-2026-11-27: `main` is at `62ce3fb` (**PR #5** `chore/refresh-progress` merged).
-Branch `fix/attackbox-terminal-proxy` (`7011306`, synced with `origin`) has:
+2026-11-27: `main` is at `62ce3fb` (**PR #5** merged).
+Branch `fix/attackbox-terminal-proxy` (synced with `origin`) has:
 - Judge0 cgroup v2 fix (`enable_per_process_and_thread_*` flags, D-006; verified live, 23 checks)
 - Authenticated WebSocket terminal proxy `/api/nexus/sessions/{id}/terminal` + nginx WS upgrade (D-005)
-- `/terminal/:vmId` routed through the Nexus backend proxy (`TerminalPage.tsx`)
+- `/terminal/:vmId` and `TerminalComponent` routed exclusively through the Nexus backend proxy (all `VITE_CONDUCTOR_URL` fallbacks removed)
 - `/api/attackbox/start`, `/api/attackbox/sessions/{id}`, `/api/attackbox/sessions/current` wired to `ChallengeDetail.tsx` (calling engine `POST /api/v1/sessions/env` with `/artifacts`, D-007)
-
-**PR status note:** GitHub **PR #6** (`fix/attackbox-terminal-proxy`) is **CLOSED (unmerged)** as of `2026-11-23T10:01:11Z`; commits `9482d3b`, `4ac5ac8`, and `7011306` are not on `main`.
+- Per-challenge artifact storage (`uploads/artifacts/<challenge_id>/` via `_artifact_file_path`) + `docker-compose.yml` bind mount `/var/lib/nexus/artifacts:/app/uploads/artifacts` (D4)
 
 ## Current task
 
-- Goal: sync continuity state across `rlabz-ctf` and `nexus-framework`, then align on the next December P0/AttackBox milestone.
-- In scope (files/dirs): `.continuity/PROGRESS.md`.
-- Out of scope: feature edits until plan/agenda is confirmed with user.
-- Done when: `PROGRESS.md` matches `HEAD` (`7011306`) and actual PR `#5`/`#6` states.
+- Goal: complete initial AttackBox + artifact wiring in `rlabz-ctf` and reopen PR `#6` for end-to-end verification against `nexus-vm`.
+- In scope (files/dirs): `backend/server.py`, `docker-compose.yml`, `frontend/src/components/TerminalComponent.tsx`, `.continuity/PROGRESS.md`.
+- Out of scope: migrating pre-existing flat artifact files on disk, `schema.sql` fresh-install dump, Judge0 placement change.
+- Done when: `py_compile`, `npm run build`, and PR `#6` are green, ready for live browser AttackBox smoke test on the Fedora host.
 
 ## Last session
 
-- Verified git log (`9482d3b`–`7011306`) and GitHub PR states (`#5` merged, `#6` closed unmerged).
-- Note on local test env: host `python3` has no `pytest` installed (`backend` tests run inside the backend container image); `frontend/node_modules` is present.
+- Removed remaining `VITE_CONDUCTOR_URL` fallback from `TerminalComponent.tsx` (routes both `sessionId` and legacy `vmId` prop through `/api/nexus/sessions/{id}/terminal`).
+- Updated `upload_challenge_artifact` and `import_artifact_from_github` in `backend/server.py` to store under `uploads/artifacts/<challenge_id>/` (with traversal check), and added `/var/lib/nexus/artifacts:/app/uploads/artifacts` to `docker-compose.yml`.
+- Verified: `python3 -m py_compile backend/server.py` and `npm run build` pass; `grep` confirms zero Conductor references in `frontend/src/`.
 - Untracked `inspire/` directory left untouched.
 
 ## Next up
 
-1. Reopen PR `#6` (or open a fresh PR for `fix/attackbox-terminal-proxy` → `main`), run full browser-level AttackBox smoke test (including stopping from `TerminalPage`), and merge alongside `nexus-framework` MR `!8`.
-2. Slim Kali image (no systemd, no sshd, no code-server) and point `NEXUS_ENV_IMAGE` at it.
-3. Host artifact directories under `NEXUS_ARTIFACT_ROOT` so env pods receive `/artifacts` at spawn.
-4. Egress default-deny + per-challenge `internet_allowed`, and 3× peak load test once host specs are known.
+1. Run `docker compose up -d --build` on the Fedora host and verify the full browser AttackBox flow (start from `ChallengeDetail` → shell echo → `/artifacts` mount → stop) against `nexus-vm`.
+2. Merge `rlabz-ctf` PR `#6` and `nexus-framework` MR `!8` (`feat/attackbox-env-session`).
+3. Egress default-deny + per-challenge `internet_allowed` verification and 3× peak load test once host specs are known.
 
 ## Open questions / blockers
 
-- Why was PR `#6` closed on 2026-11-23 without merging? Confirm whether to reopen `#6` or open a new PR from `fix/attackbox-terminal-proxy`.
 - Real event host specs and Judge0 placement (same host vs. separate) are still open in `~/nexus-private/plan/nexus-euphoria-event-plan.md`.
+- Note: `docker-compose.yml` still points `NEXUS_ENGINE_URL` and `VITE_NEXUS_URL` at `192.168.122.125:8081` (`nexus-vm`).
 
 ## Private share (not in git)
 
