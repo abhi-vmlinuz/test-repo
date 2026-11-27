@@ -4148,7 +4148,7 @@ async def delete_challenge_artifact(
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT file_path FROM ctf_challenge_artifacts WHERE id::text = $1",
-            uuid.UUID(artifact_id),
+            str(uuid.UUID(artifact_id)),
         )
         if not row:
             raise HTTPException(status_code=404, detail="Artifact not found")
@@ -4159,7 +4159,7 @@ async def delete_challenge_artifact(
 
         await conn.execute(
             "DELETE FROM ctf_challenge_artifacts WHERE id::text = $1",
-            uuid.UUID(artifact_id),
+            str(uuid.UUID(artifact_id)),
         )
         return {"success": True}
 
@@ -4171,7 +4171,7 @@ async def download_artifact(artifact_id: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT file_path, filename, mime_type FROM ctf_challenge_artifacts WHERE id::text = $1",
-            uuid.UUID(artifact_id),
+            str(uuid.UUID(artifact_id)),
         )
         if not row:
             raise HTTPException(status_code=404, detail="Artifact not found")

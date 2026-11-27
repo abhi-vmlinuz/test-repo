@@ -979,36 +979,34 @@ const ChallengeDetail = ({ user, logout }) => {
         {!terminalVmId && (
           <div className="lg:col-span-4 space-y-8">
 
-            {/* Internal Terminal Launch Card (Beta) */}
-            <BetaFeature name="firecracker_terminal">
-              <div className="bg-zinc-900 rounded-2xl border border-zinc-800 shadow-xl overflow-hidden relative group">
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            {/* Browser AttackBox Launch Card */}
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-800 shadow-xl overflow-hidden relative group">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-                <div className="p-6 relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center border border-zinc-700 shadow-inner">
-                      <Terminal className="w-5 h-5 text-emerald-400" />
-                    </div>
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 uppercase text-[10px] tracking-wider font-bold">
-                      Beta Access
-                    </Badge>
+              <div className="p-6 relative">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center border border-zinc-700 shadow-inner">
+                    <Terminal className="w-5 h-5 text-emerald-400" />
                   </div>
-
-                  <h3 className="text-white font-bold text-lg mb-2">Internal Terminal</h3>
-                  <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-                    Launch a pro-grade Kali Linux environment directly in your browser. No VPN required.
-                  </p>
-
-                  <Button
-                    onClick={handleOpenTerminalModal}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold border-0 shadow-lg shadow-emerald-900/20"
-                  >
-                    <Play className="w-4 h-4 mr-2 fill-current" />
-                    Launch Terminal
-                  </Button>
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 uppercase text-[10px] tracking-wider font-bold">
+                    AttackBox
+                  </Badge>
                 </div>
+
+                <h3 className="text-white font-bold text-lg mb-2">Internal Terminal</h3>
+                <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+                  Launch a pro-grade Kali Linux environment directly in your browser. No VPN required.
+                </p>
+
+                <Button
+                  onClick={handleOpenTerminalModal}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold border-0 shadow-lg shadow-emerald-900/20"
+                >
+                  <Play className="w-4 h-4 mr-2 fill-current" />
+                  Launch Terminal
+                </Button>
               </div>
-            </BetaFeature>
+            </div>
 
             {/* Intel / Hints Card */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden sticky top-24">
