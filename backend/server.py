@@ -8575,6 +8575,27 @@ async def vpn_status_proxy(current_user: dict = Depends(get_current_user)):
             return {"has_vpn": False, "error": "Nexus Engine unreachable"}
 
 
+@api_router.get("/vpn/test-connection")
+async def vpn_test_connection_proxy(current_user: dict = Depends(get_current_user)):
+    """Proxy: check live WireGuard handshake status from Nexus Engine."""
+    user_id = str(current_user["id"])
+    async with _nexus_client() as client:
+        try:
+            resp = await client.get(
+                f"{NEXUS_ENGINE_URL}/api/v1/vpn/status",
+                headers=_get_nexus_headers(user_id),
+                timeout=10.0,
+            )
+            data = resp.json() if resp.status_code == 200 else {}
+            return {
+                "active": bool(data.get("connected", False)),
+                "has_vpn": bool(data.get("has_vpn", False)),
+                "vpn_ip": data.get("vpn_ip"),
+            }
+        except httpx.RequestError:
+            return {"active": False, "has_vpn": False, "error": "Nexus Engine unreachable"}
+
+
 @api_router.post("/vpn/regenerate")
 async def vpn_regenerate_proxy(current_user: dict = Depends(get_current_user)):
     """Proxy: POST /api/v1/vpn/regenerate to Nexus Engine → return new .conf download."""

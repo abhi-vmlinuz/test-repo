@@ -5,28 +5,30 @@ _Rewrite this file each session. Don't let it grow forever._
 ## Last known state
 
 2026-11-27:
-- **PR `#6`** (`fix/attackbox-terminal-proxy` → `main`) is **MERGED** (`b461bc1` on `origin/main`).
-- Current branch `feat/terminal-dark-theme-and-vpn-ux` (`fcaef01`, pushed to `origin`, no PR yet) switches `TerminalComponent.tsx` to dark theme (`#09090b`) and removes all startup/disconnect emojis; `frontend/dist` is rebuilt and live on `:3000`.
-- Fedora host compose stack is running all 8 containers (`rlabz-frontend` `:3000`, `rlabz-backend` `:4000`, `rlabz-postgres` `:5432`, `rlabz-judge0-*` `:2358`, `rlabz-registry-proxy` `:5000`), with dummy challenge `b16e16b9-fc80-479c-846b-00e1394165a4` + `readme.txt` artifact seeded for testing.
+- **PR `#6`** (`fix/attackbox-terminal-proxy` → `main`) is **MERGED** (`b461bc1`).
+- Current branch `feat/terminal-dark-theme-and-vpn-ux` (pushed to `origin`, PR open) adds:
+  - Dark theme (`#09090b`) and ASCII status prefixes in `TerminalComponent.tsx`
+  - WireGuard QR code modal/panel (`qrcode` package) and live handshake status badge in `VPNAccess.tsx`
+  - `GET /api/vpn/test-connection` proxy in `backend/server.py` reading `connected` from `nexus-engine`'s `GET /api/v1/vpn/status`
+- `nexus-vm` (`:8081`) is running `NEXUS_ENV_IMAGE=nexus-kali-slim:latest` (`cb39b8a84702`), verified live (`Kali GNU/Linux Rolling`, `nmap`/`sqlmap`/`gobuster`/`python3`, `/artifacts/readme.txt`).
 
 ## Current task
 
-- Goal: polish AttackBox UX (dark terminal) and VPN UX (QR code + real handshake status), then open PR for `feat/terminal-dark-theme-and-vpn-ux`.
-- In scope (files/dirs): `frontend/src/components/TerminalComponent.tsx`, VPN Access page, `.continuity/`.
+- Goal: polish AttackBox UX (dark terminal) and VPN UX (QR code + real handshake status), then merge PR to `main`.
+- In scope (files/dirs): `frontend/src/components/TerminalComponent.tsx`, `frontend/src/pages/VPNAccess.tsx`, `frontend/package.json`, `frontend/package-lock.json`, `backend/server.py`, `.continuity/`.
 - Out of scope: `addition-spec.md` (`frozen`), `schema.sql` fresh-install dump, Judge0 placement change.
-- Done when: dark terminal + VPN UX are verified in browser and PR is opened/merged to `main`.
+- Done when: dark terminal + VPN QR/handshake status are verified in browser and PR is merged to `main`.
 
 ## Last session
 
-- Removed `BetaFeature("firecracker_terminal")` gate from `ChallengeDetail.tsx` and fixed `asyncpg` UUID-vs-str cast in `download_artifact` / `delete_challenge_artifact` (`server.py`).
-- Verified live on Fedora host + `nexus-vm`: Judge0 (`23/23` live checks), backend unit tests (`14 passed` in container), artifact download (`200`), and full browser AttackBox flow (launch, PTY echo, `/artifacts/readme.txt`, `wget 10.42.0.9:8080`, `X` teardown).
-- Merged **PR `#6`** (`b461bc1`), then switched `TerminalComponent.tsx` to dark theme + ASCII prefixes on `feat/terminal-dark-theme-and-vpn-ux` (`fcaef01`) and rebuilt `frontend/dist`.
+- Implemented `GET /api/vpn/test-connection` in `backend/server.py` and QR code + `HANDSHAKE ACTIVE` badge in `VPNAccess.tsx`.
+- Verified `py_compile backend/server.py`, `npm run build` (`11.75s`), `rlabz-backend` container rebuild/restart, and live `nexus-kali-slim:latest` AttackBox pod on `nexus-vm`.
 
 ## Next up
 
-1. Verify dark terminal + `nexus-kali-slim:latest` in browser at `http://127.0.0.1:3000`.
-2. Add VPN UX improvements (QR code on VPN Access page + real handshake `connected` status from `GET /api/v1/vpn/status`).
-3. Open PR for `feat/terminal-dark-theme-and-vpn-ux` → `main`.
+1. Verify dark terminal + `nexus-kali-slim:latest` + VPN QR code in browser at `http://127.0.0.1:3000`.
+2. Merge `rlabz-ctf` PR (`feat/terminal-dark-theme-and-vpn-ux`) and `nexus-framework` MR (`feat/kali-slim-and-egress`).
+3. Clean up hardcoded VM IPs (`§4.15`), commit `schema.sql` (`§4.14`), and run 3× peak load test once host specs are known.
 
 ## Open questions / blockers
 
